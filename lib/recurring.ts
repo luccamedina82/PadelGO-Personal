@@ -18,7 +18,7 @@ export function getNextOccurrences(dayOfWeek: number, from: Date, count: number)
   const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()))
 
   // Advance to the first matching day-of-week
-  let daysUntil = (dayOfWeek - cursor.getUTCDay() + 7) % 7
+  const daysUntil = (dayOfWeek - cursor.getUTCDay() + 7) % 7
   cursor.setUTCDate(cursor.getUTCDate() + daysUntil)
 
   for (let i = 0; i < count; i++) {

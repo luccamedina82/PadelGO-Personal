@@ -111,8 +111,9 @@ function CajaTab({ products, clubId, createBarSaleAction, onSuccess }: CajaTabPr
     setTicket((prev) => {
       const next = (prev[productId] ?? 0) + delta
       if (next <= 0) {
-        const { [productId]: _, ...rest } = prev
-        return rest
+        const newTicket = { ...prev }
+        delete newTicket[productId]
+        return newTicket
       }
       return { ...prev, [productId]: next }
     })
@@ -632,8 +633,6 @@ export default function BarModule({
   products,
   sales,
   role,
-  pageCount,
-  currentPage,
   createBarSaleAction,
   createBarProductAction,
   updateBarProductAction,

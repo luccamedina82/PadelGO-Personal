@@ -6,7 +6,11 @@ import PublicLayout from '@/components/layout/PublicLayout'
 import BookingWizard from '@/components/booking/BookingWizard'
 import Tag from '@/components/ui/Tag'
 import { createBooking, createGhostBooking } from '@/actions/booking'
-import { createMercadoPagoPreference, setManualPayment, setGuestManualPayment } from '@/actions/payment'
+import {
+  createMercadoPagoPreference,
+  setManualPayment,
+  setGuestManualPayment,
+} from '@/actions/payment'
 import { getSession } from '@/actions/auth'
 import type { CourtForWizard, BookingMap } from '@/components/booking/BookingWizard'
 import { formatPrice } from '@/lib/availability'

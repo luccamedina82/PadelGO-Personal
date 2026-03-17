@@ -191,7 +191,8 @@ export default async function ConfirmarPage({ params }: PageProps) {
             <div>
               <p className="font-semibold text-sm text-text">Recordá pagar en el club</p>
               <p className="text-xs text-muted mt-1">
-                Abonás {formatPrice(booking.totalPrice)} cuando llegues. Llevá efectivo o consultá los medios de pago del club.
+                Abonás {formatPrice(booking.totalPrice)} cuando llegues. Llevá efectivo o consultá
+                los medios de pago del club.
               </p>
             </div>
           </div>

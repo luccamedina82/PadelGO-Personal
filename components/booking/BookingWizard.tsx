@@ -15,7 +15,11 @@ import {
   type ExistingBooking,
 } from '@/lib/availability'
 import type { createBooking, createGhostBooking } from '@/actions/booking'
-import type { createMercadoPagoPreference, setManualPayment, setGuestManualPayment } from '@/actions/payment'
+import type {
+  createMercadoPagoPreference,
+  setManualPayment,
+  setGuestManualPayment,
+} from '@/actions/payment'
 
 // ── TYPES ─────────────────────────────────────────────────────────────────
 
@@ -510,7 +514,9 @@ export default function BookingWizard({
                         <span className="font-mono text-lg font-semibold leading-none mt-0.5">
                           {date.getUTCDate()}
                         </span>
-                        <span className="text-xs opacity-70">{MONTH_LABELS[date.getUTCMonth()]}</span>
+                        <span className="text-xs opacity-70">
+                          {MONTH_LABELS[date.getUTCMonth()]}
+                        </span>
                       </button>
                     )
                   })}
@@ -797,13 +803,17 @@ export default function BookingWizard({
                 <span className="text-xs text-accent font-semibold">PENDIENTE DE PAGO</span>
               </div>
               <p className="font-semibold text-text">
-                {selectedCourt?.name} · {DAY_LABELS[selectedDate.getUTCDay()]} {selectedDate.getUTCDate()}{' '}
-                {MONTH_LABELS[selectedDate.getUTCMonth()]}
+                {selectedCourt?.name} · {DAY_LABELS[selectedDate.getUTCDay()]}{' '}
+                {selectedDate.getUTCDate()} {MONTH_LABELS[selectedDate.getUTCMonth()]}
               </p>
-              <p className="text-muted">{selectedTime} · {DURATION_LABELS[selectedDuration]}</p>
+              <p className="text-muted">
+                {selectedTime} · {DURATION_LABELS[selectedDuration]}
+              </p>
               <div className="mt-2 pt-2 border-t border-border flex justify-between">
                 <span className="text-muted">Total</span>
-                <span className="font-mono font-semibold text-accent">{formatPrice(totalPrice)}</span>
+                <span className="font-mono font-semibold text-accent">
+                  {formatPrice(totalPrice)}
+                </span>
               </div>
             </div>
 
@@ -827,18 +837,22 @@ export default function BookingWizard({
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    selectedPaymentMethod === 'mp'
-                      ? 'border-accent-text bg-accent-text'
-                      : 'border-border'
-                  }`}>
+                  <div
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      selectedPaymentMethod === 'mp'
+                        ? 'border-accent-text bg-accent-text'
+                        : 'border-border'
+                    }`}
+                  >
                     {selectedPaymentMethod === 'mp' && (
                       <span className="text-accent text-xs">✓</span>
                     )}
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm">Pagar con Mercado Pago</p>
-                    <p className={`text-xs ${selectedPaymentMethod === 'mp' ? 'opacity-80' : 'text-muted'}`}>
+                    <p
+                      className={`text-xs ${selectedPaymentMethod === 'mp' ? 'opacity-80' : 'text-muted'}`}
+                    >
                       Tarjeta, débito o efectivo
                     </p>
                   </div>
@@ -861,18 +875,22 @@ export default function BookingWizard({
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  selectedPaymentMethod === 'cash'
-                    ? 'border-accent-text bg-accent-text'
-                    : 'border-border'
-                }`}>
+                <div
+                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    selectedPaymentMethod === 'cash'
+                      ? 'border-accent-text bg-accent-text'
+                      : 'border-border'
+                  }`}
+                >
                   {selectedPaymentMethod === 'cash' && (
                     <span className="text-accent text-xs">✓</span>
                   )}
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-sm">Pagar en efectivo en el club</p>
-                  <p className={`text-xs ${selectedPaymentMethod === 'cash' ? 'opacity-80' : 'text-muted'}`}>
+                  <p
+                    className={`text-xs ${selectedPaymentMethod === 'cash' ? 'opacity-80' : 'text-muted'}`}
+                  >
                     Abonás cuando llegues
                   </p>
                 </div>

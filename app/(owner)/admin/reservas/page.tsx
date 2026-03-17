@@ -1,7 +1,7 @@
 import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import Link from 'next/link'
-import { argToday, argTodayStr } from '@/lib/date'
+import { argTodayStr } from '@/lib/date'
 import ReservasShell from './ReservasShell'
 import PrintButton from '@/components/ui/PrintButton'
 import {

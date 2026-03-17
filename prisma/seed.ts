@@ -909,7 +909,18 @@ async function main() {
     ],
   ]
 
-  const allCourts: any[] = []
+  const allCourts: Array<{
+    id: string
+    clubId: string
+    name: string
+    type: string
+    covered: boolean
+    svgX: number
+    svgY: number
+    svgW: number
+    svgH: number
+    isActive: boolean
+  }> = []
   for (let i = 0; i < clubs.length; i++) {
     for (const courtData of courtsPerClub[i]) {
       const court = await prisma.court.create({
@@ -1050,7 +1061,7 @@ async function main() {
       const durationMinutes = [60, 90, 120][Math.floor(Math.random() * 3)]
       const price = durationMinutes === 60 ? 600000 : durationMinutes === 90 ? 900000 : 1200000
 
-      const booking = await prisma.booking.create({
+      await prisma.booking.create({
         data: {
           userId: player.id,
           clubId: club.id,

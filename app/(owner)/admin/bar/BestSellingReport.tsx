@@ -24,7 +24,7 @@ export default function BestSellingReport({ sales, products }: Props) {
 
     // Flatten all sale items and match with product details
     const items = sales.flatMap((s) =>
-      s.items.map((item: any) => {
+      s.items.map((item: { productName: string; qty: number; unitPrice: number }) => {
         const product = productMap.get(item.productName)
         return {
           productId: product?.id || item.productName,

@@ -153,7 +153,7 @@ function BookingDetail({
     setPlayerResults([])
     setError(null)
     setIsEditing(false)
-  }, [booking?.id])
+  }, [booking?.id, booking?.playerDetails, booking?.paidPlayerIds])
 
   if (!booking) return null
 

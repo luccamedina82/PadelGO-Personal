@@ -42,7 +42,7 @@ export default async function SuperadminDashboardPage() {
 
   const today = periodToday()
   const last7Days = periodLastNDays(7)
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const sevenDaysAgo = last7Days.start
 
   const [
     totalClubs,
@@ -135,7 +135,8 @@ export default async function SuperadminDashboardPage() {
   const maxChartValue = Math.max(...chartData.map((d) => d.total), 1)
 
   function relativeTime(date: Date): string {
-    const diff = Date.now() - date.getTime()
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
     const minutes = Math.floor(diff / 60000)
     if (minutes < 1) return 'Ahora'
     if (minutes < 60) return `Hace ${minutes}m`
@@ -290,7 +291,6 @@ export default async function SuperadminDashboardPage() {
         </div>
         <div className="grid md:grid-cols-3 gap-3">
           {allClubs.map((club) => {
-            const todayClubBookings = todayBookings.filter(() => true) // approximate
             return (
               <Link
                 key={club.id}

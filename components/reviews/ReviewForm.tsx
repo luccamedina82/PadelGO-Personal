@@ -65,7 +65,7 @@ export default function ReviewForm({
             </span>
           ))}
         </div>
-        {comment && <p className="text-xs text-muted mt-1 italic">"{comment}"</p>}
+        {comment && <p className="text-xs text-muted mt-1 italic">&quot;{comment}&quot;</p>}
       </div>
     )
   }

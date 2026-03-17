@@ -43,7 +43,7 @@ export async function createClub(
 
     const result = await prisma.$transaction(async (tx) => {
       // Find or create owner
-      let owner = await tx.user.findUnique({
+      const owner = await tx.user.findUnique({
         where: { email: ownerEmail.toLowerCase() },
         select: { id: true, role: true },
       })

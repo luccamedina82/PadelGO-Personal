@@ -1,7 +1,6 @@
 import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import { formatPrice } from '@/lib/availability'
-import OpenMatchesClient from './OpenMatchesClient'
 
 export default async function OpenMatchesPage() {
   const session = await requireRole(['OWNER', 'STAFF'])
@@ -116,7 +115,22 @@ export default async function OpenMatchesPage() {
 }
 
 interface OpenMatchCardProps {
-  match: any
+  match: {
+    id: string
+    date: Date
+    startTime: string
+    durationMinutes: number
+    totalPrice: number
+    spotsAvailable: number | null
+    requiredLevel: string | null
+    status: string
+    isOpenMatch: boolean
+    user: { id: string; name: string; email: string; avatarColor: string }
+    court: { id: string; name: string }
+    playerIds: string[]
+    players: Array<{ id: string; name: string; avatarColor: string }>
+    totalSpots: number
+  }
   clubId: string
 }
 
@@ -159,7 +173,7 @@ function OpenMatchCard({ match }: OpenMatchCardProps) {
       {/* Participants */}
       {match.players.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap">
-          {match.players.map((player: any) => (
+          {match.players.map((player) => (
             <div
               key={player.id}
               className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"

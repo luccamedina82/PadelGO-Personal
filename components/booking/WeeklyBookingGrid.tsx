@@ -231,7 +231,7 @@ export default function WeeklyBookingGrid({
             </div>
 
             {/* Day columns */}
-            {weekDates.map((date, dayIndex) => {
+            {weekDates.map((date) => {
               const dayBookings = courtBookings.filter((b) => b.date === date)
               const isToday = date === todayStr
               const isPast = date < todayStr

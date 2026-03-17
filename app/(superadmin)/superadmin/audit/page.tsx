@@ -108,7 +108,8 @@ export default async function SuperadminAuditPage({ searchParams }: Props) {
   }
 
   function relativeTime(date: Date): string {
-    const diff = Date.now() - date.getTime()
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
     const minutes = Math.floor(diff / 60000)
     if (minutes < 1) return 'Ahora'
     if (minutes < 60) return `Hace ${minutes}m`

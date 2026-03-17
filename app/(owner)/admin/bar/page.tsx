@@ -8,7 +8,7 @@ import {
   toggleBarProduct,
 } from '@/actions/owner/bar'
 import { addBarStockEntry } from '@/actions/owner/bar-stock'
-import { argToday, argTomorrow, argDaysAgo } from '@/lib/date'
+import { argTomorrow, argDaysAgo } from '@/lib/date'
 
 type PageProps = {
   searchParams: Promise<{ start?: string; end?: string; page?: string; limit?: string }>

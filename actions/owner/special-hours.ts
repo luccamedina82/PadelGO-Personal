@@ -61,7 +61,7 @@ export async function createSpecialHours(input: CreateSpecialHoursInput): Promis
   } catch (err) {
     console.error('[createSpecialHours]', err)
     // Check for unique constraint violation
-    if ((err as any).code === 'P2002') {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002') {
       return { success: false, error: 'Ya existe una entrada para esta fecha.' }
     }
     return { success: false, error: 'Error al crear horario especial.' }
