@@ -124,6 +124,7 @@ export default function BookingWizard({
   // Payment state (Step 4)
   const [bookingId, setBookingId] = useState<string | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'mp' | 'cash' | null>(null)
 
   // Guest state (only relevant when userId is null)
   const [guestName, setGuestName] = useState('')
@@ -305,6 +306,14 @@ export default function BookingWizard({
   }
 
   // ── Payment handlers ───────────────────────────────────────────────────
+
+  function handleConfirmPayment() {
+    if (selectedPaymentMethod === 'mp') {
+      handlePayOnline()
+    } else if (selectedPaymentMethod === 'cash') {
+      handlePayAtClub()
+    }
+  }
 
   function handlePayOnline() {
     if (!bookingId) return
@@ -807,22 +816,33 @@ export default function BookingWizard({
             {userId && (
               <button
                 type="button"
-                onClick={handlePayOnline}
-                disabled={isPending}
-                className="w-full p-4 rounded-xl border text-left transition-colors
-                  bg-accent text-accent-text border-accent hover:bg-accent-dark
-                  disabled:opacity-60 disabled:cursor-not-allowed"
+                onClick={() => {
+                  setSelectedPaymentMethod('mp')
+                  setPaymentError(null)
+                }}
+                className={`w-full p-4 rounded-xl border text-left transition-colors ${
+                  selectedPaymentMethod === 'mp'
+                    ? 'bg-accent text-accent-text border-accent ring-2 ring-accent'
+                    : 'bg-surface text-text border-border hover:border-border-hover hover:bg-card'
+                }`}
               >
                 <div className="flex items-center gap-3">
-                  {isPending ? (
-                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  ) : (
-                    <span className="text-2xl">💳</span>
-                  )}
-                  <div>
-                    <p className="font-semibold text-sm">Pagar con Mercado Pago</p>
-                    <p className="text-xs opacity-80">Tarjeta, débito o efectivo</p>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    selectedPaymentMethod === 'mp'
+                      ? 'border-accent-text bg-accent-text'
+                      : 'border-border'
+                  }`}>
+                    {selectedPaymentMethod === 'mp' && (
+                      <span className="text-accent text-xs">✓</span>
+                    )}
                   </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">Pagar con Mercado Pago</p>
+                    <p className={`text-xs ${selectedPaymentMethod === 'mp' ? 'opacity-80' : 'text-muted'}`}>
+                      Tarjeta, débito o efectivo
+                    </p>
+                  </div>
+                  <span className="text-2xl">💳</span>
                 </div>
               </button>
             )}
@@ -830,18 +850,33 @@ export default function BookingWizard({
             {/* Cash at club option */}
             <button
               type="button"
-              onClick={handlePayAtClub}
-              disabled={isPending}
-              className="w-full p-4 rounded-xl border text-left transition-colors
-                bg-surface text-text border-border hover:border-border-hover hover:bg-card
-                disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={() => {
+                setSelectedPaymentMethod('cash')
+                setPaymentError(null)
+              }}
+              className={`w-full p-4 rounded-xl border text-left transition-colors ${
+                selectedPaymentMethod === 'cash'
+                  ? 'bg-accent text-accent-text border-accent ring-2 ring-accent'
+                  : 'bg-surface text-text border-border hover:border-border-hover hover:bg-card'
+              }`}
             >
               <div className="flex items-center gap-3">
-                <span className="text-2xl">💵</span>
-                <div>
-                  <p className="font-semibold text-sm">Pagar en efectivo en el club</p>
-                  <p className="text-xs text-muted">Abonás cuando llegues</p>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  selectedPaymentMethod === 'cash'
+                    ? 'border-accent-text bg-accent-text'
+                    : 'border-border'
+                }`}>
+                  {selectedPaymentMethod === 'cash' && (
+                    <span className="text-accent text-xs">✓</span>
+                  )}
                 </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-sm">Pagar en efectivo en el club</p>
+                  <p className={`text-xs ${selectedPaymentMethod === 'cash' ? 'opacity-80' : 'text-muted'}`}>
+                    Abonás cuando llegues
+                  </p>
+                </div>
+                <span className="text-2xl">💵</span>
               </div>
             </button>
 
@@ -852,12 +887,25 @@ export default function BookingWizard({
               </p>
             )}
 
+            {/* Confirm button - shown when method is selected */}
+            {selectedPaymentMethod && (
+              <button
+                type="button"
+                onClick={handleConfirmPayment}
+                disabled={isPending}
+                className="w-full py-3 bg-accent text-accent-text text-sm font-semibold rounded-xl hover:bg-accent-dark transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isPending ? 'Procesando...' : 'Confirmar pago →'}
+              </button>
+            )}
+
             {/* Back button */}
             <button
               type="button"
               onClick={() => {
                 setStep(3)
                 setPaymentError(null)
+                setSelectedPaymentMethod(null)
               }}
               className="w-full text-center py-2 text-sm text-muted hover:text-text transition-colors"
             >
