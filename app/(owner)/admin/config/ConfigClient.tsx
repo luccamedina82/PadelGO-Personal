@@ -78,7 +78,12 @@ const AVAILABLE_AMENITIES = [
   'Alquiler de paletas',
 ]
 
-export default function ConfigClient({ club, updateClubConfigAction, createSpecialHoursAction, deleteSpecialHoursAction }: ConfigClientProps) {
+export default function ConfigClient({
+  club,
+  updateClubConfigAction,
+  createSpecialHoursAction,
+  deleteSpecialHoursAction,
+}: ConfigClientProps) {
   const [form, setForm] = useState({
     name: club.name,
     description: club.description,
@@ -354,9 +359,7 @@ export default function ConfigClient({ club, updateClubConfigAction, createSpeci
             </p>
           </div>
           <div>
-            <label className="text-xs text-muted block mb-1">
-              Cargo por cancelación tardía
-            </label>
+            <label className="text-xs text-muted block mb-1">Cargo por cancelación tardía</label>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -396,7 +399,9 @@ export default function ConfigClient({ club, updateClubConfigAction, createSpeci
 
         {/* Horarios especiales */}
         <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-          <h2 className="font-semibold text-sm text-text">Horarios especiales (feriados, eventos)</h2>
+          <h2 className="font-semibold text-sm text-text">
+            Horarios especiales (feriados, eventos)
+          </h2>
 
           {specialHoursError && (
             <div className="bg-red-400/10 border border-red-400/30 rounded-lg p-3 text-sm text-red-400">
@@ -416,7 +421,9 @@ export default function ConfigClient({ club, updateClubConfigAction, createSpeci
             </div>
 
             <div>
-              <label className="text-xs text-muted block mb-1">Motivo (ej: Feriado, Evento privado)</label>
+              <label className="text-xs text-muted block mb-1">
+                Motivo (ej: Feriado, Evento privado)
+              </label>
               <input
                 value={specialHourForm.reason}
                 onChange={(e) => setSpecialHourForm((p) => ({ ...p, reason: e.target.value }))}
@@ -475,7 +482,10 @@ export default function ConfigClient({ club, updateClubConfigAction, createSpeci
             <div className="space-y-2">
               <p className="text-xs text-muted">Fechas especiales registradas:</p>
               {specialHours.map((sh) => (
-                <div key={sh.id} className="flex items-center justify-between bg-bg rounded-lg p-2 border border-border">
+                <div
+                  key={sh.id}
+                  className="flex items-center justify-between bg-bg rounded-lg p-2 border border-border"
+                >
                   <div className="text-sm">
                     <p className="text-text font-medium">{sh.reason}</p>
                     <p className="text-xs text-muted">

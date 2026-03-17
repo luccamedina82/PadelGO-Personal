@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/app/generated/prisma
+
+# Next.js 16 uses proxy.ts instead of middleware.ts — do not commit middleware.ts
+middleware.ts
+
+
+nul

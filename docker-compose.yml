@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: claude_padelgo_db1
+    restart: unless-stopped 
+    environment:
+      POSTGRES_USER: claude_padelgo1
+      POSTGRES_PASSWORD: claude_padelgo_dev1
+      POSTGRES_DB: claude_padelgo1
+    ports:
+      - '5433:5432'
+    volumes:
+      - claude_data:/var/lib/postgresql/data
+
+volumes:
+  claude_data:

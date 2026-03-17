@@ -23,19 +23,41 @@ export interface UpdateClubConfigInput {
 export async function updateClubConfig(input: UpdateClubConfigInput): Promise<ActionResult> {
   await requireRole(['OWNER'])
 
-  const { clubId, name, description, vibe, address, phone, email, amenities, tags, cancelHoursBeforeStart, cancellationFeePercent, allowedDurations } = input
+  const {
+    clubId,
+    name,
+    description,
+    vibe,
+    address,
+    phone,
+    email,
+    amenities,
+    tags,
+    cancelHoursBeforeStart,
+    cancellationFeePercent,
+    allowedDurations,
+  } = input
 
   if (!clubId) return { success: false, error: 'Club no especificado.' }
   if (name !== undefined && !name.trim()) {
     return { success: false, error: 'El nombre no puede estar vacío.' }
   }
-  if (cancelHoursBeforeStart !== undefined && (cancelHoursBeforeStart < 0 || cancelHoursBeforeStart > 48)) {
+  if (
+    cancelHoursBeforeStart !== undefined &&
+    (cancelHoursBeforeStart < 0 || cancelHoursBeforeStart > 48)
+  ) {
     return { success: false, error: 'Las horas de cancelación deben estar entre 0 y 48.' }
   }
-  if (cancellationFeePercent !== undefined && (cancellationFeePercent < 0 || cancellationFeePercent > 100)) {
+  if (
+    cancellationFeePercent !== undefined &&
+    (cancellationFeePercent < 0 || cancellationFeePercent > 100)
+  ) {
     return { success: false, error: 'El cargo de cancelación debe estar entre 0% y 100%.' }
   }
-  if (allowedDurations !== undefined && (allowedDurations.length === 0 || !allowedDurations.every(d => [60, 90, 120].includes(d)))) {
+  if (
+    allowedDurations !== undefined &&
+    (allowedDurations.length === 0 || !allowedDurations.every((d) => [60, 90, 120].includes(d)))
+  ) {
     return { success: false, error: 'Duraciones inválidas. Solo se permiten: 60, 90, 120 minutos.' }
   }
 

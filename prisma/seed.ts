@@ -1232,7 +1232,9 @@ async function main() {
   console.log(`\n🏟️  CLUBES: ${clubs.length}`)
   clubs.forEach((club, i) => {
     console.log(`  • ${i + 1}. ${club.name} (${owners[i].name})`)
-    console.log(`     - Cancelación: ${club.cancelHoursBeforeStart}hs, Cargo: ${club.cancellationFeePercent}%`)
+    console.log(
+      `     - Cancelación: ${club.cancelHoursBeforeStart}hs, Cargo: ${club.cancellationFeePercent}%`
+    )
     console.log(`     - Duraciones: ${club.allowedDurations.join(', ')} min`)
   })
   console.log(`\n🎾 CANCHAS: ${allCourts.length} total`)

@@ -1,26 +1,563 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
+/* ── DESIGN TOKENS — Obsidian Dark (default) ─────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #080808;
+  --surface: #111111;
+  --card: #161616;
+  --card-hover: #1c1c1c;
+  --border: #242424;
+  --border-hover: #383838;
+  --accent: #d4f000;
+  --accent-dark: #b8d400;
+  --accent-text: #080808;
+  --accent-glow: rgba(212, 240, 0, 0.12);
+  --text: #f2f2f2;
+  --muted: #777777;
+  --sub: #444444;
+  --tag: #1a1a00;
+  --tag-text: #d4f000;
+  --tag-border: #2a2a00;
+
+  /* ── Booking source colors — dark theme ── */
+  --booking-online-bg: rgba(56, 139, 253, 0.22);
+  --booking-online-border: rgba(56, 139, 253, 0.62);
+  --booking-online-bar: #388bfd;
+  --booking-online-text: #60a5ff;
+
+  --booking-manual-bg: rgba(249, 115, 22, 0.2);
+  --booking-manual-border: rgba(249, 115, 22, 0.6);
+  --booking-manual-bar: #f97316;
+  --booking-manual-text: #fb923c;
+
+  --booking-block-bg: rgba(90, 90, 90, 0.2);
+  --booking-block-border: rgba(120, 120, 120, 0.42);
+  --booking-block-bar: #6b7280;
+  --booking-block-text: #9ca3af;
+
+  --booking-recurring-bg: rgba(20, 184, 166, 0.18);
+  --booking-recurring-border: rgba(20, 184, 166, 0.55);
+  --booking-recurring-bar: #14b8a6;
+  --booking-recurring-text: #2dd4bf;
+
+  --booking-cancelled-bg: rgba(60, 60, 60, 0.1);
+  --booking-cancelled-border: rgba(80, 80, 80, 0.25);
+  --booking-cancelled-bar: #444444;
+  --booking-cancelled-text: #555555;
+
+  /* Grid chrome */
+  --grid-row-alt: rgba(255, 255, 255, 0.008);
+  --grid-reform-stripe: rgba(255, 255, 255, 0.018);
 }
 
+/* ── DESIGN TOKENS — Obsidian Light ─────────────────────────────────── */
+[data-theme='light'] {
+  --bg: #f5f5f0;
+  --surface: #ebebeb;
+  --card: #ffffff;
+  --card-hover: #f9f9f4;
+  --border: #e0e0d8;
+  --border-hover: #c8c8c0;
+  --accent: #8aa000;
+  --accent-dark: #728800;
+  --accent-text: #ffffff;
+  --accent-glow: rgba(138, 160, 0, 0.15);
+  --text: #141414;
+  --muted: #666666;
+  --sub: #999999;
+  --tag: #f0f4d0;
+  --tag-text: #6a8000;
+  --tag-border: #d8e490;
+
+  /* ── Booking source colors — light theme ── */
+  --booking-online-bg: rgba(37, 99, 235, 0.18);
+  --booking-online-border: rgba(37, 99, 235, 0.65);
+  --booking-online-bar: #2563eb;
+  --booking-online-text: #1d4ed8;
+
+  --booking-manual-bg: rgba(234, 88, 12, 0.18);
+  --booking-manual-border: rgba(234, 88, 12, 0.65);
+  --booking-manual-bar: #ea580c;
+  --booking-manual-text: #c2410c;
+
+  --booking-block-bg: rgba(100, 100, 90, 0.18);
+  --booking-block-border: rgba(100, 100, 90, 0.52);
+  --booking-block-bar: #9ca3af;
+  --booking-block-text: #6b7280;
+
+  --booking-recurring-bg: rgba(15, 118, 110, 0.16);
+  --booking-recurring-border: rgba(15, 118, 110, 0.58);
+  --booking-recurring-bar: #0f766e;
+  --booking-recurring-text: #0d9488;
+
+  --booking-cancelled-bg: rgba(160, 160, 150, 0.08);
+  --booking-cancelled-border: rgba(160, 160, 150, 0.22);
+  --booking-cancelled-bar: #bbbbaa;
+  --booking-cancelled-text: #aaaaaa;
+
+  /* Grid chrome */
+  --grid-row-alt: rgba(0, 0, 0, 0.018);
+  --grid-reform-stripe: rgba(0, 0, 0, 0.028);
+}
+
+/* ── TAILWIND v4 THEME — inline = references runtime CSS vars ──────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Colors */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-hover: var(--card-hover);
+  --color-border: var(--border);
+  --color-border-hover: var(--border-hover);
+  --color-accent: var(--accent);
+  --color-accent-dark: var(--accent-dark);
+  --color-accent-text: var(--accent-text);
+  --color-accent-glow: var(--accent-glow);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-sub: var(--sub);
+  --color-tag: var(--tag);
+  --color-tag-text: var(--tag-text);
+  --color-tag-border: var(--tag-border);
+
+  /* Typography */
+  --font-display: var(--font-bebas);
+  --font-body: var(--font-dm-sans);
+  --font-mono: var(--font-dm-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── BASE STYLES ─────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── SCROLLBAR STYLING ───────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--sub);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* ── BOOKING BLOCK STYLES ────────────────────────────────────────────── */
+
+/* Base block — all sources share structure */
+.booking-block {
+  position: absolute;
+  border-radius: 8px;
+  border-width: 1px;
+  border-style: solid;
+  border-left-width: 3px;
+  padding: 6px 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    filter 0.15s,
+    transform 0.15s,
+    box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 10;
+}
+
+.booking-block:hover {
+  filter: brightness(1.08);
+  transform: scaleX(0.985);
+}
+
+/* Source variants */
+.booking-block-online {
+  background-color: var(--booking-online-bg);
+  border-color: var(--booking-online-border);
+  border-left-color: var(--booking-online-bar);
+  color: var(--booking-online-text);
+}
+
+.booking-block-manual {
+  background-color: var(--booking-manual-bg);
+  border-color: var(--booking-manual-border);
+  border-left-color: var(--booking-manual-bar);
+  color: var(--booking-manual-text);
+}
+
+.booking-block-block {
+  background-color: var(--booking-block-bg);
+  border-color: var(--booking-block-border);
+  border-left-color: var(--booking-block-bar);
+  color: var(--booking-block-text);
+}
+
+.booking-block-cancelled {
+  background-color: var(--booking-cancelled-bg);
+  border-color: var(--booking-cancelled-border);
+  border-left-color: var(--booking-cancelled-bar);
+  color: var(--booking-cancelled-text);
+  opacity: 0.55;
+}
+
+.booking-block-recurring {
+  background-color: var(--booking-recurring-bg);
+  border-color: var(--booking-recurring-border);
+  border-left-color: var(--booking-recurring-bar);
+  color: var(--booking-recurring-text);
+}
+
+/* Reform pattern overlay for inactive courts */
+.court-reform-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    var(--grid-reform-stripe) 6px,
+    var(--grid-reform-stripe) 7px
+  );
+}
+
+/* Now-line pulse */
+@keyframes nowPulse {
+  0%,
+  100% {
+    opacity: 0.75;
+    box-shadow: 0 0 6px var(--accent);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 12px var(--accent);
+  }
+}
+
+.now-dot {
+  animation: nowPulse 2s ease-in-out infinite;
+}
+
+/* ── ANIMATIONS ──────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes wz-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-wz-fade-in {
+  animation: wz-fade-in 0.2s ease forwards;
+}
+
+@keyframes wz-success-overlay {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wz-success-circle {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  82% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes wz-success-check {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes wz-success-label {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-wz-success-overlay {
+  animation: wz-success-overlay 0.3s ease forwards;
+}
+
+.animate-wz-success-circle {
+  animation: wz-success-circle 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.12s both;
+}
+
+.animate-wz-success-check {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: wz-success-check 0.28s ease 0.48s forwards;
+}
+
+.animate-wz-success-label {
+  animation: wz-success-label 0.3s ease 0.58s both;
+}
+
+/* 30-second new-booking highlight for grid blocks */
+@keyframes bookingHighlight {
+  0% {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 20px var(--accent-glow);
+  }
+  8% {
+    box-shadow:
+      0 0 0 3px var(--accent),
+      0 0 28px rgba(212, 240, 0, 0.4);
+  }
+  80% {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 14px var(--accent-glow);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+.booking-block-highlighted {
+  animation: bookingHighlight 30s ease-out forwards;
+}
+
+/* 30-second highlight for list entries (turnos fijos) */
+@keyframes entryHighlight {
+  0% {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  85% {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+.entry-highlighted {
+  animation: entryHighlight 30s ease-out forwards;
+}
+
+/* ── PRINT STYLES ───────────────────────────────────────────────────────── */
+@media print {
+  /* Reset page setup */
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+
+  /* Hide non-essential elements */
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Force light colors for booking blocks */
+  .booking-block {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .booking-block-online {
+    background-color: rgba(56, 139, 253, 0.15) !important;
+    border-color: rgba(56, 139, 253, 0.5) !important;
+    color: #1d4ed8 !important;
+  }
+
+  .booking-block-manual {
+    background-color: rgba(249, 115, 22, 0.15) !important;
+    border-color: rgba(249, 115, 22, 0.5) !important;
+    color: #c2410c !important;
+  }
+
+  .booking-block-block {
+    background-color: rgba(100, 100, 100, 0.12) !important;
+    border-color: rgba(100, 100, 100, 0.4) !important;
+    color: #4b5563 !important;
+  }
+
+  .booking-block-recurring {
+    background-color: rgba(20, 184, 166, 0.12) !important;
+    border-color: rgba(20, 184, 166, 0.45) !important;
+    color: #0d9488 !important;
+  }
+
+  /* Grid styling for print */
+  .booking-block:hover {
+    filter: none !important;
+    transform: none !important;
+  }
+
+  /* Hide interactive elements */
+  .now-dot,
+  button,
+  [role='button'],
+  a[href]:not(.print-link) {
+    display: none !important;
+  }
+
+  /* Show grid lines clearly */
+  [style*='border'] {
+    border-color: #d1d5db !important;
+  }
+
+  /* Ensure text is readable */
+  .text-muted,
+  .text-sub {
+    color: #6b7280 !important;
+  }
+
+  .text-text {
+    color: #111827 !important;
+  }
+
+  /* Background colors for rows */
+  [style*='--grid-row-alt'] {
+    background-color: rgba(0, 0, 0, 0.02) !important;
+  }
+
+  /* Remove shadows and glows */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Ensure full page width */
+  .h-screen {
+    height: auto !important;
+  }
+
+  /* Print the whole grid without overflow */
+  .overflow-auto,
+  .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  /* Keep sticky header visible but not sticky */
+  .sticky {
+    position: relative !important;
+  }
+
+  /* Surface and card backgrounds */
+  .bg-surface,
+  .bg-card {
+    background-color: white !important;
+  }
+
+  .bg-bg {
+    background-color: #fafafa !important;
+  }
+
+  /* Border colors */
+  .border-border,
+  .border-border-hover {
+    border-color: #e5e7eb !important;
+  }
+
+  /* Accent colors for headers */
+  .bg-accent {
+    background-color: #84cc16 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .text-accent {
+    color: #65a30d !important;
+  }
+
+  /* Payment status dots */
+  .bg-green-400 {
+    background-color: #4ade80 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bg-orange-400 {
+    background-color: #fb923c !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bg-gray-400 {
+    background-color: #9ca3af !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Ensure min heights don't break printing */
+  .min-h-0,
+  .min-h-screen {
+    min-height: 0 !important;
+  }
+
+  /* Disable animations */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

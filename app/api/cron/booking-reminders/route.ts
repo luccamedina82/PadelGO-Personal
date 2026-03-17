@@ -1,0 +1,155 @@
+import { NextRequest, NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
+import { sendBookingReminder } from '@/lib/email'
+import { argTodayStr } from '@/lib/date'
+
+/**
+ * Vercel Cron: Send booking reminders 2 hours before each match
+ * Runs every 15 minutes during operating hours (06:00-23:00)
+ *
+ * Cron schedule format: minutes hours * * * (in this case: every 15 min from 6-23)
+ */
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
+}
+
+export async function GET(request: NextRequest) {
+  // Verify Vercel Cron signature
+  const authHeader = request.headers.get('authorization')
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const today = argTodayStr()
+
+    // Fetch today's bookings
+    const todayDate = new Date(`${today}T00:00:00.000Z`)
+    const bookings = await prisma.booking.findMany({
+      where: {
+        date: todayDate,
+        status: { in: ['CONFIRMED', 'COMPLETED'] },
+      },
+      select: {
+        id: true,
+        startTime: true,
+        user: {
+          select: { id: true, email: true, name: true },
+        },
+        court: {
+          select: { name: true },
+        },
+        club: {
+          select: { name: true, address: true },
+        },
+      },
+    })
+
+    // Track sent reminders
+    let sentCount = 0
+    const results: { bookingId: string; status: 'sent' | 'skipped' | 'error'; reason?: string }[] =
+      []
+
+    for (const booking of bookings) {
+      const bookingTimeMinutes = timeToMinutes(booking.startTime)
+      const minutesUntilBooking = bookingTimeMinutes - currentMinutes
+
+      // Send reminder only if booking is between 100-140 minutes away
+      // (within the 2-hour window, but only once)
+      if (minutesUntilBooking >= 100 && minutesUntilBooking <= 140) {
+        try {
+          // Check if reminder was already sent
+          const existingLog = await prisma.notificationLog.findFirst({
+            where: {
+              bookingId: booking.id,
+              type: 'BOOKING_REMINDER',
+              status: 'SENT',
+            },
+          })
+
+          if (existingLog) {
+            results.push({
+              bookingId: booking.id,
+              status: 'skipped',
+              reason: 'Reminder already sent',
+            })
+            continue
+          }
+
+          // Send the reminder
+          await sendBookingReminder({
+            to: booking.user.email,
+            userName: booking.user.name,
+            clubName: booking.club.name,
+            clubAddress: booking.club.address || '',
+            courtName: booking.court.name,
+            startTime: booking.startTime,
+            bookingId: booking.id,
+          })
+
+          // Log the sent notification
+          await prisma.notificationLog.create({
+            data: {
+              bookingId: booking.id,
+              userId: booking.user.id,
+              type: 'BOOKING_REMINDER',
+              channel: 'EMAIL',
+              recipient: booking.user.email,
+              status: 'SENT',
+              sentAt: new Date(),
+            },
+          })
+
+          sentCount++
+          results.push({
+            bookingId: booking.id,
+            status: 'sent',
+          })
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+          console.error(`Failed to send reminder for booking ${booking.id}:`, error)
+
+          // Log the failed notification
+          await prisma.notificationLog.create({
+            data: {
+              bookingId: booking.id,
+              userId: booking.user.id,
+              type: 'BOOKING_REMINDER',
+              channel: 'EMAIL',
+              recipient: booking.user.email,
+              status: 'FAILED',
+              failureReason: errorMsg,
+            },
+          })
+
+          results.push({
+            bookingId: booking.id,
+            status: 'error',
+            reason: errorMsg,
+          })
+        }
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      sentCount,
+      totalChecked: bookings.length,
+      results,
+    })
+  } catch (error) {
+    console.error('Cron job error:', error)
+    return NextResponse.json(
+      {
+        error: 'Failed to process booking reminders',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    )
+  }
+}
