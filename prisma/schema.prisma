@@ -1,0 +1,456 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── USERS & AUTHENTICATION ────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String    // bcrypt hash, cost 12. Empty string for ghost users.
+  phone         String?
+  avatarUrl     String?
+  avatarColor   String    // hex generativo por hash de nombre
+  zone          String
+  level         Float     @default(2.0)  // 1.0 → 10.0 con 1 decimal
+  matchesPlayed Int       @default(0)
+  matchesWon    Int       @default(0)
+  streak        Int       @default(0)    // dias consecutivos jugando
+  lastPlayedAt  DateTime?
+  role          Role      @default(PLAYER)
+  isActive      Boolean   @default(true)
+  isBanned      Boolean   @default(false)
+  bannedAt      DateTime?
+  bannedReason  String?
+  isGhost       Boolean   @default(false) // usuario creado desde guest flow — no tiene password
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Staff: referencia al club al que pertenece
+  staffClubId   String?
+  staffClub     Club?     @relation("ClubStaff", fields: [staffClubId], references: [id])
+
+  bookings        Booking[]
+  achievements    UserAchievement[]
+  refreshTokens   RefreshToken[]
+  ownedClubs      Club[]    @relation("ClubOwner")
+  reviews         Review[]
+  auditLogs       AuditLog[]
+  invitations     Invitation[]
+  barSalesStaff   BarSale[] @relation("BarSaleStaff")
+  barStockEntries BarStockEntry[] @relation("BarStockEntries")
+  notifications   NotificationLog[] @relation("UserNotifications")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  token     String    @unique  // SHA-256 hash del token real
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+}
+
+// ── CLUBS & COURTS ────────────────────
+
+model Club {
+  id                   String    @id @default(cuid())
+  name                 String
+  description          String
+  vibe                 String    // tagline corto, ej: "El favorito de Palermo"
+  city                 String
+  zone                 String
+  address              String
+  lat                  Float
+  lng                  Float
+  phone                String
+  email                String
+  rating               Float     @default(0)
+  reviewCount          Int       @default(0)
+  amenities            String[]
+  tags                 String[]  // ["Techada", "Exterior", "Premium"]
+  colorR               Int       // RGB para gradiente generativo en UI
+  colorG               Int
+  colorB               Int
+  photos               String[]
+  isActive             Boolean   @default(true)
+  cancelHoursBeforeStart Int     @default(2) // horas minimas para cancelar sin cargo
+  cancellationFeePercent Int     @default(0) // porcentaje de cargo por cancelacion tardia (0-100)
+  allowedDurations     Int[]     @default([60, 90, 120]) // duraciones permitidas en minutos
+  ownerId              String
+  owner                User      @relation("ClubOwner", fields: [ownerId], references: [id])
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  courts      Court[]
+  reviews     Review[]
+  bookings    Booking[]
+  staffUsers  User[]    @relation("ClubStaff")
+  invitations Invitation[]
+  barProducts BarProduct[]
+  barSales    BarSale[]
+  barStockEntries BarStockEntry[] @relation("BarStockEntries")
+  recurringBookings RecurringBooking[]
+  specialHours SpecialHours[]
+}
+
+model SpecialHours {
+  id        String   @id @default(cuid())
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  date      DateTime // fecha especifica (medianoche UTC)
+  reason    String   // "Feriado", "Evento privado", "Mantenimiento", etc.
+  isClosed  Boolean  @default(false) // si true, el club esta cerrado
+  openTime  String?  // override de horario de apertura (ej: "10:00")
+  closeTime String?  // override de horario de cierre (ej: "18:00")
+  createdAt DateTime @default(now())
+
+  @@unique([clubId, date])
+  @@index([clubId])
+}
+
+model Court {
+  id        String    @id @default(cuid())
+  clubId    String
+  club      Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name      String    // "Cancha 1"
+  type      CourtType
+  covered   Boolean   @default(false)
+  svgX      Float     // posicion en diagrama SVG del club
+  svgY      Float
+  svgW      Float
+  svgH      Float
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  availabilities CourtAvailability[]
+  bookings       Booking[]
+  recurringBookings RecurringBooking[]
+}
+
+model CourtAvailability {
+  id           String  @id @default(cuid())
+  courtId      String
+  court        Court   @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  dayOfWeek    Int     // 0=Dom, 1=Lun, ..., 6=Sab
+  openTime     String  // "08:00"
+  closeTime    String  // "22:00"
+  pricePerHour Int     // precio en centavos de ARS por hora
+  isActive     Boolean @default(true)
+}
+
+// ── BOOKINGS ────────────────────
+
+model Booking {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  clubId          String
+  club            Club          @relation(fields: [clubId], references: [id])
+  courtId         String
+  court           Court         @relation(fields: [courtId], references: [id])
+  date            DateTime      // solo fecha (medianoche UTC)
+  startTime       String        // "19:00"
+  durationMinutes Int           // 60, 90 (default) o 120
+  playerIds       String[]      // IDs de jugadores invitados/confirmados
+  paidPlayerIds   String[]      @default([]) // jugadores que ya pagaron su parte
+  status          BookingStatus @default(PENDING)
+  totalPrice      Int           // en centavos: (pricePerHour / 60) * durationMinutes
+  paymentStatus   PaymentStatus @default(UNPAID)
+  paymentId       String?       // ID de transaccion Mercado Pago
+  isOpenMatch     Boolean       @default(false)
+  requiredLevel   String?       // "3.0–4.0" solo si isOpenMatch
+  spotsAvailable  Int?          // solo si isOpenMatch
+  source          BookingSource @default(ONLINE)
+  manualName      String?       // nombre del cliente en reserva manual sin cuenta
+  manualPhone     String?       // telefono en reserva manual
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  barSales           BarSale[]
+  recurringBookingId String?
+  recurringBooking   RecurringBooking? @relation(fields: [recurringBookingId], references: [id], onDelete: SetNull)
+  notifications      NotificationLog[]
+
+  @@index([courtId, date])
+  @@index([recurringBookingId])
+}
+
+// ── RECURRING BOOKINGS (Turnos Fijos) ────────────────────
+
+model RecurringBooking {
+  id              String    @id @default(cuid())
+  clubId          String
+  club            Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  courtId         String
+  court           Court     @relation(fields: [courtId], references: [id])
+  playerName      String
+  playerPhone     String?
+  dayOfWeek       Int       // 0=Dom … 6=Sáb
+  startTime       String    // "19:00"
+  durationMinutes Int       // 60, 90 o 120
+  pricePerSession Int       // centavos
+  startDate       DateTime  // primera instancia (medianoche UTC)
+  isActive        Boolean   @default(true)
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  generatedBookings Booking[]
+
+  @@index([clubId, isActive])
+  @@index([courtId, dayOfWeek])
+}
+
+// ── ACHIEVEMENTS & GAMIFICACION ────────────────────
+
+model Achievement {
+  id          String         @id @default(cuid())
+  key         String         @unique  // "first_booking", "streak_30", etc.
+  icon        String
+  name        String
+  description String
+  category    AchievementCat
+  total       Float?         // valor objetivo para barra de progreso
+
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  progress      Float       @default(0)
+  unlockedAt    DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+}
+
+// ── REVIEWS ────────────────────
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id])
+  rating    Int      // 1–5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, clubId])
+}
+
+// ── INVITACIONES DE STAFF ────────────────────
+
+model Invitation {
+  id         String    @id @default(cuid())
+  email      String
+  clubId     String
+  club       Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  invitedBy  String
+  inviter    User      @relation(fields: [invitedBy], references: [id])
+  token      String    @unique  // SHA-256 hash del token enviado
+  expiresAt  DateTime           // +48hs desde creacion
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+}
+
+// ── AUDIT & LOGGING ────────────────────
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorId    String
+  actor      User        @relation(fields: [actorId], references: [id])
+  action     AuditAction
+  entityType String      // "Club", "User", "Booking", etc.
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+}
+
+// ── BAR MODULE ────────────────────
+
+model BarProduct {
+  id         String       @id @default(cuid())
+  clubId     String
+  club       Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name       String
+  category   BarCategory
+  price      Int          // en centavos de ARS
+  stock      Int          @default(0)
+  minStock   Int          @default(3)
+  emoji      String       @default("🥤")
+  active     Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  saleItems    BarSaleItem[]
+  stockEntries BarStockEntry[] @relation("StockEntries")
+
+  @@index([clubId, active])
+}
+
+model BarSale {
+  id          String        @id @default(cuid())
+  clubId      String
+  club        Club          @relation(fields: [clubId], references: [id])
+  staffId     String?
+  staff       User?         @relation("BarSaleStaff", fields: [staffId], references: [id])
+  bookingId   String?
+  booking     Booking?      @relation(fields: [bookingId], references: [id])
+  total       Int           // suma de items en centavos
+  payMethod   PayMethod
+  createdAt   DateTime      @default(now())
+
+  items       BarSaleItem[]
+
+  @@index([clubId, createdAt])
+}
+
+model BarSaleItem {
+  id         String     @id @default(cuid())
+  saleId     String
+  sale       BarSale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId  String
+  product    BarProduct @relation(fields: [productId], references: [id])
+  qty        Int
+  unitPrice  Int        // precio al momento de la venta (centavos)
+}
+
+model BarStockEntry {
+  id        String   @id @default(cuid())
+  clubId    String
+  club      Club     @relation("BarStockEntries", fields: [clubId], references: [id], onDelete: Cascade)
+  productId String
+  product   BarProduct @relation("StockEntries", fields: [productId], references: [id], onDelete: Cascade)
+  qty       Int      // positive = addition, negative = removal
+  reason    String   // "Compra", "Ajuste", "Daño", etc.
+  staffId   String?
+  staff     User?    @relation("BarStockEntries", fields: [staffId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([productId])
+  @@index([createdAt])
+}
+
+// ── NOTIFICATIONS ────────────────────
+
+model NotificationLog {
+  id              String   @id @default(cuid())
+  bookingId       String?
+  booking         Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  userId          String
+  user            User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  type            String   // BOOKING_CONFIRMATION, BOOKING_CANCELLATION, BOOKING_REMINDER, OPEN_MATCH_FULL
+  channel         String   // EMAIL, SMS, PUSH
+  recipient       String   // email, phone, or push token
+  subject         String?
+  body            String?
+  status          String   // PENDING, SENT, FAILED, BOUNCED
+  sentAt          DateTime?
+  failureReason   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, type, createdAt])
+  @@index([bookingId])
+  @@index([status])
+}
+
+// ── ENUMS ────────────────────
+
+enum Role {
+  SUPERADMIN
+  OWNER
+  STAFF
+  PLAYER
+}
+
+enum CourtType {
+  CRISTAL
+  MURO
+  PANORAMICA
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+  MANUAL
+}
+
+enum BookingSource {
+  ONLINE
+  MANUAL_OWNER
+  MANUAL_SUPPORT
+  BLOCK
+}
+
+enum AchievementCat {
+  INICIO
+  CONSTANCIA
+  EXPLORADOR
+  SOCIAL
+  NIVEL
+  RANKING
+  ESPECIAL
+}
+
+enum AuditAction {
+  CREATE_CLUB
+  UPDATE_CLUB
+  ACTIVATE_CLUB
+  DEACTIVATE_CLUB
+  CREATE_COURT
+  UPDATE_COURT
+  CANCEL_BOOKING
+  DEACTIVATE_USER
+  ACTIVATE_USER
+  BAN_USER
+  UNBAN_USER
+  RESET_USER_PASSWORD
+  UPDATE_CLUB_AVAILABILITY
+  INVITE_STAFF
+  REMOVE_STAFF
+  CREATE_MANUAL_BOOKING
+}
+
+enum BarCategory {
+  BEBIDAS
+  COMIDAS
+  SNACKS
+  DEPORTIVO
+}
+
+enum PayMethod {
+  EFECTIVO
+  TRANSFERENCIA
+  POSNET
+}
