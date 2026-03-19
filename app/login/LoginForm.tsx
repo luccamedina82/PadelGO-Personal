@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
 import { login } from '@/actions/auth'
 import type { ActionResult } from '@/types'
+import Button from '@/components/ui/Button'
 
 type LoginState = ActionResult<{ redirectTo: string }> | null
 
@@ -62,8 +63,9 @@ export default function LoginForm() {
           type="email"
           autoComplete="email"
           required
+          disabled={isPending}
           placeholder="tu@email.com"
-          className="w-full px-3.5 py-2.5 rounded-lg bg-card border border-border focus:border-accent focus:outline-none text-sm text-text placeholder:text-sub transition-colors"
+          className="w-full px-3.5 py-2.5 rounded-lg bg-card border border-border focus:border-accent focus:outline-none text-sm text-text placeholder:text-sub transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         />
       </div>
 
@@ -78,19 +80,16 @@ export default function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
+          disabled={isPending}
           placeholder="••••••••"
-          className="w-full px-3.5 py-2.5 rounded-lg bg-card border border-border focus:border-accent focus:outline-none text-sm text-text placeholder:text-sub transition-colors"
+          className="w-full px-3.5 py-2.5 rounded-lg bg-card border border-border focus:border-accent focus:outline-none text-sm text-text placeholder:text-sub transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         />
       </div>
 
       {/* Submit */}
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full py-2.5 rounded-lg bg-accent text-accent-text font-semibold text-sm hover:bg-accent-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
+      <Button type="submit" loading={isPending} className="w-full" aria-busy={isPending}>
         {isPending ? 'Ingresando...' : 'Ingresar'}
-      </button>
+      </Button>
 
       {/* Register link */}
       <p className="text-center text-sm text-muted">

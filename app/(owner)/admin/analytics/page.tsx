@@ -2,6 +2,7 @@ import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import { formatPrice } from '@/lib/availability'
 import AnalyticsControls from './AnalyticsControls'
+import { unstable_cache } from 'next/cache'
 import {
   calcularIngresos,
   calcularOcupacion,
@@ -20,6 +21,72 @@ function parseDateParam(dateStr: string | undefined): Date | undefined {
   const d = new Date(`${dateStr}T00:00:00.000Z`)
   return isNaN(d.getTime()) ? undefined : d
 }
+
+const getAnalyticsData = unstable_cache(
+  async (
+    clubId: string,
+    periodStartIso: string,
+    periodEndIso: string,
+    prevPeriodStartIso: string,
+    prevPeriodEndIso: string
+  ) => {
+    const periodStart = new Date(periodStartIso)
+    const periodEnd = new Date(periodEndIso)
+    const prevPeriodStart = new Date(prevPeriodStartIso)
+    const prevPeriodEnd = new Date(prevPeriodEndIso)
+
+    const [bookings, barSales, courts, availabilities, prevBookings, prevBarSales] =
+      await Promise.all([
+        prisma.booking.findMany({
+          where: { clubId, date: { gte: periodStart, lte: periodEnd } },
+          select: {
+            date: true,
+            startTime: true,
+            durationMinutes: true,
+            totalPrice: true,
+            status: true,
+            source: true,
+            courtId: true,
+          },
+        }),
+        prisma.barSale.findMany({
+          where: { clubId, createdAt: { gte: periodStart, lte: periodEnd } },
+          select: { createdAt: true, total: true },
+        }),
+        prisma.court.findMany({
+          where: { clubId, isActive: true },
+          select: { id: true, name: true },
+        }),
+        prisma.courtAvailability.findMany({
+          where: { court: { clubId } },
+          select: { courtId: true, dayOfWeek: true, openTime: true, closeTime: true, isActive: true },
+        }),
+        prisma.booking.findMany({
+          where: {
+            clubId,
+            date: { gte: prevPeriodStart, lte: prevPeriodEnd },
+            status: { in: ['CONFIRMED', 'COMPLETED'] },
+          },
+          select: {
+            totalPrice: true,
+          },
+        }),
+        prisma.barSale.findMany({
+          where: {
+            clubId,
+            createdAt: { gte: prevPeriodStart, lte: prevPeriodEnd },
+          },
+          select: {
+            total: true,
+          },
+        }),
+      ])
+
+    return { bookings, barSales, courts, availabilities, prevBookings, prevBarSales }
+  },
+  ['admin-analytics-data-v1'],
+  { revalidate: 120 }
+)
 
 export default async function AnalyticsPage({ searchParams }: Props) {
   const { start: startParam, end: endParam } = await searchParams
@@ -52,32 +119,24 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   // Also get current month for comparison
   const monthPeriod = periodCurrentMonth()
 
-  const [bookings, barSales, courts, availabilities] = await Promise.all([
-    prisma.booking.findMany({
-      where: { clubId: club.id, date: { gte: period.start, lte: period.end } },
-      select: {
-        date: true,
-        startTime: true,
-        durationMinutes: true,
-        totalPrice: true,
-        status: true,
-        source: true,
-        courtId: true,
-      },
-    }),
-    prisma.barSale.findMany({
-      where: { clubId: club.id, createdAt: { gte: period.start, lte: period.end } },
-      select: { createdAt: true, total: true },
-    }),
-    prisma.court.findMany({
-      where: { clubId: club.id, isActive: true },
-      select: { id: true, name: true },
-    }),
-    prisma.courtAvailability.findMany({
-      where: { court: { clubId: club.id } },
-      select: { courtId: true, dayOfWeek: true, openTime: true, closeTime: true, isActive: true },
-    }),
-  ])
+  // Calculate previous period for comparison
+  const periodDays = Math.max(
+    1,
+    Math.ceil((period.end.getTime() - period.start.getTime()) / (1000 * 60 * 60 * 24))
+  )
+  const prevPeriodStart = new Date(period.start)
+  prevPeriodStart.setDate(prevPeriodStart.getDate() - periodDays)
+  const prevPeriodEnd = new Date(period.start)
+  prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1)
+
+  const { bookings, barSales, courts, availabilities, prevBookings, prevBarSales } =
+    await getAnalyticsData(
+      club.id,
+      period.start.toISOString(),
+      period.end.toISOString(),
+      prevPeriodStart.toISOString(),
+      prevPeriodEnd.toISOString()
+    )
 
   const bookingRecords = bookings.map((b) => ({
     date: b.date,
@@ -88,6 +147,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     source: b.source,
     courtId: b.courtId,
   }))
+  const confirmedBookingRecords = bookingRecords.filter(
+    (b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED'
+  )
 
   const barRecords = barSales.map((s) => ({ createdAt: s.createdAt, total: s.total }))
 
@@ -96,36 +158,6 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const ocupacion = calcularOcupacion(bookingRecords, courts, availabilities, period)
   const horarios = calcularHorariosPico(bookingRecords, period)
   const semana = calcularIngresosSemanales(bookingRecords, barRecords)
-
-  // Calculate previous period for comparison
-  const prevPeriodStart = new Date(period.start)
-  prevPeriodStart.setDate(
-    prevPeriodStart.getDate() -
-      (period.end.getTime() - period.start.getTime()) / (1000 * 60 * 60 * 24)
-  )
-  const prevPeriodEnd = new Date(period.start)
-  prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1)
-
-  const prevBookings = await prisma.booking.findMany({
-    where: {
-      clubId: club.id,
-      date: { gte: prevPeriodStart, lte: prevPeriodEnd },
-      status: { in: ['CONFIRMED', 'COMPLETED'] },
-    },
-    select: {
-      totalPrice: true,
-    },
-  })
-
-  const prevBarSales = await prisma.barSale.findMany({
-    where: {
-      clubId: club.id,
-      createdAt: { gte: prevPeriodStart, lte: prevPeriodEnd },
-    },
-    select: {
-      total: true,
-    },
-  })
 
   const prevBookingRecords = prevBookings.map((b) => ({ totalPrice: b.totalPrice }))
   const prevBarRecords = prevBarSales.map((s) => ({ total: s.total }))
@@ -148,13 +180,14 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     prevIngresos.total > 0 ? ((ingresos.total - prevIngresos.total) / prevIngresos.total) * 100 : 0
 
   // Court revenue breakdown
+  const revenueByCourt = new Map<string, number>()
+  for (const booking of confirmedBookingRecords) {
+    revenueByCourt.set(booking.courtId, (revenueByCourt.get(booking.courtId) ?? 0) + booking.totalPrice)
+  }
+
   const courtRevenue = courts
     .map((court) => {
-      const rev = bookingRecords
-        .filter(
-          (b) => b.courtId === court.id && (b.status === 'CONFIRMED' || b.status === 'COMPLETED')
-        )
-        .reduce((s, b) => s + b.totalPrice, 0)
+      const rev = revenueByCourt.get(court.id) ?? 0
       const occ = ocupacion.byCourt.get(court.id) ?? 0
       return { ...court, revenue: rev, occupancy: occ }
     })
@@ -164,9 +197,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   // Source breakdown
   const sourceCount = { ONLINE: 0, MANUAL_OWNER: 0, BLOCK: 0, MANUAL_SUPPORT: 0 }
-  for (const b of bookingRecords.filter(
-    (b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED'
-  )) {
+  for (const b of confirmedBookingRecords) {
     const key = b.source as keyof typeof sourceCount
     sourceCount[key] = (sourceCount[key] ?? 0) + 1
   }
@@ -174,15 +205,15 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   return (
     <div className="min-h-screen bg-bg">
-      <div className="sticky top-0 z-10 bg-surface border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between gap-4 mb-2">
-          <div>
-            <h1 className="font-semibold text-text">Analytics — {club.name}</h1>
-            <p className="text-xs text-muted">{periodLabel}</p>
+        <div className="sticky top-0 z-10 bg-surface border-b border-border px-4 py-3">
+          <div className="flex items-center justify-between gap-4 mb-2">
+            <div>
+              <h1 className="font-semibold text-text">Analytics — {club.name}</h1>
+              <p className="text-xs text-muted">{periodLabel}</p>
+            </div>
+            <AnalyticsControls startDate={startParam} endDate={endParam} />
           </div>
-          <AnalyticsControls startDate={startParam} endDate={endParam} />
         </div>
-      </div>
 
       <div className="p-4 max-w-3xl mx-auto space-y-5">
         {/* KPIs */}
@@ -211,10 +242,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             </p>
             <div className="flex items-center justify-between mt-1">
               <p className="text-xs text-muted">
-                {
-                  bookingRecords.filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED')
-                    .length
-                }{' '}
+                {confirmedBookingRecords.length}{' '}
                 reservas
               </p>
               {bookingChange !== 0 && (

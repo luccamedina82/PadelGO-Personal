@@ -4,9 +4,9 @@ import { formatPrice } from '@/lib/availability'
 import { periodToday, calcularIngresos } from '@/lib/analytics'
 import { argToday, argTomorrow, argNowMinutes } from '@/lib/date'
 import Link from 'next/link'
+import { unstable_cache } from 'next/cache'
 import AdminRefresher from './AdminRefresher'
 
-export const dynamic = 'force-dynamic'
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +37,65 @@ function statusColor(status: string) {
       return 'text-muted bg-muted/10'
   }
 }
+
+const getAdminDashboardData = unstable_cache(
+  async (clubId: string, todayIso: string, tomorrowIso: string, thirteenDaysAgoIso: string) => {
+    const today = new Date(todayIso)
+    const tomorrow = new Date(tomorrowIso)
+    const thirteenDaysAgo = new Date(thirteenDaysAgoIso)
+
+    const [courts, todayBookings, barSalesToday, last13Bookings, lowStockProducts] =
+      await Promise.all([
+        prisma.court.findMany({
+          where: { clubId, isActive: true },
+          select: { id: true, name: true },
+          orderBy: { name: 'asc' },
+        }),
+        prisma.booking.findMany({
+          where: { clubId, date: { gte: today, lt: tomorrow } },
+          select: {
+            id: true,
+            date: true,
+            startTime: true,
+            durationMinutes: true,
+            totalPrice: true,
+            status: true,
+            source: true,
+            courtId: true,
+            paymentStatus: true,
+            manualName: true,
+            court: { select: { name: true } },
+            user: { select: { name: true } },
+          },
+          orderBy: [{ startTime: 'asc' }],
+        }),
+        prisma.barSale.findMany({
+          where: { clubId, createdAt: { gte: today, lt: tomorrow } },
+          select: { total: true },
+        }),
+        prisma.booking.findMany({
+          where: {
+            clubId,
+            date: { gte: thirteenDaysAgo, lt: today },
+            status: { not: 'CANCELLED' },
+          },
+          select: { date: true },
+        }),
+        prisma.barProduct.findMany({
+          where: {
+            clubId,
+            active: true,
+          },
+          select: { id: true, name: true, emoji: true, stock: true, minStock: true },
+          orderBy: { stock: 'asc' },
+        }),
+      ])
+
+    return { courts, todayBookings, barSalesToday, last13Bookings, lowStockProducts }
+  },
+  ['admin-dashboard-data-v1'],
+  { revalidate: 30 }
+)
 
 // ── PAGE ──────────────────────────────────────────────────────────────────────
 
@@ -73,44 +132,29 @@ export default async function AdminDashboardPage() {
   thirteenDaysAgo.setUTCDate(thirteenDaysAgo.getUTCDate() - 13)
 
   // ── QUERIES ──────────────────────────────────────────────────────────────
-  const [courts, todayBookings, barSalesToday, last13Bookings, lowStockProducts] =
-    await Promise.all([
-      prisma.court.findMany({
-        where: { clubId: club.id, isActive: true },
-        select: { id: true, name: true },
-        orderBy: { name: 'asc' },
-      }),
-      prisma.booking.findMany({
-        where: { clubId: club.id, date: { gte: today, lt: tomorrow } },
-        include: {
-          court: { select: { name: true } },
-          user: { select: { name: true } },
-        },
-        orderBy: [{ startTime: 'asc' }],
-      }),
-      prisma.barSale.findMany({
-        where: { clubId: club.id, createdAt: { gte: today, lt: tomorrow } },
-        select: { total: true },
-      }),
-      // Last 13 days (excludes today) for sparkline + week comparison
-      prisma.booking.findMany({
-        where: {
-          clubId: club.id,
-          date: { gte: thirteenDaysAgo, lt: today },
-          status: { not: 'CANCELLED' },
-        },
-        select: { date: true },
-      }),
-      // Low stock products
-      prisma.barProduct.findMany({
-        where: {
-          clubId: club.id,
-          active: true,
-        },
-        select: { id: true, name: true, emoji: true, stock: true, minStock: true },
-        orderBy: { stock: 'asc' },
-      }),
-    ])
+  const {
+    courts,
+    todayBookings: todayBookingsRaw,
+    barSalesToday,
+    last13Bookings: last13BookingsRaw,
+    lowStockProducts,
+  } =
+    await getAdminDashboardData(
+      club.id,
+      today.toISOString(),
+      tomorrow.toISOString(),
+      thirteenDaysAgo.toISOString()
+    )
+
+  const todayBookings = todayBookingsRaw.map((booking) => ({
+    ...booking,
+    date: new Date(booking.date),
+  }))
+
+  const last13Bookings = last13BookingsRaw.map((booking) => ({
+    ...booking,
+    date: new Date(booking.date),
+  }))
 
   // Filter low stock products
   const lowStockProductsFiltered = lowStockProducts.filter((p) => p.stock <= p.minStock)
@@ -134,6 +178,7 @@ export default async function AdminDashboardPage() {
   const confirmedToday = todayBookings.filter(
     (b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED'
   )
+  const nonCancelledTodayCount = todayBookings.filter((b) => b.status !== 'CANCELLED').length
   const pendingToday = todayBookings.filter((b) => b.status === 'PENDING')
 
   const unpaidToday = todayBookings
@@ -150,20 +195,26 @@ export default async function AdminDashboardPage() {
     .slice(0, 5)
 
   // Court status: which courts are busy right now
-  const busyCourts = new Set(
-    todayBookings
-      .filter((b) => {
-        if (b.status !== 'CONFIRMED') return false
-        const [h, m] = b.startTime.split(':').map(Number)
-        const startMin = (h ?? 0) * 60 + (m ?? 0)
-        return startMin <= nowMinutes && startMin + b.durationMinutes > nowMinutes
-      })
-      .map((b) => b.courtId)
-  )
+  const currentBookingByCourt = new Map<string, (typeof todayBookings)[number]>()
+  for (const booking of todayBookings) {
+    if (booking.status !== 'CONFIRMED') continue
+    const [h, m] = booking.startTime.split(':').map(Number)
+    const startMin = (h ?? 0) * 60 + (m ?? 0)
+    if (startMin <= nowMinutes && startMin + booking.durationMinutes > nowMinutes) {
+      currentBookingByCourt.set(booking.courtId, booking)
+    }
+  }
+  const busyCourts = new Set(currentBookingByCourt.keys())
   const freeCourts = courts.filter((c) => !busyCourts.has(c.id))
 
   // ── SPARKLINE ────────────────────────────────────────────────────────────
   const DOW_SHORT = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
+
+  const bookingCountByDate = new Map<string, number>()
+  for (const booking of last13Bookings) {
+    const dateKey = booking.date.toISOString().split('T')[0] ?? ''
+    bookingCountByDate.set(dateKey, (bookingCountByDate.get(dateKey) ?? 0) + 1)
+  }
 
   const sparklineData = Array.from({ length: 7 }, (_, i) => {
     const offset = i - 6 // -6, -5, ..., 0
@@ -172,9 +223,7 @@ export default async function AdminDashboardPage() {
     const dateStr = d.toISOString().split('T')[0]!
     const isToday = offset === 0
     const dow = DOW_SHORT[d.getUTCDay()] ?? ''
-    const count = isToday
-      ? todayBookings.filter((b) => b.status !== 'CANCELLED').length
-      : last13Bookings.filter((b) => b.date.toISOString().split('T')[0] === dateStr).length
+    const count = isToday ? nonCancelledTodayCount : (bookingCountByDate.get(dateStr) ?? 0)
     return { dateStr, count, isToday, dow }
   })
   const maxSparkline = Math.max(...sparklineData.map((d) => d.count), 1)
@@ -191,7 +240,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen bg-bg p-4 md:p-6 max-w-5xl mx-auto">
-      <AdminRefresher />
+        <AdminRefresher />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -334,15 +383,8 @@ export default async function AdminDashboardPage() {
           <h2 className="font-semibold text-sm text-text mb-3">Estado de canchas ahora</h2>
           <div className="space-y-2">
             {courts.map((court) => {
-              const isBusy = busyCourts.has(court.id)
-              const currentBooking = isBusy
-                ? todayBookings.find((b) => {
-                    if (b.courtId !== court.id || b.status !== 'CONFIRMED') return false
-                    const [h, m] = b.startTime.split(':').map(Number)
-                    const startMin = (h ?? 0) * 60 + (m ?? 0)
-                    return startMin <= nowMinutes && startMin + b.durationMinutes > nowMinutes
-                  })
-                : null
+              const currentBooking = currentBookingByCourt.get(court.id) ?? null
+              const isBusy = Boolean(currentBooking)
 
               return (
                 <div key={court.id} className="flex items-center justify-between py-1.5">
@@ -487,7 +529,8 @@ export default async function AdminDashboardPage() {
             )}
           </div>
         </div>
-      )}
+      )
+      }
     </div>
   )
 }

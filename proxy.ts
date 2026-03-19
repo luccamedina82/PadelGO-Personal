@@ -66,6 +66,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return response
   }
 
+
   // ── BAN CHECK via JWT claim (C-07 — zero DB query) ──────────────────
   if (session.isBanned) {
     const url = new URL('/login', request.url)

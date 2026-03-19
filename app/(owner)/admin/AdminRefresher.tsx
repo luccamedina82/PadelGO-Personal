@@ -8,7 +8,11 @@ import { useRouter } from 'next/navigation'
 export default function AdminRefresher() {
   const router = useRouter()
   useEffect(() => {
-    const id = setInterval(() => router.refresh(), 60_000)
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        router.refresh()
+      }
+    }, 180_000)
     return () => clearInterval(id)
   }, [router])
   return null

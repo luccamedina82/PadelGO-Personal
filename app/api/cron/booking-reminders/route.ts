@@ -54,85 +54,116 @@ export async function GET(request: NextRequest) {
     const results: { bookingId: string; status: 'sent' | 'skipped' | 'error'; reason?: string }[] =
       []
 
-    for (const booking of bookings) {
+    const targetBookings = bookings.filter((booking) => {
       const bookingTimeMinutes = timeToMinutes(booking.startTime)
       const minutesUntilBooking = bookingTimeMinutes - currentMinutes
+      return minutesUntilBooking >= 100 && minutesUntilBooking <= 140
+    })
 
-      // Send reminder only if booking is between 100-140 minutes away
-      // (within the 2-hour window, but only once)
-      if (minutesUntilBooking >= 100 && minutesUntilBooking <= 140) {
-        try {
-          // Check if reminder was already sent
-          const existingLog = await prisma.notificationLog.findFirst({
+    const existingReminderLogs =
+      targetBookings.length > 0
+        ? await prisma.notificationLog.findMany({
             where: {
-              bookingId: booking.id,
+              bookingId: { in: targetBookings.map((b) => b.id) },
               type: 'BOOKING_REMINDER',
               status: 'SENT',
             },
+            select: { bookingId: true },
           })
+        : []
 
-          if (existingLog) {
-            results.push({
-              bookingId: booking.id,
-              status: 'skipped',
-              reason: 'Reminder already sent',
-            })
-            continue
-          }
+    const alreadySentBookingIds = new Set(
+      existingReminderLogs.map((log) => log.bookingId).filter((id): id is string => Boolean(id))
+    )
 
-          // Send the reminder
-          await sendBookingReminder({
-            to: booking.user.email,
-            userName: booking.user.name,
-            clubName: booking.club.name,
-            clubAddress: booking.club.address || '',
-            courtName: booking.court.name,
-            startTime: booking.startTime,
-            bookingId: booking.id,
-          })
+    const sentLogsData: {
+      bookingId: string
+      userId: string
+      type: string
+      channel: string
+      recipient: string
+      status: string
+      sentAt: Date
+    }[] = []
 
-          // Log the sent notification
-          await prisma.notificationLog.create({
-            data: {
-              bookingId: booking.id,
-              userId: booking.user.id,
-              type: 'BOOKING_REMINDER',
-              channel: 'EMAIL',
-              recipient: booking.user.email,
-              status: 'SENT',
-              sentAt: new Date(),
-            },
-          })
+    const failedLogsData: {
+      bookingId: string
+      userId: string
+      type: string
+      channel: string
+      recipient: string
+      status: string
+      failureReason: string
+    }[] = []
 
-          sentCount++
-          results.push({
-            bookingId: booking.id,
-            status: 'sent',
-          })
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-          console.error(`Failed to send reminder for booking ${booking.id}:`, error)
-
-          // Log the failed notification
-          await prisma.notificationLog.create({
-            data: {
-              bookingId: booking.id,
-              userId: booking.user.id,
-              type: 'BOOKING_REMINDER',
-              channel: 'EMAIL',
-              recipient: booking.user.email,
-              status: 'FAILED',
-              failureReason: errorMsg,
-            },
-          })
-
-          results.push({
-            bookingId: booking.id,
-            status: 'error',
-            reason: errorMsg,
-          })
-        }
+    for (const booking of targetBookings) {
+      if (alreadySentBookingIds.has(booking.id)) {
+        results.push({
+          bookingId: booking.id,
+          status: 'skipped',
+          reason: 'Reminder already sent',
+        })
+        continue
       }
+
+      try {
+        await sendBookingReminder({
+          to: booking.user.email,
+          userName: booking.user.name,
+          clubName: booking.club.name,
+          clubAddress: booking.club.address || '',
+          courtName: booking.court.name,
+          startTime: booking.startTime,
+          bookingId: booking.id,
+        })
+
+        sentLogsData.push({
+          bookingId: booking.id,
+          userId: booking.user.id,
+          type: 'BOOKING_REMINDER',
+          channel: 'EMAIL',
+          recipient: booking.user.email,
+          status: 'SENT',
+          sentAt: new Date(),
+        })
+
+        sentCount++
+        results.push({
+          bookingId: booking.id,
+          status: 'sent',
+        })
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+        console.error(`Failed to send reminder for booking ${booking.id}:`, error)
+
+        failedLogsData.push({
+          bookingId: booking.id,
+          userId: booking.user.id,
+          type: 'BOOKING_REMINDER',
+          channel: 'EMAIL',
+          recipient: booking.user.email,
+          status: 'FAILED',
+          failureReason: errorMsg,
+        })
+
+        results.push({
+          bookingId: booking.id,
+          status: 'error',
+          reason: errorMsg,
+        })
+      }
+    }
+
+    if (sentLogsData.length > 0) {
+      await prisma.notificationLog.createMany({
+        data: sentLogsData,
+      })
+    }
+
+    if (failedLogsData.length > 0) {
+      await prisma.notificationLog.createMany({
+        data: failedLogsData,
+      })
     }
 
     return NextResponse.json({

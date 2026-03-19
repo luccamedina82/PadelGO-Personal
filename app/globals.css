@@ -48,6 +48,7 @@
   /* Grid chrome */
   --grid-row-alt: rgba(255, 255, 255, 0.008);
   --grid-reform-stripe: rgba(255, 255, 255, 0.018);
+  --grid-slot-hover: rgba(255, 255, 255, 0.25);
 }
 
 /* ── DESIGN TOKENS — Obsidian Light ─────────────────────────────────── */
@@ -98,6 +99,7 @@
   /* Grid chrome */
   --grid-row-alt: rgba(0, 0, 0, 0.018);
   --grid-reform-stripe: rgba(0, 0, 0, 0.028);
+  --grid-slot-hover: rgba(0, 0, 0, 0.25);
 }
 
 /* ── TAILWIND v4 THEME — inline = references runtime CSS vars ──────── */

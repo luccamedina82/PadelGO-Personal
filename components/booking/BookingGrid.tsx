@@ -80,6 +80,31 @@ function getLocalDateStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function clampTooltipPosition(
+  x: number,
+  y: number,
+  boxWidth: number,
+  boxHeight: number
+): { x: number; y: number } {
+  if (typeof window === 'undefined') return { x: x + 14, y: y + 14 }
+
+  const margin = 8
+  const offset = 14
+  let nextX = x + offset
+  let nextY = y + offset
+
+  const maxX = window.innerWidth - boxWidth - margin
+  const maxY = window.innerHeight - boxHeight - margin
+
+  if (nextX > maxX) nextX = Math.max(margin, x - boxWidth - offset)
+  if (nextY > maxY) nextY = Math.max(margin, y - boxHeight - offset)
+
+  return {
+    x: Math.max(margin, nextX),
+    y: Math.max(margin, nextY),
+  }
+}
+
 function getBlockClass(source: string, status: string, recurringBookingId?: string | null): string {
   if (status === 'CANCELLED') return 'booking-block-cancelled'
   if (source === 'BLOCK' && recurringBookingId) return 'booking-block-recurring'
@@ -696,6 +721,8 @@ export default function BookingGrid({
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
   const hasScrolledRef = useRef(false)
+  const slotHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const slotHoverPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const [colWidth, setColWidth] = useState(140)
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<BookingBlock | null>(null)
@@ -711,6 +738,12 @@ export default function BookingGrid({
     x: number
     y: number
   } | null>(null)
+  const [slotTooltip, setSlotTooltip] = useState<{
+    courtName: string
+    time: string
+    x: number
+    y: number
+  } | null>(null)
 
   const todayStr = getLocalDateStr()
   const isViewingToday = date === todayStr
@@ -722,6 +755,12 @@ export default function BookingGrid({
     const timer = setTimeout(() => setHighlightId(undefined), 30_000)
     return () => clearTimeout(timer)
   }, [highlightId])
+
+  useEffect(() => {
+    return () => {
+      if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
+    }
+  }, [])
 
   // Derived: visible court count — needed in the ResizeObserver effect below
   const visibleCourtCount = courts.filter((c) => !hiddenCourts.has(c.id)).length
@@ -789,9 +828,42 @@ export default function BookingGrid({
       : null
 
   function handleEmptyClick(courtId: string, slotMinutes: number) {
+    if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
+    setSlotTooltip(null)
     const timeStr = minutesToTime(slotMinutes)
     const dateParam = encodeURIComponent(date)
-    router.push(`/admin/reservas/nueva?courtId=${courtId}&date=${dateParam}&time=${timeStr}`)
+    router.push(
+      `/admin/reservas/nueva?courtId=${courtId}&date=${dateParam}&time=${timeStr}&view=day`
+    )
+  }
+
+  function handleSlotMouseEnter(courtName: string, slotMinutes: number, x: number, y: number) {
+    if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
+    slotHoverPointerRef.current = { x, y }
+    const time = minutesToTime(slotMinutes)
+    slotHoverTimerRef.current = setTimeout(() => {
+      const pos = clampTooltipPosition(
+        slotHoverPointerRef.current.x,
+        slotHoverPointerRef.current.y,
+        170,
+        62
+      )
+      setSlotTooltip({ courtName, time, x: pos.x, y: pos.y })
+    }, 300)
+  }
+
+  function handleSlotMouseMove(x: number, y: number) {
+    slotHoverPointerRef.current = { x, y }
+    setSlotTooltip((prev) => {
+      if (!prev) return prev
+      const pos = clampTooltipPosition(x, y, 170, 62)
+      return { ...prev, x: pos.x, y: pos.y }
+    })
+  }
+
+  function handleSlotMouseLeave() {
+    if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
+    setSlotTooltip(null)
   }
 
   const visibleCourts = courts.filter((c) => !hiddenCourts.has(c.id))
@@ -934,28 +1006,44 @@ export default function BookingGrid({
                   {/* Slot click targets */}
                   {Array.from({ length: totalSlots }, (_, i) => {
                     const slotMin = gridStart + i * 30
+                    const slotEnd = slotMin + 30
                     const isHour = slotMin % 60 === 0
+                    const hasBookingAtSlot = courtBookings.some((b) => {
+                      const bookingStart = timeToMinutes(b.startTime)
+                      const bookingEnd = bookingStart + b.durationMinutes
+                      return slotMin < bookingEnd && slotEnd > bookingStart
+                    })
                     const isPast =
                       !court.isActive ||
                       isViewingPast ||
-                      (currentMinutes !== null && slotMin < currentMinutes)
+                      (currentMinutes !== null && slotMin < currentMinutes) ||
+                      hasBookingAtSlot
                     return (
                       <div
                         key={i}
                         className={`absolute left-0 right-0 transition-colors
+                                    ${isHour ? 'bg-(--grid-row-alt)' : ''}
                                     ${isHour ? 'border-b border-border-hover' : 'border-b border-border/40'}
                                     ${
                                       isPast
                                         ? 'opacity-40 cursor-not-allowed pointer-events-none'
-                                        : 'cursor-pointer hover:bg-accent/[0.04]'
+                                        : 'group cursor-pointer'
                                     }`}
                         style={{
                           top: i * SLOT_HEIGHT,
                           height: SLOT_HEIGHT,
-                          background: isHour ? 'var(--grid-row-alt)' : 'transparent',
                         }}
+                        onMouseEnter={(e) =>
+                          !isPast && handleSlotMouseEnter(court.name, slotMin, e.clientX, e.clientY)
+                        }
+                        onMouseMove={(e) => !isPast && handleSlotMouseMove(e.clientX, e.clientY)}
+                        onMouseLeave={handleSlotMouseLeave}
                         onClick={() => !isPast && handleEmptyClick(court.id, slotMin)}
-                      />
+                      >
+                        {!isPast && (
+                          <span className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-150 bg-(--grid-slot-hover) group-hover:opacity-100" />
+                        )}
+                      </div>
                     )
                   })}
 
@@ -981,9 +1069,16 @@ export default function BookingGrid({
                           height: Math.max(height, 22),
                         }}
                         onClick={() => setSelectedBooking(b)}
-                        onMouseEnter={(e) => setTooltip({ booking: b, x: e.clientX, y: e.clientY })}
+                        onMouseEnter={(e) => {
+                          const pos = clampTooltipPosition(e.clientX, e.clientY, 220, 96)
+                          setTooltip({ booking: b, x: pos.x, y: pos.y })
+                        }}
                         onMouseMove={(e) =>
-                          setTooltip((prev) => (prev ? { ...prev, x: e.clientX, y: e.clientY } : null))
+                          setTooltip((prev) => {
+                            if (!prev) return null
+                            const pos = clampTooltipPosition(e.clientX, e.clientY, 220, 96)
+                            return { ...prev, x: pos.x, y: pos.y }
+                          })
                         }
                         onMouseLeave={() => setTooltip(null)}
                       >
@@ -1066,8 +1161,8 @@ export default function BookingGrid({
       {/* Hover tooltip */}
       {tooltip && !selectedBooking && (
         <div
-          className="fixed z-[90] pointer-events-none bg-surface border border-border-hover rounded-xl shadow-2xl px-3 py-2.5 min-w-[170px] max-w-[220px]"
-          style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}
+          className="fixed z-50 pointer-events-none bg-surface/95 backdrop-blur-md border border-border-hover/70 rounded-xl shadow-2xl px-3 py-2.5 min-w-42.5 max-w-55"
+          style={{ left: tooltip.x, top: tooltip.y }}
         >
           <p className="text-sm font-semibold text-text truncate mb-1">
             {tooltip.booking.displayName}
@@ -1093,6 +1188,21 @@ export default function BookingGrid({
               </span>
             </div>
           )}
+        </div>
+      )}
+
+      {slotTooltip && !selectedBooking && !tooltip && (
+        <div
+          className="fixed z-50 pointer-events-none bg-surface/95 backdrop-blur-md border border-border-hover/70 rounded-xl shadow-2xl px-3 py-2.5"
+          style={{ left: slotTooltip.x, top: slotTooltip.y }}
+        >
+          <p className="text-[10px] uppercase tracking-wider text-muted leading-none">
+            Disponible
+          </p>
+          <p className="text-[11px] font-semibold text-text leading-none mt-1">
+            {slotTooltip.courtName}
+          </p>
+          <p className="text-[10px] font-mono text-muted mt-1">{slotTooltip.time}</p>
         </div>
       )}
     </>

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import prisma from '@/lib/prisma'
 import PublicLayout from '@/components/layout/PublicLayout'
@@ -82,6 +83,42 @@ async function getExistingBookings(courtIds: string[]): Promise<BookingMap> {
   return map
 }
 
+async function BookingWizardSection({
+  clubId,
+  clubName,
+  cancelHoursBeforeStart,
+  courts,
+  existingBookings,
+}: {
+  clubId: string
+  clubName: string
+  cancelHoursBeforeStart: number
+  courts: CourtForWizard[]
+  existingBookings: BookingMap
+}) {
+  const session = await getSession()
+
+  return (
+    <BookingWizard
+      clubId={clubId}
+      clubName={clubName}
+      cancelHoursBeforeStart={cancelHoursBeforeStart}
+      courts={courts}
+      existingBookings={existingBookings}
+      userId={session?.userId ?? null}
+      createBookingAction={createBooking}
+      createGhostBookingAction={createGhostBooking}
+      createMercadoPagoPreferenceAction={createMercadoPagoPreference}
+      setManualPaymentAction={setManualPayment}
+      setGuestManualPaymentAction={setGuestManualPayment}
+    />
+  )
+}
+
+function BookingWizardFallback() {
+  return <div className="bg-card border border-border rounded-2xl p-6 h-[520px]" />
+}
+
 // ── PAGE ───────────────────────────────────────────────────────────────────
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://padelgo.ar'
@@ -131,10 +168,7 @@ export default async function ClubPage({ params }: PageProps) {
 
   if (!club) notFound()
 
-  const [session, existingBookings] = await Promise.all([
-    getSession(),
-    getExistingBookings(club.courts.map((c) => c.id)),
-  ])
+  const existingBookings = await getExistingBookings(club.courts.map((c) => c.id))
   // Build CourtForWizard[] — include availabilityByDay
   const courtsForWizard: CourtForWizard[] = club.courts.map((court) => {
     const availabilityByDay: Record<number, AvailabilityConfig> = {}
@@ -297,19 +331,15 @@ export default async function ClubPage({ params }: PageProps) {
               <div className="sticky top-4">
                 <h2 className="font-display text-xl tracking-widest text-text mb-3">RESERVAR</h2>
                 {courtsForWizard.length > 0 ? (
-                  <BookingWizard
-                    clubId={club.id}
-                    clubName={club.name}
-                    cancelHoursBeforeStart={club.cancelHoursBeforeStart}
-                    courts={courtsForWizard}
-                    existingBookings={existingBookings}
-                    userId={session?.userId ?? null}
-                    createBookingAction={createBooking}
-                    createGhostBookingAction={createGhostBooking}
-                    createMercadoPagoPreferenceAction={createMercadoPagoPreference}
-                    setManualPaymentAction={setManualPayment}
-                    setGuestManualPaymentAction={setGuestManualPayment}
-                  />
+                  <Suspense fallback={<BookingWizardFallback />}>
+                    <BookingWizardSection
+                      clubId={club.id}
+                      clubName={club.name}
+                      cancelHoursBeforeStart={club.cancelHoursBeforeStart}
+                      courts={courtsForWizard}
+                      existingBookings={existingBookings}
+                    />
+                  </Suspense>
                 ) : (
                   <div className="bg-card border border-border rounded-2xl p-6 text-center">
                     <p className="text-2xl mb-2">🏟️</p>

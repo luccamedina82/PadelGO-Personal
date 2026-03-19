@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import LoginForm from './LoginForm'
+import Skeleton from '@/components/ui/Skeleton'
 
 export const metadata: Metadata = {
   title: 'Ingresar — PadelGo',
@@ -21,7 +22,17 @@ export default function LoginPage() {
 
         {/* Card */}
         <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
-          <Suspense fallback={<div className="h-64 animate-pulse bg-surface rounded-lg" />}>
+          <Suspense
+            fallback={
+              <div className="space-y-4" aria-busy="true" aria-live="polite">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            }
+          >
             <LoginForm />
           </Suspense>
         </div>

@@ -46,6 +46,8 @@ interface ManualBookingWizardProps {
   defaultCourtId?: string
   defaultDate?: string
   defaultTime?: string
+  onClose?: (date: string) => void
+  onBookingCreated?: (payload: { date: string; bookingId?: string }) => void
 }
 
 const DURATIONS = [
@@ -759,6 +761,8 @@ export default function ManualBookingWizard({
   defaultCourtId,
   defaultDate,
   defaultTime,
+  onClose,
+  onBookingCreated,
 }: ManualBookingWizardProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -806,6 +810,10 @@ export default function ManualBookingWizard({
         setSuccess(true)
         setTimeout(() => {
           const newId = result.data?.bookingId
+          if (onBookingCreated) {
+            onBookingCreated({ date, bookingId: newId })
+            return
+          }
           router.push(`/admin/reservas?date=${date}${newId ? `&new=${newId}` : ''}`)
         }, 2000)
       } else {
@@ -866,7 +874,13 @@ export default function ManualBookingWizard({
           </div>
           <button
             type="button"
-            onClick={() => router.push(`/admin/reservas?date=${date}`)}
+            onClick={() => {
+              if (onClose) {
+                onClose(date)
+                return
+              }
+              router.push(`/admin/reservas?date=${date}`)
+            }}
             className="shrink-0 size-8 rounded-xl border border-border bg-transparent text-muted
                        flex items-center justify-center cursor-pointer transition-all duration-[130ms]
                        hover:text-text hover:border-border-hover -mt-0.5"

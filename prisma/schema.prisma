@@ -181,6 +181,8 @@ model Booking {
   recurringBooking   RecurringBooking? @relation(fields: [recurringBookingId], references: [id], onDelete: SetNull)
   notifications      NotificationLog[]
 
+  @@index([clubId, date])
+  @@index([clubId, date, status])
   @@index([courtId, date])
   @@index([recurringBookingId])
 }

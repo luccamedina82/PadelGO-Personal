@@ -1,5 +1,6 @@
 'use server'
 
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import prisma from '@/lib/prisma'
@@ -21,6 +22,15 @@ import {
 } from '@/lib/cookies'
 import type { ActionResult, JwtSession, Role } from '@/types'
 
+const verifyAccessTokenCached = cache(async (token: string) => verifyAccessToken(token))
+
+const getSessionUserByIdCached = cache(async (userId: string) => {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { name: true, avatarColor: true, zone: true, level: true },
+  })
+})
+
 // ── SESSION HELPERS (boundary layer — uses next/headers) ─────────────────
 
 /**
@@ -31,7 +41,18 @@ export async function getSession(): Promise<JwtSession | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(COOKIE_ACCESS_TOKEN)?.value
   if (!token) return null
-  return verifyAccessToken(token)
+  return verifyAccessTokenCached(token)
+}
+
+export async function getSessionAndUserProfile(): Promise<{
+  session: JwtSession | null
+  user: { name: string; avatarColor: string; zone: string; level: number } | null
+}> {
+  const session = await getSession()
+  if (!session) return { session: null, user: null }
+
+  const user = (await getSessionUserByIdCached(session.userId)) ?? null
+  return { session, user }
 }
 
 /**

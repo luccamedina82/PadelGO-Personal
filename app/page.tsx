@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import prisma from '@/lib/prisma'
-import { getSession } from '@/actions/auth'
+import { getSessionAndUserProfile } from '@/actions/auth'
 import PublicLayout from '@/components/layout/PublicLayout'
 import ClubCard from '@/components/club/ClubCard'
 import { ClubCardSkeleton } from '@/components/ui/Skeleton'
@@ -123,15 +123,11 @@ async function getPageData() {
 // ── PAGE ──────────────────────────────────────────────────────────────────
 
 export default async function HomePage() {
-  const session = await getSession()
+  const { user } = await getSessionAndUserProfile()
 
   const [{ clubCount, totalBookings, availableSlots }, firstName] = await Promise.all([
     getPageData(),
-    session
-      ? prisma.user
-          .findUnique({ where: { id: session.userId }, select: { name: true } })
-          .then((u) => u?.name.split(' ')[0] ?? null)
-      : Promise.resolve(null),
+    Promise.resolve(user?.name.split(' ')[0] ?? null),
   ])
 
   return (
