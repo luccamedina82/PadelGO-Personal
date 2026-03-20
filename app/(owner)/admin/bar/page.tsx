@@ -1,4 +1,3 @@
-import prisma from '@/lib/prisma'
 import BarModule from './BarModule'
 import {
   createBarSale,
@@ -18,7 +17,7 @@ type PageProps = {
 export default async function BarPage({ searchParams }: PageProps) {
   const { start, end, page = '1', limit = '20' } = await searchParams
 
-  const {club, session} = await getAdminContext(['OWNER', 'STAFF'])
+  const { club, session } = await getAdminContext(['OWNER', 'STAFF'])
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
@@ -32,10 +31,9 @@ export default async function BarPage({ searchParams }: PageProps) {
   const pageSize = parseInt(limit) || 20
   const skip = (pageNum - 1) * pageSize
 
-
-const [products, { sales, totalSales }] = await Promise.all([
+  const [products, { sales, totalSales }] = await Promise.all([
     getCachedBarProducts(club.id),
-    getPaginatedBarSales(club.id, startDate, endDate, skip, pageSize)
+    getPaginatedBarSales(club.id, startDate, endDate, skip, pageSize),
   ])
 
   const pageCount = Math.ceil(totalSales / pageSize)

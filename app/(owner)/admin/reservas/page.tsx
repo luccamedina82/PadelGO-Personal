@@ -105,10 +105,6 @@ export default async function ReservasPage({ searchParams }: Props) {
   gridStart = Math.floor(gridStart / 30) * 30
   gridEnd = Math.ceil(gridEnd / 30) * 30
 
-  // Calculate date range for day view (full 24 hours)
-  const dayStart = new Date(`${selectedDate}T00:00:00.000Z`)
-  const dayEnd = new Date(`${selectedDate}T23:59:59.999Z`)
-
   const courtColumns: CourtColumn[] = activeCourtsToday.map((c) => ({
     id: c.id,
     name: c.name,

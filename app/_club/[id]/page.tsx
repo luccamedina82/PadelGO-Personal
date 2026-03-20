@@ -17,6 +17,7 @@ import type { CourtForWizard, BookingMap } from '@/components/booking/BookingWiz
 import { formatPrice } from '@/lib/availability'
 import type { AvailabilityConfig } from '@/lib/availability'
 import { argToday } from '@/lib/date'
+import { connection } from 'next/server'
 
 // ── DATA FETCHING ──────────────────────────────────────────────────────────
 
@@ -163,6 +164,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ClubPage({ params }: PageProps) {
   // Next.js 16: params is a Promise (P6)
+  await connection()
   const { id } = await params
   const club = await getClubData(id)
 

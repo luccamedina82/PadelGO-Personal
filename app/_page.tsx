@@ -9,6 +9,7 @@ import HeroSearchBar from '@/components/layout/HeroSearchBar'
 import ActivityTicker from '@/components/layout/ActivityTicker'
 import type { ClubPublic } from '@/types'
 import { argToday, argTomorrow } from '@/lib/date'
+import { connection } from 'next/server'
 
 // ── DATA FETCHING ─────────────────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ const COURTS_INCLUDE = {
 }
 
 async function getFeaturedClubs() {
+  await connection()
   const clubs = await prisma.club.findMany({
     where: { isActive: true },
     include: COURTS_INCLUDE,
@@ -81,6 +83,7 @@ async function getFeaturedClubs() {
 }
 
 async function getAvailableTodayClubs() {
+  await connection()
   const clubs = await prisma.club.findMany({
     where: { isActive: true },
     include: COURTS_INCLUDE,
@@ -91,6 +94,7 @@ async function getAvailableTodayClubs() {
 }
 
 async function getPageData() {
+  await connection()
   const today = argToday()
   const tomorrow = argTomorrow()
   const dow = today.getUTCDay()
@@ -122,14 +126,7 @@ async function getPageData() {
 
 // ── PAGE ──────────────────────────────────────────────────────────────────
 
-export default async function HomePage() {
-  const { user } = await getSessionAndUserProfile()
-
-  const [{ clubCount, totalBookings, availableSlots }, firstName] = await Promise.all([
-    getPageData(),
-    Promise.resolve(user?.name.split(' ')[0] ?? null),
-  ])
-
+export default function HomePage() {
   return (
     <PublicLayout>
       <div className="min-h-screen">
@@ -170,28 +167,13 @@ export default async function HomePage() {
             style={{ paddingLeft: 40, paddingRight: 40 }}
           >
             {/* Badge */}
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-5 text-[11px] font-bold uppercase tracking-widest"
-              style={{
-                background: 'rgba(212,240,0,0.07)',
-                border: '1px solid rgba(212,240,0,0.18)',
-                color: 'var(--accent)',
-                animation: 'fadeUp 0.45s 0s ease forwards',
-                opacity: 0,
-              }}
+            <Suspense
+              fallback={
+                <div className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-5 h-[28px] w-[280px] bg-accent/10 animate-pulse" />
+              }
             >
-              {firstName ? (
-                <>
-                  <span>⚡</span>
-                  Hola de nuevo, {firstName} — {availableSlots} turnos libres cerca tuyo
-                </>
-              ) : (
-                <>
-                  <span>⚡</span>
-                  {availableSlots} turnos disponibles ahora en Córdoba
-                </>
-              )}
-            </div>
+              <HeroBadge />
+            </Suspense>
 
             {/* Title */}
             <h1
@@ -232,7 +214,13 @@ export default async function HomePage() {
                 opacity: 0,
               }}
             >
-              <HeroSearchBar />
+              <Suspense
+                fallback={
+                  <div className="h-[64px] w-full bg-white/5 border border-white/10 rounded-full animate-pulse" />
+                }
+              >
+                <HeroSearchBar />
+              </Suspense>
             </div>
           </div>
         </section>
@@ -290,26 +278,20 @@ export default async function HomePage() {
           className="max-w-[1360px] mx-auto py-8"
           style={{ paddingLeft: 40, paddingRight: 40 }}
         >
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { n: String(clubCount), l: 'Clubes en Córdoba', i: '🏟️' },
-              { n: String(availableSlots), l: 'Turnos ahora', i: '⚡' },
-              { n: `${totalBookings}+`, l: 'Reservas totales', i: '🎾' },
-              { n: '4.8', l: 'Rating promedio', i: '⭐' },
-            ].map((s, i) => (
-              <div
-                key={i}
-                className="bg-card border border-border rounded-2xl px-5 py-4"
-                style={{ animation: `fadeIn 0.3s ${0.08 * i}s ease forwards`, opacity: 0 }}
-              >
-                <div className="text-xl mb-2">{s.i}</div>
-                <div className="font-display text-[28px] tracking-widest text-accent leading-none">
-                  {s.n}
-                </div>
-                <div className="text-[11px] text-muted mt-1">{s.l}</div>
+          <Suspense
+            fallback={
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="bg-card border border-border rounded-2xl h-[104px] animate-pulse"
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            }
+          >
+            <PlatformStats />
+          </Suspense>
         </section>
 
         {/* ── Clubes destacados ─────────────────────────────────────────── */}
@@ -444,6 +426,64 @@ export default async function HomePage() {
 }
 
 // ── Async sub-components ───────────────────────────────────────────────────
+
+async function HeroBadge() {
+  const { user } = await getSessionAndUserProfile()
+  const { availableSlots } = await getPageData()
+  const firstName = user?.name?.split(' ')[0] ?? null
+
+  return (
+    <div
+      className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-5 text-[11px] font-bold uppercase tracking-widest"
+      style={{
+        background: 'rgba(212,240,0,0.07)',
+        border: '1px solid rgba(212,240,0,0.18)',
+        color: 'var(--accent)',
+        animation: 'fadeUp 0.45s 0s ease forwards',
+        opacity: 0, // Animación CSS que ya tenías
+      }}
+    >
+      {firstName ? (
+        <>
+          <span>⚡</span>
+          Hola de nuevo, {firstName} — {availableSlots} turnos libres cerca tuyo
+        </>
+      ) : (
+        <>
+          <span>⚡</span>
+          {availableSlots} turnos disponibles ahora en Córdoba
+        </>
+      )}
+    </div>
+  )
+}
+
+async function PlatformStats() {
+  const { clubCount, totalBookings, availableSlots } = await getPageData()
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {[
+        { n: String(clubCount), l: 'Clubes en Córdoba', i: '🏟️' },
+        { n: String(availableSlots), l: 'Turnos ahora', i: '⚡' },
+        { n: `${totalBookings}+`, l: 'Reservas totales', i: '🎾' },
+        { n: '4.8', l: 'Rating promedio', i: '⭐' },
+      ].map((s, i) => (
+        <div
+          key={i}
+          className="bg-card border border-border rounded-2xl px-5 py-4"
+          style={{ animation: `fadeIn 0.3s ${0.08 * i}s ease forwards`, opacity: 0 }}
+        >
+          <div className="text-xl mb-2">{s.i}</div>
+          <div className="font-display text-[28px] tracking-widest text-accent leading-none">
+            {s.n}
+          </div>
+          <div className="text-[11px] text-muted mt-1">{s.l}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 async function FeaturedClubs() {
   const clubs = await getFeaturedClubs()

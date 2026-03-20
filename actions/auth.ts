@@ -38,10 +38,14 @@ const getSessionUserByIdCached = cache(async (userId: string) => {
  * Returns null if not present, invalid, or expired.
  */
 export async function getSession(): Promise<JwtSession | null> {
-  const cookieStore = await cookies()
-  const token = cookieStore.get(COOKIE_ACCESS_TOKEN)?.value
-  if (!token) return null
-  return verifyAccessTokenCached(token)
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get(COOKIE_ACCESS_TOKEN)?.value
+    if (!token) return null
+    return verifyAccessTokenCached(token)
+  } catch {
+    return null
+  }
 }
 
 export async function getSessionAndUserProfile(): Promise<{

@@ -4,6 +4,7 @@ import ClubGrid from '@/components/club/ClubGrid'
 import MapView from '@/components/club/MapView'
 import SearchFilters from './SearchFilters'
 import type { ClubPublic } from '@/types'
+import { connection } from 'next/server'
 
 // ── TYPES ─────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,7 @@ type PageProps = {
 // ── DATA FETCHING ──────────────────────────────────────────────────────────
 
 async function getClubs(params: SearchParams) {
+  await connection()
   const where: Record<string, unknown> = { isActive: true }
 
   if (params.zona) {
@@ -83,6 +85,8 @@ async function getClubs(params: SearchParams) {
 // ── PAGE ───────────────────────────────────────────────────────────────────
 
 export default async function BuscarPage({ searchParams }: PageProps) {
+  await connection()
+
   // Next.js 16: searchParams is a Promise (P6)
   const params = await searchParams
   const clubs = await getClubs(params)

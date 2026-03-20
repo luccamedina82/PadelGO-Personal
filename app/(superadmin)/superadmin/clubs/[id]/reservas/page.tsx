@@ -111,6 +111,7 @@ export default async function SuperadminClubReservasPage({ params, searchParams 
     displayName: b.source === 'BLOCK' ? (b.manualName ?? 'Bloqueo') : (b.manualName ?? b.user.name),
     totalPrice: b.totalPrice,
     paymentStatus: b.paymentStatus,
+    date: selectedDate,
   }))
 
   const courtColumns: CourtColumn[] = courts.map((c) => ({

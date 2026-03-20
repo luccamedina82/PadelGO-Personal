@@ -1,4 +1,3 @@
-import prisma from '@/lib/prisma'
 import { formatPrice } from '@/lib/availability'
 import AnalyticsControls from './AnalyticsControls'
 import {

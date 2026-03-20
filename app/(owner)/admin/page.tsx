@@ -2,14 +2,12 @@ import { formatPrice } from '@/lib/availability'
 import { periodToday, calcularIngresos } from '@/lib/analytics'
 import { argToday, argTomorrow, argNowMinutes } from '@/lib/date'
 import Link from 'next/link'
-import { unstable_cache } from 'next/cache'
 import AdminRefresher from './AdminRefresher'
 import { getAdminContext } from '@/lib/dal/admin'
 import { getCourtsByClubId } from '@/lib/dal/court'
 import { getAdminBookingsByDate } from '@/lib/dal/booking'
 import { getBarSalesPeriod, getCachedBarProducts } from '@/lib/dal/bar'
 import { getTrendBookings } from '@/lib/dal/analytic'
-
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -41,13 +39,12 @@ function statusColor(status: string) {
   }
 }
 
-
 // ── PAGE ──────────────────────────────────────────────────────────────────────
 
 export default async function AdminDashboardPage() {
-  const {session, club} = await getAdminContext(['OWNER', 'STAFF'])
+  const { session, club } = await getAdminContext(['OWNER', 'STAFF'])
 
-  if(!club) {
+  if (!club) {
     return (
       <div className="p-8 text-center text-muted">
         No tenés ningún club asignado.{' '}
@@ -70,7 +67,7 @@ export default async function AdminDashboardPage() {
   const todayBookings = await getAdminBookingsByDate(club.id, today, tomorrow)
   const todaySales = await getBarSalesPeriod(club.id, today, tomorrow)
   const allProducts = await getCachedBarProducts(club.id)
-  const lowStockProducts = allProducts.filter(p => p.active && p.stock <= (p.minStock || 0))
+  const lowStockProducts = allProducts.filter((p) => p.active && p.stock <= (p.minStock || 0))
   const last13Bookings = await getTrendBookings(club.id, thirteenDaysAgo, today)
 
   // Filter low stock products
@@ -157,7 +154,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen bg-bg p-4 md:p-6 max-w-5xl mx-auto">
-        <AdminRefresher />
+      <AdminRefresher />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -411,7 +408,9 @@ export default async function AdminDashboardPage() {
                   <span className="font-mono text-text w-20 shrink-0">
                     {booking.startTime}–{endTime}
                   </span>
-                  <span className="text-muted text-xs w-20 shrink-0">{courts[Number(booking.courtId)]?.name}</span>
+                  <span className="text-muted text-xs w-20 shrink-0">
+                    {courts[Number(booking.courtId)]?.name}
+                  </span>
                   <span className="flex-1 truncate text-text">
                     {booking.source === 'BLOCK'
                       ? `🔒 ${booking.manualName ?? 'Bloqueo'}`
@@ -446,8 +445,7 @@ export default async function AdminDashboardPage() {
             )}
           </div>
         </div>
-      )
-      }
+      )}
     </div>
   )
 }
