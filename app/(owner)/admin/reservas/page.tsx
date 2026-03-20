@@ -1,8 +1,5 @@
-import { requireRole } from '@/actions/auth'
-import prisma from '@/lib/prisma'
 import Link from 'next/link'
 import { argTodayStr } from '@/lib/date'
-import { unstable_cache } from 'next/cache'
 import ReservasShell from './ReservasShell'
 import PrintButton from '@/components/ui/PrintButton'
 import {
@@ -13,8 +10,10 @@ import {
   updateBookingPlayers,
   searchPlayers,
 } from '@/actions/owner/bookings'
-import type { BookingBlock, CourtColumn } from '@/components/booking/BookingGrid'
-import type { WeeklyBookingBlock } from '@/components/booking/WeeklyBookingGrid'
+import type { CourtColumn } from '@/components/booking/BookingGrid'
+import { getAdminContext } from '@/lib/dal/admin'
+import { getCourtsByClubId } from '@/lib/dal/court'
+import { getAdminBookingsByDate } from '@/lib/dal/booking'
 
 interface Props {
   searchParams: Promise<{ date?: string; new?: string; view?: 'day' | 'week' }>
@@ -47,84 +46,11 @@ function getWeekDates(weekStart: string): string[] {
   return dates
 }
 
-function getReservasData(
-  clubId: string,
-  dayOfWeek: number,
-  viewMode: 'day' | 'week',
-  selectedDate: string,
-  weekStart: string,
-  weekEnd: string
-) {
-  return unstable_cache(
-    async () => {
-      const courts = await prisma.court.findMany({
-        where: { clubId, isActive: true },
-        select: {
-          id: true,
-          name: true,
-          availabilities: {
-            where: { dayOfWeek, isActive: true },
-            select: { openTime: true, closeTime: true },
-          },
-        },
-        orderBy: { name: 'asc' },
-      })
-
-      const dayStart = new Date(`${selectedDate}T00:00:00.000Z`)
-      const dayEnd = new Date(`${selectedDate}T23:59:59.999Z`)
-      const weekStartDate = new Date(`${weekStart}T00:00:00.000Z`)
-      const weekEndDate = new Date(`${weekEnd}T23:59:59.999Z`)
-
-      const rawBookings = await prisma.booking.findMany({
-        where: {
-          clubId,
-          date: viewMode === 'week' ? { gte: weekStartDate, lte: weekEndDate } : { gte: dayStart, lte: dayEnd },
-          status: { in: ['PENDING', 'CONFIRMED'] },
-        },
-        select: {
-          id: true,
-          courtId: true,
-          date: true,
-          startTime: true,
-          durationMinutes: true,
-          status: true,
-          source: true,
-          totalPrice: true,
-          paymentStatus: true,
-          manualName: true,
-          manualPhone: true,
-          recurringBookingId: true,
-          playerIds: true,
-          paidPlayerIds: true,
-          user: { select: { name: true } },
-        },
-      })
-
-      return { courts, rawBookings }
-    },
-    [`admin-reservas-${clubId}-${selectedDate}-${viewMode}-${weekStart}-${weekEnd}-${dayOfWeek}`],
-    {
-      tags: [`club-${clubId}`],
-      revalidate: 5,
-    }
-  )()
-}
-
 export default async function ReservasPage({ searchParams }: Props) {
   const { date: dateParam, new: newBookingId, view: viewParam } = await searchParams
-  const session = await requireRole(['OWNER', 'STAFF'])
-  const viewMode = viewParam === 'week' ? 'week' : 'day'
+  const { club } = await getAdminContext(['OWNER', 'STAFF'])
 
-  const club =
-    session.role === 'STAFF'
-      ? await prisma.club.findUnique({
-          where: { id: session.staffClubId ?? '' },
-          select: { id: true, name: true },
-        })
-      : await prisma.club.findFirst({
-          where: { ownerId: session.userId },
-          select: { id: true, name: true },
-        })
+  const viewMode = viewParam === 'week' ? 'week' : 'day'
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
@@ -133,13 +59,12 @@ export default async function ReservasPage({ searchParams }: Props) {
   const selectedDate = dateParam ?? todayStr()
   const today = todayStr()
   const dateObj = new Date(`${selectedDate}T00:00:00.000Z`)
-  const dayOfWeek = dateObj.getUTCDay()
 
   // Week view: calculate week start (Monday) and end (Sunday)
   const weekStart = getMonday(selectedDate)
   const weekDates = getWeekDates(weekStart)
   const weekEnd = weekDates[6]
-
+  const dayOfWeek = dateObj.getUTCDay()
   const todayDate = new Date(`${today}T00:00:00.000Z`)
   const navDates = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(todayDate)
@@ -147,87 +72,44 @@ export default async function ReservasPage({ searchParams }: Props) {
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
   })
 
-  const { courts, rawBookings: rawBookingsCached } = await getReservasData(
-    club.id,
-    dayOfWeek,
-    viewMode,
-    selectedDate,
-    weekStart,
-    weekEnd
-  )
+  const allCourts = await getCourtsByClubId(club.id)
+  const periodStart = viewMode === 'week' ? new Date(`${weekStart}T00:00:00.000Z`) : dateObj
+  const periodEnd =
+    viewMode === 'week'
+      ? new Date(`${weekEnd}T23:59:59.999Z`)
+      : new Date(`${selectedDate}T23:59:59.999Z`)
+
+  const bookingsBlocks = await getAdminBookingsByDate(club.id, periodStart, periodEnd)
+
+  const activeCourtsToday = allCourts.map((court) => ({
+    ...court,
+    availabilities: court.availabilities.filter((a) => a.dayOfWeek === dayOfWeek),
+  }))
 
   let gridStart = 8 * 60
   let gridEnd = 23 * 60
-
   const openTimes: number[] = []
   const closeTimes: number[] = []
-  for (const court of courts) {
-    for (const avail of court.availabilities) {
+
+  activeCourtsToday.forEach((court) => {
+    court.availabilities.forEach((avail) => {
       const [oh, om] = avail.openTime.split(':').map(Number)
       const [ch, cm] = avail.closeTime.split(':').map(Number)
       openTimes.push((oh ?? 8) * 60 + (om ?? 0))
       closeTimes.push((ch ?? 23) * 60 + (cm ?? 0))
-    }
-  }
+    })
+  })
   if (openTimes.length > 0) gridStart = Math.min(...openTimes)
   if (closeTimes.length > 0) gridEnd = Math.max(...closeTimes)
+
   gridStart = Math.floor(gridStart / 30) * 30
   gridEnd = Math.ceil(gridEnd / 30) * 30
 
-  const rawBookings = rawBookingsCached.map((booking) => ({
-    ...booking,
-    date: new Date(booking.date),
-  }))
+  // Calculate date range for day view (full 24 hours)
+  const dayStart = new Date(`${selectedDate}T00:00:00.000Z`)
+  const dayEnd = new Date(`${selectedDate}T23:59:59.999Z`)
 
-  // Resolve player names for all bookings in one query
-  const allPlayerIds = [...new Set(rawBookings.flatMap((b) => b.playerIds))]
-  const playerList =
-    allPlayerIds.length > 0
-      ? await prisma.user.findMany({
-          where: { id: { in: allPlayerIds } },
-          select: { id: true, name: true },
-        })
-      : []
-  const playerMap = new Map(playerList.map((p) => [p.id, p.name]))
-
-  // Helper to format date from Date object
-  function formatDateStr(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-
-  const bookingBlocks: BookingBlock[] = rawBookings.map((b) => ({
-    id: b.id,
-    courtId: b.courtId,
-    startTime: b.startTime,
-    durationMinutes: b.durationMinutes,
-    status: b.status,
-    source: b.source,
-    displayName: b.source === 'BLOCK' ? (b.manualName ?? 'Bloqueo') : (b.manualName ?? b.user.name),
-    totalPrice: b.totalPrice,
-    paymentStatus: b.paymentStatus,
-    manualPhone: b.manualPhone,
-    recurringBookingId: b.recurringBookingId,
-    playerDetails: b.playerIds.map((id) => ({ id, name: playerMap.get(id) ?? 'Jugador' })),
-    paidPlayerIds: b.paidPlayerIds,
-    date: formatDateStr(b.date),
-  }))
-
-  // For week view, create weekly booking blocks
-  const weeklyBookingBlocks: WeeklyBookingBlock[] = rawBookings.map((b) => ({
-    id: b.id,
-    courtId: b.courtId,
-    date: formatDateStr(b.date),
-    startTime: b.startTime,
-    durationMinutes: b.durationMinutes,
-    status: b.status,
-    source: b.source,
-    displayName: b.source === 'BLOCK' ? (b.manualName ?? 'Bloqueo') : (b.manualName ?? b.user.name),
-    totalPrice: b.totalPrice,
-    paymentStatus: b.paymentStatus,
-    recurringBookingId: b.recurringBookingId,
-  }))
-
-  const courtColumns: CourtColumn[] = courts.map((c) => ({
+  const courtColumns: CourtColumn[] = activeCourtsToday.map((c) => ({
     id: c.id,
     name: c.name,
     isActive: true,
@@ -246,7 +128,7 @@ export default async function ReservasPage({ searchParams }: Props) {
   const weekEndObj = new Date(`${weekEnd}T00:00:00.000Z`)
   const weekLabel = `${weekStartObj.getUTCDate()} – ${weekEndObj.getUTCDate()} ${weekEndObj.toLocaleDateString('es-AR', { month: 'long', timeZone: 'UTC' })}`
 
-  const activeBookings = bookingBlocks.filter((b) => b.status !== 'CANCELLED')
+  const activeBookings = bookingsBlocks.filter((b) => b.status !== 'CANCELLED')
 
   return (
     <div className="h-screen bg-bg flex flex-col">
@@ -266,9 +148,7 @@ export default async function ReservasPage({ searchParams }: Props) {
               <Link
                 href={`/admin/reservas?date=${selectedDate}&view=day`}
                 className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  viewMode === 'day'
-                    ? 'bg-accent text-accent-text'
-                    : 'text-muted hover:text-text'
+                  viewMode === 'day' ? 'bg-accent text-accent-text' : 'text-muted hover:text-text'
                 }`}
               >
                 Día
@@ -276,9 +156,7 @@ export default async function ReservasPage({ searchParams }: Props) {
               <Link
                 href={`/admin/reservas?date=${selectedDate}&view=week`}
                 className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  viewMode === 'week'
-                    ? 'bg-accent text-accent-text'
-                    : 'text-muted hover:text-text'
+                  viewMode === 'week' ? 'bg-accent text-accent-text' : 'text-muted hover:text-text'
                 }`}
               >
                 Semana
@@ -418,8 +296,7 @@ export default async function ReservasPage({ searchParams }: Props) {
         ) : viewMode === 'week' ? (
           <ReservasShell
             courts={courtColumns}
-            bookings={bookingBlocks}
-            weeklyBookings={weeklyBookingBlocks}
+            bookings={bookingsBlocks}
             date={selectedDate}
             weekStart={weekStart}
             gridStart={gridStart}
@@ -436,7 +313,7 @@ export default async function ReservasPage({ searchParams }: Props) {
         ) : (
           <ReservasShell
             courts={courtColumns}
-            bookings={bookingBlocks}
+            bookings={bookingsBlocks}
             date={selectedDate}
             gridStart={gridStart}
             gridEnd={gridEnd}

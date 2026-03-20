@@ -20,7 +20,7 @@ export interface BookingBlock {
   recurringBookingId?: string | null
   playerDetails?: { id: string; name: string }[]
   paidPlayerIds?: string[]
-  date?: string // YYYY-MM-DD, populated in week view
+  date: string // YYYY-MM-DD, populated in week view
 }
 
 export interface CourtColumn {

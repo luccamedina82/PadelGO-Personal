@@ -11,7 +11,7 @@ import type { ActionResult } from '@/types'
 interface ReservasShellProps {
   courts: CourtColumn[]
   bookings: BookingBlock[]
-  weeklyBookings?: WeeklyBookingBlock[]
+  weeklyBookings?: BookingBlock[]
   date: string
   weekStart?: string
   gridStart: number
@@ -38,7 +38,6 @@ interface ReservasShellProps {
 export default function ReservasShell({
   courts,
   bookings,
-  weeklyBookings,
   date,
   weekStart,
   gridStart,
@@ -121,7 +120,7 @@ export default function ReservasShell({
     router.push(`/admin/reservas?date=${booking.date}&view=day`)
   }
 
-  if (viewMode === 'week' && weeklyBookings && weekStart) {
+  if (viewMode === 'week' && bookings && weekStart) {
     return (
       <div className="relative h-full min-h-0">
         {isRefreshing && (
@@ -135,7 +134,7 @@ export default function ReservasShell({
         <div className="h-full min-h-0 flex flex-col">
           <WeeklyBookingGrid
             courts={courts}
-            bookings={weeklyBookings}
+            bookings={bookings}
             weekStart={weekStart}
             gridStart={gridStart}
             gridEnd={gridEnd}

@@ -1,8 +1,6 @@
-import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import { formatPrice } from '@/lib/availability'
 import AnalyticsControls from './AnalyticsControls'
-import { unstable_cache } from 'next/cache'
 import {
   calcularIngresos,
   calcularOcupacion,
@@ -11,6 +9,10 @@ import {
   periodCurrentMonth,
   periodLastNDays,
 } from '@/lib/analytics'
+import { getAdminContext } from '@/lib/dal/admin'
+import { getCourtsByClubId } from '@/lib/dal/court'
+import { getFinancialBookings } from '@/lib/dal/analytic'
+import { getBarSalesPeriod } from '@/lib/dal/bar'
 
 interface Props {
   searchParams: Promise<{ start?: string; end?: string }>
@@ -22,80 +24,9 @@ function parseDateParam(dateStr: string | undefined): Date | undefined {
   return isNaN(d.getTime()) ? undefined : d
 }
 
-const getAnalyticsData = unstable_cache(
-  async (
-    clubId: string,
-    periodStartIso: string,
-    periodEndIso: string,
-    prevPeriodStartIso: string,
-    prevPeriodEndIso: string
-  ) => {
-    const periodStart = new Date(periodStartIso)
-    const periodEnd = new Date(periodEndIso)
-    const prevPeriodStart = new Date(prevPeriodStartIso)
-    const prevPeriodEnd = new Date(prevPeriodEndIso)
-
-    const [bookings, barSales, courts, availabilities, prevBookings, prevBarSales] =
-      await Promise.all([
-        prisma.booking.findMany({
-          where: { clubId, date: { gte: periodStart, lte: periodEnd } },
-          select: {
-            date: true,
-            startTime: true,
-            durationMinutes: true,
-            totalPrice: true,
-            status: true,
-            source: true,
-            courtId: true,
-          },
-        }),
-        prisma.barSale.findMany({
-          where: { clubId, createdAt: { gte: periodStart, lte: periodEnd } },
-          select: { createdAt: true, total: true },
-        }),
-        prisma.court.findMany({
-          where: { clubId, isActive: true },
-          select: { id: true, name: true },
-        }),
-        prisma.courtAvailability.findMany({
-          where: { court: { clubId } },
-          select: { courtId: true, dayOfWeek: true, openTime: true, closeTime: true, isActive: true },
-        }),
-        prisma.booking.findMany({
-          where: {
-            clubId,
-            date: { gte: prevPeriodStart, lte: prevPeriodEnd },
-            status: { in: ['CONFIRMED', 'COMPLETED'] },
-          },
-          select: {
-            totalPrice: true,
-          },
-        }),
-        prisma.barSale.findMany({
-          where: {
-            clubId,
-            createdAt: { gte: prevPeriodStart, lte: prevPeriodEnd },
-          },
-          select: {
-            total: true,
-          },
-        }),
-      ])
-
-    return { bookings, barSales, courts, availabilities, prevBookings, prevBarSales }
-  },
-  ['admin-analytics-data-v1'],
-  { revalidate: 120 }
-)
-
 export default async function AnalyticsPage({ searchParams }: Props) {
   const { start: startParam, end: endParam } = await searchParams
-  const session = await requireRole(['OWNER'])
-
-  const club = await prisma.club.findFirst({
-    where: { ownerId: session.userId },
-    select: { id: true, name: true },
-  })
+  const { club } = await getAdminContext(['OWNER'])
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
@@ -118,7 +49,6 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   // Also get current month for comparison
   const monthPeriod = periodCurrentMonth()
-
   // Calculate previous period for comparison
   const periodDays = Math.max(
     1,
@@ -129,44 +59,50 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const prevPeriodEnd = new Date(period.start)
   prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1)
 
-  const { bookings, barSales, courts, availabilities, prevBookings, prevBarSales } =
-    await getAnalyticsData(
-      club.id,
-      period.start.toISOString(),
-      period.end.toISOString(),
-      prevPeriodStart.toISOString(),
-      prevPeriodEnd.toISOString()
-    )
+  const [courts, bookings, barSales, prevBookings, prevBarSales] = await Promise.all([
+    getCourtsByClubId(club.id), // ¡Trae las canchas Y sus disponibilidades!
+    getFinancialBookings(club.id, period.start, period.end),
+    getBarSalesPeriod(club.id, period.start, period.end),
+    getFinancialBookings(club.id, prevPeriodStart, prevPeriodEnd), // Reutilizamos DAL
+    getBarSalesPeriod(club.id, prevPeriodStart, prevPeriodEnd), // Reutilizamos DAL
+  ])
+  console.log(prevPeriodStart, prevPeriodEnd)
+  const availabilities = courts.flatMap((court) =>
+    court.availabilities.map((a) => ({
+      courtId: court.id,
+      dayOfWeek: a.dayOfWeek,
+      openTime: a.openTime,
+      closeTime: a.closeTime,
+      isActive: a.isActive,
+    }))
+  )
 
-  const bookingRecords = bookings.map((b) => ({
-    date: b.date,
-    startTime: b.startTime,
-    durationMinutes: b.durationMinutes,
-    totalPrice: b.totalPrice,
-    status: b.status,
-    source: b.source,
-    courtId: b.courtId,
-  }))
-  const confirmedBookingRecords = bookingRecords.filter(
+  // 3. Los bookings ya vienen en el formato correcto desde el DAL,
+  // solo filtramos los confirmados para las métricas que lo requieran.
+  const confirmedBookingRecords = bookings.filter(
     (b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED'
   )
 
+  // Y lo mismo para el período anterior si necesitabas comparar totales de plata:
+  const prevBookingsTotal = prevBookings
+    .filter((b) => b.status === 'CONFIRMED' || b.status === 'COMPLETED')
+    .reduce((sum, b) => sum + b.totalPrice, 0)
+
+  const prevBarSalesTotal = prevBarSales.reduce((sum, s) => sum + s.total, 0)
+
   const barRecords = barSales.map((s) => ({ createdAt: s.createdAt, total: s.total }))
 
-  const ingresos = calcularIngresos(bookingRecords, barRecords, period)
-  const ingresosMonth = calcularIngresos(bookingRecords, barRecords, monthPeriod)
-  const ocupacion = calcularOcupacion(bookingRecords, courts, availabilities, period)
-  const horarios = calcularHorariosPico(bookingRecords, period)
-  const semana = calcularIngresosSemanales(bookingRecords, barRecords)
-
-  const prevBookingRecords = prevBookings.map((b) => ({ totalPrice: b.totalPrice }))
-  const prevBarRecords = prevBarSales.map((s) => ({ total: s.total }))
+  const ingresos = calcularIngresos(bookings, barRecords, period)
+  const ingresosMonth = calcularIngresos(bookings, barRecords, monthPeriod)
+  const ocupacion = calcularOcupacion(bookings, courts, availabilities, period)
+  const horarios = calcularHorariosPico(bookings, period)
+  console.log(bookings, period)
+  const semana = calcularIngresosSemanales(bookings, barRecords)
+  console.log(semana)
   const prevIngresos = {
-    bookings: prevBookingRecords.reduce((s, b) => s + b.totalPrice, 0),
-    bar: prevBarRecords.reduce((s, b) => s + b.total, 0),
-    total:
-      prevBookingRecords.reduce((s, b) => s + b.totalPrice, 0) +
-      prevBarRecords.reduce((s, b) => s + b.total, 0),
+    bookings: prevBookingsTotal,
+    bar: prevBarSalesTotal,
+    total: prevBookingsTotal + prevBarSalesTotal,
   }
 
   // Calculate percentage changes
@@ -182,7 +118,10 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   // Court revenue breakdown
   const revenueByCourt = new Map<string, number>()
   for (const booking of confirmedBookingRecords) {
-    revenueByCourt.set(booking.courtId, (revenueByCourt.get(booking.courtId) ?? 0) + booking.totalPrice)
+    revenueByCourt.set(
+      booking.courtId,
+      (revenueByCourt.get(booking.courtId) ?? 0) + booking.totalPrice
+    )
   }
 
   const courtRevenue = courts
@@ -205,15 +144,15 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   return (
     <div className="min-h-screen bg-bg">
-        <div className="sticky top-0 z-10 bg-surface border-b border-border px-4 py-3">
-          <div className="flex items-center justify-between gap-4 mb-2">
-            <div>
-              <h1 className="font-semibold text-text">Analytics — {club.name}</h1>
-              <p className="text-xs text-muted">{periodLabel}</p>
-            </div>
-            <AnalyticsControls startDate={startParam} endDate={endParam} />
+      <div className="sticky top-0 z-10 bg-surface border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-4 mb-2">
+          <div>
+            <h1 className="font-semibold text-text">Analytics — {club.name}</h1>
+            <p className="text-xs text-muted">{periodLabel}</p>
           </div>
+          <AnalyticsControls startDate={startParam} endDate={endParam} />
         </div>
+      </div>
 
       <div className="p-4 max-w-3xl mx-auto space-y-5">
         {/* KPIs */}
@@ -241,10 +180,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
               {formatPrice(ingresos.bookings)}
             </p>
             <div className="flex items-center justify-between mt-1">
-              <p className="text-xs text-muted">
-                {confirmedBookingRecords.length}{' '}
-                reservas
-              </p>
+              <p className="text-xs text-muted">{confirmedBookingRecords.length} reservas</p>
               {bookingChange !== 0 && (
                 <span
                   className={`text-[10px] font-bold ${bookingChange > 0 ? 'text-green-400' : 'text-red-400'}`}

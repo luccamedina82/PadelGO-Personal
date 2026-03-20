@@ -1,14 +1,11 @@
-import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import JugadoresClient from './JugadoresClient'
+import { Role } from '@/app/generated/prisma/enums'
+import { getAdminContext } from '@/lib/dal/admin'
 
 export default async function JugadoresPage() {
-  const session = await requireRole(['OWNER'])
+  const { club } = await getAdminContext([Role.OWNER])
 
-  const club = await prisma.club.findFirst({
-    where: { ownerId: session.userId },
-    select: { id: true, name: true },
-  })
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>

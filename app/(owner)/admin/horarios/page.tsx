@@ -1,21 +1,11 @@
-import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import HorariosClient from './HorariosClient'
 import { updateClubAvailability } from '@/actions/owner/availability'
+import { getAdminContext } from '@/lib/dal/admin'
+import { Role } from '@/app/generated/prisma/enums'
 
 export default async function HorariosPage() {
-  const session = await requireRole(['OWNER', 'STAFF'])
-
-  const club =
-    session.role === 'STAFF'
-      ? await prisma.club.findUnique({
-          where: { id: session.staffClubId ?? '' },
-          select: { id: true, name: true },
-        })
-      : await prisma.club.findFirst({
-          where: { ownerId: session.userId },
-          select: { id: true, name: true },
-        })
+  const { club } = await getAdminContext([Role.OWNER, Role.STAFF])
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>

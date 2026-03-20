@@ -1,16 +1,12 @@
-import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import { argToday } from '@/lib/date'
 import EquipoClient from './EquipoClient'
 import { inviteStaff, removeStaff } from '@/actions/owner/staff'
+import { getAdminContext } from '@/lib/dal/admin'
+import { Role } from '@/app/generated/prisma/browser'
 
 export default async function EquipoPage() {
-  const session = await requireRole(['OWNER'])
-
-  const club = await prisma.club.findFirst({
-    where: { ownerId: session.userId },
-    select: { id: true, name: true },
-  })
+  const { club } = await getAdminContext([Role.OWNER])
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>

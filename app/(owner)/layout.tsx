@@ -1,11 +1,28 @@
-import { requireRole } from '@/actions/auth'
 import AdminSidebar from '@/components/layout/AdminSidebar'
 import BottomNav from '@/components/layout/BottomNav'
+import { getAdminContext } from '@/lib/dal/admin'
 import { Suspense } from 'react'
 
-async function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
-  // Guard: OWNER or STAFF only
-  const session = await requireRole(['OWNER', 'STAFF'])
+export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted">Cargando...</div>}>
+      <ProtectedAdminContent>{children}</ProtectedAdminContent>
+    </Suspense>
+  )
+}
+
+async function ProtectedAdminContent({children}: { children: React.ReactNode }) {
+    // Guard: OWNER or STAFF only
+  const {session, hasClub} = await getAdminContext(['OWNER', 'STAFF'])
+
+  if (!hasClub) {
+    return (
+      <div className="p-8 text-center text-muted">
+        No tenés ningún club asignado.{' '}
+        {session.role === 'OWNER' && <span>Contactá a soporte para configurar tu club.</span>}
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -16,10 +33,3 @@ async function OwnerLayoutContent({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default function OwnerLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-bg" />}>
-      <OwnerLayoutContent>{children}</OwnerLayoutContent>
-    </Suspense>
-  )
-}

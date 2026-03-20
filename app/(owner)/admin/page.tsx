@@ -1,11 +1,14 @@
-import { requireRole } from '@/actions/auth'
-import prisma from '@/lib/prisma'
 import { formatPrice } from '@/lib/availability'
 import { periodToday, calcularIngresos } from '@/lib/analytics'
 import { argToday, argTomorrow, argNowMinutes } from '@/lib/date'
 import Link from 'next/link'
 import { unstable_cache } from 'next/cache'
 import AdminRefresher from './AdminRefresher'
+import { getAdminContext } from '@/lib/dal/admin'
+import { getCourtsByClubId } from '@/lib/dal/court'
+import { getAdminBookingsByDate } from '@/lib/dal/booking'
+import { getBarSalesPeriod, getCachedBarProducts } from '@/lib/dal/bar'
+import { getTrendBookings } from '@/lib/dal/analytic'
 
 
 // ── HELPERS ──────────────────────────────────────────────────────────────────
@@ -38,82 +41,13 @@ function statusColor(status: string) {
   }
 }
 
-const getAdminDashboardData = unstable_cache(
-  async (clubId: string, todayIso: string, tomorrowIso: string, thirteenDaysAgoIso: string) => {
-    const today = new Date(todayIso)
-    const tomorrow = new Date(tomorrowIso)
-    const thirteenDaysAgo = new Date(thirteenDaysAgoIso)
-
-    const [courts, todayBookings, barSalesToday, last13Bookings, lowStockProducts] =
-      await Promise.all([
-        prisma.court.findMany({
-          where: { clubId, isActive: true },
-          select: { id: true, name: true },
-          orderBy: { name: 'asc' },
-        }),
-        prisma.booking.findMany({
-          where: { clubId, date: { gte: today, lt: tomorrow } },
-          select: {
-            id: true,
-            date: true,
-            startTime: true,
-            durationMinutes: true,
-            totalPrice: true,
-            status: true,
-            source: true,
-            courtId: true,
-            paymentStatus: true,
-            manualName: true,
-            court: { select: { name: true } },
-            user: { select: { name: true } },
-          },
-          orderBy: [{ startTime: 'asc' }],
-        }),
-        prisma.barSale.findMany({
-          where: { clubId, createdAt: { gte: today, lt: tomorrow } },
-          select: { total: true },
-        }),
-        prisma.booking.findMany({
-          where: {
-            clubId,
-            date: { gte: thirteenDaysAgo, lt: today },
-            status: { not: 'CANCELLED' },
-          },
-          select: { date: true },
-        }),
-        prisma.barProduct.findMany({
-          where: {
-            clubId,
-            active: true,
-          },
-          select: { id: true, name: true, emoji: true, stock: true, minStock: true },
-          orderBy: { stock: 'asc' },
-        }),
-      ])
-
-    return { courts, todayBookings, barSalesToday, last13Bookings, lowStockProducts }
-  },
-  ['admin-dashboard-data-v1'],
-  { revalidate: 30 }
-)
 
 // ── PAGE ──────────────────────────────────────────────────────────────────────
 
 export default async function AdminDashboardPage() {
-  const session = await requireRole(['OWNER', 'STAFF'])
+  const {session, club} = await getAdminContext(['OWNER', 'STAFF'])
 
-  const club =
-    session.role === 'STAFF'
-      ? await prisma.club.findUnique({
-          where: { id: session.staffClubId ?? '' },
-          select: { id: true, name: true },
-        })
-      : await prisma.club.findFirst({
-          where: { ownerId: session.userId },
-          select: { id: true, name: true },
-        })
-
-  if (!club) {
+  if(!club) {
     return (
       <div className="p-8 text-center text-muted">
         No tenés ningún club asignado.{' '}
@@ -132,29 +66,12 @@ export default async function AdminDashboardPage() {
   thirteenDaysAgo.setUTCDate(thirteenDaysAgo.getUTCDate() - 13)
 
   // ── QUERIES ──────────────────────────────────────────────────────────────
-  const {
-    courts,
-    todayBookings: todayBookingsRaw,
-    barSalesToday,
-    last13Bookings: last13BookingsRaw,
-    lowStockProducts,
-  } =
-    await getAdminDashboardData(
-      club.id,
-      today.toISOString(),
-      tomorrow.toISOString(),
-      thirteenDaysAgo.toISOString()
-    )
-
-  const todayBookings = todayBookingsRaw.map((booking) => ({
-    ...booking,
-    date: new Date(booking.date),
-  }))
-
-  const last13Bookings = last13BookingsRaw.map((booking) => ({
-    ...booking,
-    date: new Date(booking.date),
-  }))
+  const courts = await getCourtsByClubId(club.id)
+  const todayBookings = await getAdminBookingsByDate(club.id, today, tomorrow)
+  const todaySales = await getBarSalesPeriod(club.id, today, tomorrow)
+  const allProducts = await getCachedBarProducts(club.id)
+  const lowStockProducts = allProducts.filter(p => p.active && p.stock <= (p.minStock || 0))
+  const last13Bookings = await getTrendBookings(club.id, thirteenDaysAgo, today)
 
   // Filter low stock products
   const lowStockProductsFiltered = lowStockProducts.filter((p) => p.stock <= p.minStock)
@@ -163,7 +80,7 @@ export default async function AdminDashboardPage() {
   const period = periodToday()
   const ingresos = calcularIngresos(
     todayBookings.map((b) => ({
-      date: b.date,
+      date: new Date(`${b.date}T00:00:00.000Z`),
       startTime: b.startTime,
       durationMinutes: b.durationMinutes,
       totalPrice: b.totalPrice,
@@ -171,7 +88,7 @@ export default async function AdminDashboardPage() {
       source: b.source,
       courtId: b.courtId,
     })),
-    barSalesToday.map((s) => ({ createdAt: new Date(), total: s.total })),
+    todaySales.map((s) => ({ createdAt: new Date(), total: s.total })),
     period
   )
 
@@ -449,7 +366,7 @@ export default async function AdminDashboardPage() {
                       <p className="text-sm text-text truncate">
                         {booking.manualName ?? booking.user.name}
                       </p>
-                      <p className="text-xs text-muted">{booking.court.name}</p>
+                      <p className="text-xs text-muted">{courts[Number(booking.courtId)]?.name}</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <div className={`w-1.5 h-1.5 rounded-full ${src.dot}`} />
@@ -494,7 +411,7 @@ export default async function AdminDashboardPage() {
                   <span className="font-mono text-text w-20 shrink-0">
                     {booking.startTime}–{endTime}
                   </span>
-                  <span className="text-muted text-xs w-20 shrink-0">{booking.court.name}</span>
+                  <span className="text-muted text-xs w-20 shrink-0">{courts[Number(booking.courtId)]?.name}</span>
                   <span className="flex-1 truncate text-text">
                     {booking.source === 'BLOCK'
                       ? `🔒 ${booking.manualName ?? 'Bloqueo'}`

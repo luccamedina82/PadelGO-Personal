@@ -21,6 +21,8 @@ export interface BookingRecord {
   courtId: string
 }
 
+
+
 export interface BarSaleRecord {
   createdAt: Date
   total: number // centavos

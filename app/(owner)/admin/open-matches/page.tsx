@@ -1,20 +1,11 @@
-import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import { formatPrice } from '@/lib/availability'
+import { Role } from '@/app/generated/prisma/browser'
+import { getAdminContext } from '@/lib/dal/admin'
 
 export default async function OpenMatchesPage() {
-  const session = await requireRole(['OWNER', 'STAFF'])
+  const { club } = await getAdminContext([Role.OWNER, Role.STAFF])
 
-  const club =
-    session.role === 'STAFF'
-      ? await prisma.club.findUnique({
-          where: { id: session.staffClubId ?? '' },
-          select: { id: true, name: true },
-        })
-      : await prisma.club.findFirst({
-          where: { ownerId: session.userId },
-          select: { id: true, name: true },
-        })
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>

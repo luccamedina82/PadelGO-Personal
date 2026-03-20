@@ -1,4 +1,3 @@
-import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import TurnosFijosClient from './TurnosFijosClient'
 import {
@@ -6,31 +5,27 @@ import {
   cancelRecurringBooking,
   listRecurringBookings,
 } from '@/actions/owner/recurring'
+import { Role } from '@/app/generated/prisma/browser'
+import { getAdminContext } from '@/lib/dal/admin'
 
 export default async function TurnosFijosPage() {
-  const session = await requireRole(['OWNER', 'STAFF'])
-
-  // Resolve club for this session
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { staffClubId: true, ownedClubs: { select: { id: true } } },
-  })
-
-  const clubId =
-    session.role === 'STAFF' ? (user?.staffClubId ?? '') : (user?.ownedClubs[0]?.id ?? '')
+    const { club } = await getAdminContext([Role.OWNER, Role.STAFF])
+  if (!club) {
+    return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
+  }
 
   const [courts, recurring] = await Promise.all([
     prisma.court.findMany({
-      where: { clubId, isActive: true },
+      where: { clubId: club.id, isActive: true },
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     }),
-    listRecurringBookings(clubId),
+    listRecurringBookings(club.id),
   ])
 
   return (
     <TurnosFijosClient
-      clubId={clubId}
+      clubId={club.id}
       courts={courts}
       recurring={recurring}
       createAction={createRecurringBooking}

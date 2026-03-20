@@ -1,4 +1,3 @@
-import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import BarModule from './BarModule'
 import {
@@ -9,6 +8,8 @@ import {
 } from '@/actions/owner/bar'
 import { addBarStockEntry } from '@/actions/owner/bar-stock'
 import { argTomorrow, argDaysAgo } from '@/lib/date'
+import { getAdminContext } from '@/lib/dal/admin'
+import { getCachedBarProducts, getPaginatedBarSales } from '@/lib/dal/bar'
 
 type PageProps = {
   searchParams: Promise<{ start?: string; end?: string; page?: string; limit?: string }>
@@ -17,18 +18,7 @@ type PageProps = {
 export default async function BarPage({ searchParams }: PageProps) {
   const { start, end, page = '1', limit = '20' } = await searchParams
 
-  const session = await requireRole(['OWNER', 'STAFF'])
-
-  const club =
-    session.role === 'STAFF'
-      ? await prisma.club.findUnique({
-          where: { id: session.staffClubId ?? '' },
-          select: { id: true, name: true },
-        })
-      : await prisma.club.findFirst({
-          where: { ownerId: session.userId },
-          select: { id: true, name: true },
-        })
+  const {club, session} = await getAdminContext(['OWNER', 'STAFF'])
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
@@ -42,62 +32,11 @@ export default async function BarPage({ searchParams }: PageProps) {
   const pageSize = parseInt(limit) || 20
   const skip = (pageNum - 1) * pageSize
 
-  const [products, rawSales, totalSales] = await Promise.all([
-    prisma.barProduct.findMany({
-      where: { clubId: club.id },
-      orderBy: [{ active: 'desc' }, { category: 'asc' }, { name: 'asc' }],
-      select: {
-        id: true,
-        name: true,
-        category: true,
-        price: true,
-        stock: true,
-        minStock: true,
-        emoji: true,
-        active: true,
-      },
-    }),
-    prisma.barSale.findMany({
-      where: {
-        clubId: club.id,
-        createdAt: { gte: startDate, lte: endDate },
-      },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: pageSize,
-      select: {
-        id: true,
-        total: true,
-        payMethod: true,
-        createdAt: true,
-        items: {
-          select: {
-            qty: true,
-            unitPrice: true,
-            product: { select: { name: true } },
-          },
-        },
-      },
-    }),
-    prisma.barSale.count({
-      where: {
-        clubId: club.id,
-        createdAt: { gte: startDate, lte: endDate },
-      },
-    }),
-  ])
 
-  const sales = rawSales.map((s) => ({
-    id: s.id,
-    total: s.total,
-    payMethod: s.payMethod,
-    createdAt: s.createdAt.toISOString(),
-    items: s.items.map((i) => ({
-      productName: i.product.name,
-      qty: i.qty,
-      unitPrice: i.unitPrice,
-    })),
-  }))
+const [products, { sales, totalSales }] = await Promise.all([
+    getCachedBarProducts(club.id),
+    getPaginatedBarSales(club.id, startDate, endDate, skip, pageSize)
+  ])
 
   const pageCount = Math.ceil(totalSales / pageSize)
 

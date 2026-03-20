@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { BookingBlock } from './BookingGrid'
 
 // ── TYPES ─────────────────────────────────────────────────────────────────
 
@@ -27,11 +28,11 @@ export interface CourtColumn {
 
 interface WeeklyBookingGridProps {
   courts: CourtColumn[]
-  bookings: WeeklyBookingBlock[]
+  bookings: BookingBlock[]
   weekStart: string // YYYY-MM-DD (Monday)
   gridStart: number // minutes from midnight
   gridEnd: number // minutes from midnight
-  onBlockClick?: (booking: WeeklyBookingBlock) => void
+  onBlockClick?: (booking: BookingBlock) => void
 }
 
 const SLOT_HEIGHT = 40 // px per 30-min row (smaller for week view)
@@ -128,7 +129,7 @@ export default function WeeklyBookingGrid({
   const [selectedCourt, setSelectedCourt] = useState<string>(courts[0]?.id ?? '')
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
   const [tooltip, setTooltip] = useState<{
-    booking: WeeklyBookingBlock
+    booking: BookingBlock
     x: number
     y: number
   } | null>(null)
@@ -202,7 +203,7 @@ export default function WeeklyBookingGrid({
     setSlotTooltip(null)
   }
 
-  function handleBlockClick(booking: WeeklyBookingBlock) {
+  function handleBlockClick(booking: BookingBlock) {
     if (onBlockClick) {
       onBlockClick(booking)
     } else {
