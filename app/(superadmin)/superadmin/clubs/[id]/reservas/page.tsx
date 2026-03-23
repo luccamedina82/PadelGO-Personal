@@ -2,7 +2,6 @@ import { requireSuperAdmin } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import SuperadminBanner from '@/components/layout/SuperadminBanner'
 import ReservasShell from '@/app/(owner)/admin/reservas/ReservasShell'
-import { cancelBooking, confirmBooking } from '@/actions/owner/bookings'
 import type { BookingBlock, CourtColumn } from '@/components/booking/BookingGrid'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -103,6 +102,7 @@ export default async function SuperadminClubReservasPage({ params, searchParams 
 
   const bookingBlocks: BookingBlock[] = rawBookings.map((b) => ({
     id: b.id,
+    clubId: id,
     courtId: b.courtId,
     startTime: b.startTime,
     durationMinutes: b.durationMinutes,
@@ -218,8 +218,6 @@ export default async function SuperadminClubReservasPage({ params, searchParams 
             date={selectedDate}
             gridStart={gridStart}
             gridEnd={gridEnd}
-            cancelBookingAction={cancelBooking}
-            confirmBookingAction={confirmBooking}
           />
         )}
       </div>

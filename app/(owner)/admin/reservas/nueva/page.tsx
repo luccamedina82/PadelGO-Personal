@@ -1,10 +1,10 @@
-import { requireRole } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import ManualBookingWizard from '@/components/booking/ManualBookingWizard'
 import { createManualBooking } from '@/actions/owner/bookings'
 import { calcAvailableSlots } from '@/lib/availability'
 import Link from 'next/link'
-import { argToday, argTodayStr } from '@/lib/date'
+import { argToday, argTodayStr, toUtcDateStr } from '@/lib/date'
+import { getAdminContext } from '@/lib/dal/admin'
 
 interface Props {
   searchParams: Promise<{ courtId?: string; date?: string; time?: string }>
@@ -25,18 +25,8 @@ function minsToTime(m: number) {
 
 export default async function NuevaReservaPage({ searchParams }: Props) {
   const { courtId: defaultCourtId, date: dateParam, time: defaultTime } = await searchParams
-  const session = await requireRole(['OWNER', 'STAFF'])
+  const {club} = await getAdminContext(['OWNER', 'STAFF'])
 
-  const club =
-    session.role === 'STAFF'
-      ? await prisma.club.findUnique({
-          where: { id: session.staffClubId ?? '' },
-          select: { id: true, name: true },
-        })
-      : await prisma.club.findFirst({
-          where: { ownerId: session.userId },
-          select: { id: true, name: true },
-        })
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
@@ -58,9 +48,10 @@ export default async function NuevaReservaPage({ searchParams }: Props) {
   // Date nav for backdrop (-2 to +11 from today)
   const navDates = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(todayDate)
-    d.setDate(d.getDate() + i - 2)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    d.setUTCDate(d.getUTCDate() + i - 2)
+    return toUtcDateStr(d)
   })
+
 
   // Fetch courts with all availabilities (needed for both wizard and backdrop)
   const courts = await prisma.court.findMany({
@@ -177,8 +168,7 @@ export default async function NuevaReservaPage({ searchParams }: Props) {
       }
 
       const courtBookings = allBookings.filter((b) => {
-        const bd = b.date
-        const bdStr = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`
+        const bdStr = toUtcDateStr(b.date)
         return b.courtId === court.id && bdStr === dateStr
       })
 

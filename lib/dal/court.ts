@@ -12,14 +12,21 @@ export async function getCourtsByClubId(clubId: string) {
     select: {
       id: true,
       name: true,
+      type: true,
+      covered: true,
       availabilities: {
         where: { isActive: true },
-        select: { dayOfWeek: true, openTime: true, closeTime: true, isActive: true,},
+        select: {
+          dayOfWeek: true,
+          openTime: true,
+          closeTime: true,
+          pricePerHour: true,
+          isActive: true,
+        },
       },
     },
     orderBy: { name: 'asc' },
   })
-
 
   return courts
 }

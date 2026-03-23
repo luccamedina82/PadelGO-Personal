@@ -359,7 +359,7 @@ body {
 }
 
 /* 30-second new-booking highlight for grid blocks */
-@keyframes bookingHighlight {
+@keyframes bookingHighlightAura {
   0% {
     box-shadow:
       0 0 0 2px var(--accent),
@@ -380,8 +380,113 @@ body {
   }
 }
 
+@keyframes bookingBreath {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    transform: scale(1.02);
+    filter: saturate(1.18) brightness(1.08);
+  }
+}
+
+@keyframes bookingColorShift {
+  0% {
+    border-left-color: var(--accent);
+  }
+  50% {
+    border-left-color: #22d3ee;
+  }
+  100% {
+    border-left-color: #fb7185;
+  }
+}
+
 .booking-block-highlighted {
-  animation: bookingHighlight 30s ease-out forwards;
+  animation:
+    bookingHighlightAura 30s ease-out forwards,
+    bookingBreath 2.4s ease-in-out infinite,
+    bookingColorShift 6s ease-in-out infinite alternate;
+}
+
+.booking-new-badge {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #080808;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  animation: bookingBadgePop 0.45s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+@keyframes bookingBadgePop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.booking-new-toast {
+  position: fixed;
+  right: 18px;
+  top: 78px;
+  z-index: 60;
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, var(--border));
+  background: color-mix(in srgb, var(--surface) 84%, black 16%);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 220px;
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  animation: bookingToastIn 0.35s ease both;
+  backdrop-filter: blur(8px);
+}
+
+.booking-new-toast-title {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.booking-new-toast-sub {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 4px 0 0;
+}
+
+@keyframes bookingToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-block-highlighted,
+  .booking-new-badge,
+  .booking-new-toast {
+    animation: none !important;
+  }
 }
 
 /* 30-second highlight for list entries (turnos fijos) */

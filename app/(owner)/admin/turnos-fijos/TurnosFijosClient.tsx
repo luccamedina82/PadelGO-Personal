@@ -32,7 +32,9 @@ interface TurnosFijosClientProps {
   recurring: RecurringEntry[]
   createAction: (
     input: CreateRecurringBookingInput
-  ) => Promise<ActionResult<{ recurringId: string; bookingsCreated: number; conflicts: RecurringConflict[] }>>
+  ) => Promise<
+    ActionResult<{ recurringId: string; bookingsCreated: number; conflicts: RecurringConflict[] }>
+  >
   cancelAction: (id: string, clubId: string) => Promise<ActionResult>
 }
 
@@ -301,12 +303,16 @@ export default function TurnosFijosClient({
         {conflicts.length > 0 && (
           <div className="bg-yellow-400/8 border border-yellow-400/30 rounded-xl p-4">
             <p className="text-xs font-semibold text-yellow-400 mb-2">
-              ⚠ {conflicts.length} fecha{conflicts.length !== 1 ? 's' : ''} con conflicto — no se generaron esos turnos:
+              ⚠ {conflicts.length} fecha{conflicts.length !== 1 ? 's' : ''} con conflicto — no se
+              generaron esos turnos:
             </p>
             <div className="space-y-1.5">
               {conflicts.map((c) => {
                 const dateLabel = new Date(`${c.date}T00:00:00.000Z`).toLocaleDateString('es-AR', {
-                  weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  timeZone: 'UTC',
                 })
                 return (
                   <div key={c.date} className="flex items-center gap-2 text-xs text-yellow-300/80">

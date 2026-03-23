@@ -81,6 +81,17 @@ export function toArgDateStr(date: Date): string {
 }
 
 /**
+ * Returns a UTC date key "YYYY-MM-DD" from a Date value.
+ * Use this for DB fields stored as UTC midnight (e.g. Booking.date).
+ */
+export function toUtcDateStr(date: Date): string {
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/**
  * Checks whether a Booking.date (UTC midnight) falls on today in Argentina.
  * Booking.date uses UTC midnight, so compare using getUTC* methods.
  */

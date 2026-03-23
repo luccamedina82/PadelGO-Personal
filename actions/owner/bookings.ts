@@ -1,11 +1,13 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/actions/auth'
 import { calcBookingPrice, timeToMinutes, VALID_DURATIONS } from '@/lib/availability'
 import { argToday } from '@/lib/date'
 import type { ActionResult } from '@/types'
+import { getAdminBookingsByDate } from '@/lib/dal/booking'
+import { getAdminContext } from '@/lib/dal/admin'
 
 export interface CreateManualBookingInput {
   clubId: string
@@ -54,7 +56,6 @@ export async function createManualBooking(
   if (isNaN(dateObj.getTime())) {
     return { success: false, error: 'Fecha inválida.' }
   }
-
   if (session.role === 'STAFF' && session.staffClubId !== clubId) {
     return { success: false, error: 'No tenés permisos para este club.' }
   }
@@ -116,9 +117,10 @@ export async function createManualBooking(
       })
     })
 
-    revalidatePath('/admin/reservas')
-    revalidatePath('/admin')
-    revalidatePath(`/club/${clubId}`)
+    // revalidatePath('/admin/reservas')
+    // revalidatePath('/admin')
+    // revalidatePath(`/club/${clubId}`)
+    revalidateTag(`bookings-${clubId}`, 'max')
 
     return { success: true, data: { bookingId: booking.id } }
   } catch (err) {
@@ -131,7 +133,7 @@ export async function createManualBooking(
 }
 
 export async function cancelBooking(bookingId: string): Promise<ActionResult> {
-  const session = await requireRole(['OWNER', 'STAFF'])
+  const {session} = await getAdminContext(['OWNER', 'STAFF'])
 
   try {
     const booking = await prisma.booking.findUnique({
@@ -148,8 +150,10 @@ export async function cancelBooking(bookingId: string): Promise<ActionResult> {
     }
 
     await prisma.booking.update({ where: { id: bookingId }, data: { status: 'CANCELLED' } })
-    revalidatePath('/admin/reservas')
-    revalidatePath('/admin')
+    // revalidatePath('/admin/reservas')
+    // revalidatePath('/admin')
+    revalidateTag(`bookings-${booking.clubId}`, 'max')
+
     return { success: true }
   } catch (err) {
     console.error('[cancelBooking]', err)
@@ -172,8 +176,10 @@ export async function confirmBooking(bookingId: string): Promise<ActionResult> {
     }
 
     await prisma.booking.update({ where: { id: bookingId }, data: { status: 'CONFIRMED' } })
-    revalidatePath('/admin/reservas')
-    revalidatePath('/admin')
+    // revalidatePath('/admin/reservas')
+    // revalidatePath('/admin')
+    revalidateTag(`bookings-${booking.clubId}`, 'max')
+
     return { success: true }
   } catch (err) {
     console.error('[confirmBooking]', err)
@@ -202,8 +208,9 @@ export async function updatePaymentStatus(
     }
 
     await prisma.booking.update({ where: { id: bookingId }, data: { paymentStatus } })
-    revalidatePath('/admin/reservas')
-    revalidatePath('/admin')
+    // revalidatePath('/admin/reservas')
+    // revalidatePath('/admin')
+    revalidateTag(`bookings-${booking.clubId}`, 'max')
     return { success: true }
   } catch (err) {
     console.error('[updatePaymentStatus]', err)
@@ -277,10 +284,11 @@ export async function updateBooking(
       }
 
       await tx.booking.update({ where: { id: bookingId }, data: updateData })
+      revalidateTag(`bookings-${booking.clubId}`, 'max')
     })
 
-    revalidatePath('/admin/reservas')
-    revalidatePath('/admin')
+    // revalidatePath('/admin/reservas')
+    // revalidatePath('/admin')
     return { success: true }
   } catch (err) {
     if (err instanceof Error) {
@@ -375,8 +383,9 @@ export async function updateBookingPlayers(
       data: { playerIds, paidPlayerIds: validPaid },
     })
 
-    revalidatePath('/admin/reservas')
-    revalidatePath('/admin')
+    // revalidatePath('/admin/reservas')
+    // revalidatePath('/admin')
+    revalidateTag(`bookings-${booking.clubId}`, 'max')
     return { success: true }
   } catch (err) {
     console.error('[updateBookingPlayers]', err)
@@ -444,12 +453,19 @@ export async function convertBookingToOpenMatch(
       },
     })
 
-    revalidatePath('/admin/reservas')
-    revalidatePath('/admin/open-matches')
-    revalidatePath('/admin')
+    // revalidatePath('/admin/reservas')
+    // revalidatePath('/admin/open-matches')
+    // revalidatePath('/admin')
+    revalidateTag(`bookings-${booking.clubId}`, 'max')
     return { success: true, data: { bookingId } }
   } catch (err) {
     console.error('[convertBookingToOpenMatch]', err)
     return { success: false, error: 'Error al convertir la reserva.' }
   }
+}
+
+export async function fetchBookingsAction(clubId: string, start: string, end: string) {
+  const periodStart = new Date(`${start}T00:00:00.000Z`)
+  const periodEnd = new Date(`${end}T23:59:59.999Z`)
+  return await getAdminBookingsByDate(clubId, periodStart, periodEnd)
 }

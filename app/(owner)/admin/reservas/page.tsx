@@ -1,19 +1,14 @@
-import Link from 'next/link'
 import { argTodayStr } from '@/lib/date'
-import ReservasShell from './ReservasShell'
-import PrintButton from '@/components/ui/PrintButton'
-import {
-  cancelBooking,
-  confirmBooking,
-  updatePaymentStatus,
-  updateBooking,
-  updateBookingPlayers,
-  searchPlayers,
-} from '@/actions/owner/bookings'
 import type { CourtColumn } from '@/components/booking/BookingGrid'
 import { getAdminContext } from '@/lib/dal/admin'
 import { getCourtsByClubId } from '@/lib/dal/court'
 import { getAdminBookingsByDate } from '@/lib/dal/booking'
+import HeaderReservas from './ui/HeaderReservas'
+import DateNavigation from './ui/DayView/DayView'
+import WeekNavigation from './ui/WeeklyView/WeeklyView'
+import Legend from './ui/Legend'
+import BookingsClient from './BookingsClient'
+import { Suspense } from 'react'
 
 interface Props {
   searchParams: Promise<{ date?: string; new?: string; view?: 'day' | 'week' }>
@@ -22,8 +17,6 @@ interface Props {
 function todayStr() {
   return argTodayStr()
 }
-
-const DOW_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
 function getMonday(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00.000Z`)
@@ -47,7 +40,7 @@ function getWeekDates(weekStart: string): string[] {
 }
 
 export default async function ReservasPage({ searchParams }: Props) {
-  const { date: dateParam, new: newBookingId, view: viewParam } = await searchParams
+  const { date: dateParam, view: viewParam } = await searchParams
   const { club } = await getAdminContext(['OWNER', 'STAFF'])
 
   const viewMode = viewParam === 'week' ? 'week' : 'day'
@@ -55,31 +48,22 @@ export default async function ReservasPage({ searchParams }: Props) {
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
   }
+  const allCourts = await getCourtsByClubId(club.id)
 
   const selectedDate = dateParam ?? todayStr()
-  const today = todayStr()
   const dateObj = new Date(`${selectedDate}T00:00:00.000Z`)
-
   // Week view: calculate week start (Monday) and end (Sunday)
   const weekStart = getMonday(selectedDate)
   const weekDates = getWeekDates(weekStart)
   const weekEnd = weekDates[6]
   const dayOfWeek = dateObj.getUTCDay()
-  const todayDate = new Date(`${today}T00:00:00.000Z`)
-  const navDates = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(todayDate)
-    d.setUTCDate(d.getUTCDate() + i - 2)
-    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-  })
 
-  const allCourts = await getCourtsByClubId(club.id)
-  const periodStart = viewMode === 'week' ? new Date(`${weekStart}T00:00:00.000Z`) : dateObj
-  const periodEnd =
-    viewMode === 'week'
-      ? new Date(`${weekEnd}T23:59:59.999Z`)
-      : new Date(`${selectedDate}T23:59:59.999Z`)
+  const periodStart = new Date(`${weekStart}T00:00:00.000Z`)
+  const periodEnd = new Date(`${weekEnd}T23:59:59.999Z`)
 
-  const bookingsBlocks = await getAdminBookingsByDate(club.id, periodStart, periodEnd)
+  const initialBookings = await getAdminBookingsByDate(club.id, periodStart, periodEnd)
+  const bookingsBlocks =
+    viewMode === 'week' ? initialBookings : initialBookings.filter((b) => b.date === selectedDate)
 
   const activeCourtsToday = allCourts.map((court) => ({
     ...court,
@@ -131,198 +115,39 @@ export default async function ReservasPage({ searchParams }: Props) {
       {/* ── Sticky header ──────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-surface border-b border-border print:static print:border-0">
         {/* Title row */}
-        <div className="px-5 pt-4 pb-3 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-display text-2xl tracking-widest text-text capitalize leading-none print:text-xl">
-              {viewMode === 'week' ? weekLabel : dateLabel}
-            </h1>
-            <p className="text-xs text-muted mt-1">{club.name}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* View toggle */}
-            <div className="flex items-center bg-card border border-border rounded-lg overflow-hidden print:hidden">
-              <Link
-                href={`/admin/reservas?date=${selectedDate}&view=day`}
-                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  viewMode === 'day' ? 'bg-accent text-accent-text' : 'text-muted hover:text-text'
-                }`}
-              >
-                Día
-              </Link>
-              <Link
-                href={`/admin/reservas?date=${selectedDate}&view=week`}
-                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  viewMode === 'week' ? 'bg-accent text-accent-text' : 'text-muted hover:text-text'
-                }`}
-              >
-                Semana
-              </Link>
-            </div>
-            <Link
-              href={`/admin/reservas/nueva?date=${selectedDate}&view=${viewMode}`}
-              prefetch
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-accent text-accent-text
-                         text-xs font-bold rounded-xl hover:bg-accent-dark transition-colors shadow-sm print:hidden"
-            >
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Nueva
-            </Link>
-          </div>
-        </div>
-
-        {/* Date navigation strip (only in day view) */}
-        {viewMode === 'day' && (
-          <div className="overflow-x-auto px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden print:hidden">
-            <div className="flex gap-1.5">
-              {navDates.map((d) => {
-                const dObj = new Date(`${d}T00:00:00.000Z`)
-                const dow = DOW_LABELS[dObj.getUTCDay()]
-                const day = dObj.getUTCDate()
-                const isToday = d === today
-                const isSelected = d === selectedDate
-                return (
-                  <Link
-                    key={d}
-                    href={`/admin/reservas?date=${d}&view=day`}
-                    className={`shrink-0 flex flex-col items-center px-2.5 py-1.5 rounded-xl
-                                text-xs transition-colors min-w-[44px]
-                                ${
-                                  isSelected
-                                    ? 'bg-accent text-accent-text font-bold'
-                                    : isToday
-                                      ? 'bg-accent/10 text-accent font-semibold border border-accent/30'
-                                      : 'bg-card border border-border text-muted hover:text-text hover:border-border-hover'
-                                }`}
-                  >
-                    <span className="text-[9px] uppercase tracking-wider leading-none mb-0.5">
-                      {dow}
-                    </span>
-                    <span className="text-base font-bold leading-tight">{day}</span>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Week navigation (only in week view) */}
-        {viewMode === 'week' && (
-          <div className="px-5 pb-3 flex items-center gap-2 print:hidden">
-            <Link
-              href={`/admin/reservas?date=${(() => {
-                const d = new Date(`${weekStart}T00:00:00.000Z`)
-                d.setUTCDate(d.getUTCDate() - 7)
-                return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-              })()}&view=week`}
-              className="px-3 py-1.5 bg-card border border-border rounded-lg text-xs text-muted hover:text-text hover:border-border-hover transition-colors"
-            >
-              ← Anterior
-            </Link>
-            <Link
-              href={`/admin/reservas?date=${today}&view=week`}
-              className="px-3 py-1.5 bg-accent/10 border border-accent/30 rounded-lg text-xs text-accent font-semibold hover:bg-accent/20 transition-colors"
-            >
-              Esta semana
-            </Link>
-            <Link
-              href={`/admin/reservas?date=${(() => {
-                const d = new Date(`${weekStart}T00:00:00.000Z`)
-                d.setUTCDate(d.getUTCDate() + 7)
-                return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-              })()}&view=week`}
-              className="px-3 py-1.5 bg-card border border-border rounded-lg text-xs text-muted hover:text-text hover:border-border-hover transition-colors"
-            >
-              Siguiente →
-            </Link>
-          </div>
+        <HeaderReservas
+          viewMode={viewMode}
+          weekStart={weekStart}
+          weekEnd={weekEnd}
+          club={club}
+          selectedDate={selectedDate}
+        />
+        {/* Date / Week navigation strip (only in day view) */}
+        {viewMode === 'day' ? (
+          <DateNavigation selectedDate={selectedDate} />
+        ) : (
+          <WeekNavigation weekStart={weekStart} />
         )}
 
         {/* Legend + booking count */}
-        <div className="px-5 py-2.5 flex items-center gap-5 border-t border-border/60 print:hidden">
-          {[
-            { label: 'Online', cssVar: 'var(--booking-online-bar)' },
-            { label: 'Manual', cssVar: 'var(--booking-manual-bar)' },
-            { label: 'Bloqueo', cssVar: 'var(--booking-block-bar)' },
-            { label: 'Turno Fijo', cssVar: 'var(--booking-recurring-bar)' },
-          ].map(({ label, cssVar }) => (
-            <div key={label} className="flex items-center gap-1.5">
-              <div
-                className="w-2.5 h-2.5 rounded-sm"
-                style={{
-                  background: `color-mix(in srgb, ${cssVar} 18%, transparent)`,
-                  border: `1px solid color-mix(in srgb, ${cssVar} 45%, transparent)`,
-                  borderLeft: `2px solid ${cssVar}`,
-                }}
-              />
-              <span className="text-[10px] text-muted">{label}</span>
-            </div>
-          ))}
-
-          <div className="ml-auto flex items-center gap-2">
-            {/* Print button */}
-            <PrintButton />
-            <span
-              className="text-[11px] font-bold px-2.5 py-0.5 rounded-full
-                         bg-tag text-tag-text border border-tag-border"
-            >
-              {activeBookings.length} {activeBookings.length === 1 ? 'reserva' : 'reservas'}
-            </span>
-          </div>
-        </div>
+        <Legend activeBookings={activeBookings} />
       </div>
 
       {/* ── Grid ───────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0 print:overflow-visible print:h-auto">
-        {courtColumns.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-8">
-            <span className="text-3xl opacity-30">🎾</span>
-            <p className="text-sm text-muted">No hay canchas activas para este día.</p>
-          </div>
-        ) : viewMode === 'week' ? (
-          <ReservasShell
-            courts={courtColumns}
-            bookings={bookingsBlocks}
+        <Suspense fallback={<p className="p-8 text-center">Sincronizando calendario...</p>}>
+          <BookingsClient
+            initialBookings={initialBookings}
+            clubId={club.id}
             date={selectedDate}
             weekStart={weekStart}
-            gridStart={gridStart}
-            gridEnd={gridEnd}
-            cancelBookingAction={cancelBooking}
-            confirmBookingAction={confirmBooking}
-            updatePaymentStatusAction={updatePaymentStatus}
-            updateBookingAction={updateBooking}
-            updatePlayersAction={updateBookingPlayers}
-            searchPlayersAction={searchPlayers}
-            highlightBookingId={newBookingId}
-            viewMode="week"
-          />
-        ) : (
-          <ReservasShell
+            weekEnd={weekEnd}
+            viewMode={viewMode}
             courts={courtColumns}
-            bookings={bookingsBlocks}
-            date={selectedDate}
             gridStart={gridStart}
             gridEnd={gridEnd}
-            cancelBookingAction={cancelBooking}
-            confirmBookingAction={confirmBooking}
-            updatePaymentStatusAction={updatePaymentStatus}
-            updateBookingAction={updateBooking}
-            updatePlayersAction={updateBookingPlayers}
-            searchPlayersAction={searchPlayers}
-            highlightBookingId={newBookingId}
-            viewMode="day"
           />
-        )}
+        </Suspense>
       </div>
 
       {/* Print header (only visible when printing) */}

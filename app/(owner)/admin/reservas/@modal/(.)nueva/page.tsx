@@ -1,10 +1,11 @@
-import { requireRole } from '@/actions/auth'
-import prisma from '@/lib/prisma'
 import { argToday, argTodayStr } from '@/lib/date'
 import { calcAvailableSlots } from '@/lib/availability'
 import { createManualBooking } from '@/actions/owner/bookings'
 import ModalBookingWizardClient from './ModalBookingWizardClient'
 import ModalCloseBackdrop from './ModalCloseBackdrop'
+import { getAdminContext } from '@/lib/dal/admin'
+import { getCourtsByClubId } from '@/lib/dal/court'
+import { getAdminBookingsByDate } from '@/lib/dal/booking'
 
 interface Props {
   searchParams: Promise<{ courtId?: string; date?: string; time?: string }>
@@ -21,18 +22,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
     time: defaultTime,
   } = await searchParams
 
-  const session = await requireRole(['OWNER', 'STAFF'])
-
-  const club =
-    session.role === 'STAFF'
-      ? await prisma.club.findUnique({
-          where: { id: session.staffClubId ?? '' },
-          select: { id: true, name: true },
-        })
-      : await prisma.club.findFirst({
-          where: { ownerId: session.userId },
-          select: { id: true, name: true },
-        })
+  const {club} = await getAdminContext(['OWNER', 'STAFF'])
 
   if (!club) {
     return null
@@ -40,26 +30,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
 
   const selectedDate = dateParam ?? todayStr()
 
-  const courts = await prisma.court.findMany({
-    where: { clubId: club.id, isActive: true },
-    select: {
-      id: true,
-      name: true,
-      type: true,
-      covered: true,
-      availabilities: {
-        where: { isActive: true },
-        select: {
-          dayOfWeek: true,
-          openTime: true,
-          closeTime: true,
-          pricePerHour: true,
-          isActive: true,
-        },
-      },
-    },
-    orderBy: { name: 'asc' },
-  })
+  const courts = await getCourtsByClubId(club.id)
 
   const availableDates = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(argToday())
@@ -70,14 +41,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
   const from = new Date(`${availableDates[0]}T00:00:00.000Z`)
   const to = new Date(`${availableDates[availableDates.length - 1]}T23:59:59.000Z`)
 
-  const allBookings = await prisma.booking.findMany({
-    where: {
-      clubId: club.id,
-      date: { gte: from, lte: to },
-      status: { in: ['PENDING', 'CONFIRMED'] },
-    },
-    select: { courtId: true, date: true, startTime: true, durationMinutes: true, status: true },
-  })
+  const allBookings = await getAdminBookingsByDate(club.id, from, to)
 
   type CourtSlotsEntry = {
     courtId: string
@@ -99,9 +63,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
       }
 
       const courtBookings = allBookings.filter((b) => {
-        const bd = b.date
-        const bdStr = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`
-        return b.courtId === court.id && bdStr === dateStr
+        return b.courtId === court.id && b.date === dateStr
       })
 
       const slots = calcAvailableSlots(
@@ -129,7 +91,6 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
     type: c.type,
     covered: c.covered,
   }))
-
   return (
     <div className="fixed inset-0 z-50">
       <ModalCloseBackdrop />

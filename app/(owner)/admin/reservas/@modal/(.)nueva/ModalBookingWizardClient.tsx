@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import ManualBookingWizard from '@/components/booking/ManualBookingWizard'
 import type { ActionResult } from '@/types'
 
@@ -39,6 +39,7 @@ interface ModalBookingWizardClientProps {
 
 export default function ModalBookingWizardClient(props: ModalBookingWizardClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   function closeToDate() {
     router.back()
@@ -48,11 +49,16 @@ export default function ModalBookingWizardClient(props: ModalBookingWizardClient
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('reservas:refresh', { detail: payload }))
     }
-    router.back()
-  }
 
+    // Close intercepted modal first; BookingsClient listens to the event and refetches.
+    router.back()
+    setTimeout(() => {
+      router.refresh()
+    }, 0)
+  }
   return (
     <ManualBookingWizard
+      key={searchParams.toString()}
       {...props}
       onClose={closeToDate}
       onBookingCreated={handleBookingCreated}

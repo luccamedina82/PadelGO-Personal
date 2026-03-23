@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ConvertToOpenMatchModal from './ConvertToOpenMatchModal'
+import { useBookingMutations } from '@/hooks/useBookings'
+import { searchPlayers } from '@/actions/owner/bookings'
 
 // ── TYPES ─────────────────────────────────────────────────────────────────
 
 export interface BookingBlock {
   id: string
+  clubId?: string
   courtId: string
   startTime: string // 'HH:MM'
   durationMinutes: number
@@ -46,7 +49,11 @@ interface BookingGridProps {
   onConfirmBooking?: (bookingId: string) => Promise<void>
   onUpdatePayment?: (bookingId: string, status: 'PAID' | 'UNPAID' | 'MANUAL') => Promise<void>
   onUpdateBooking?: (bookingId: string, data: UpdateBookingData) => Promise<void>
-  onUpdatePlayers?: (bookingId: string, playerIds: string[], paidPlayerIds: string[]) => Promise<void>
+  onUpdatePlayers?: (
+    bookingId: string,
+    playerIds: string[],
+    paidPlayerIds: string[]
+  ) => Promise<void>
   onSearchPlayers?: (query: string) => Promise<{ id: string; name: string }[]>
   highlightBookingId?: string
 }
@@ -130,25 +137,9 @@ function getSourceLabel(
 interface BookingDetailProps {
   booking: BookingBlock | null
   onClose: () => void
-  onCancel?: (id: string) => Promise<void>
-  onConfirm?: (id: string) => Promise<void>
-  onUpdatePayment?: (id: string, status: 'PAID' | 'UNPAID' | 'MANUAL') => Promise<void>
-  onUpdateBooking?: (id: string, data: UpdateBookingData) => Promise<void>
-  onUpdatePlayers?: (id: string, playerIds: string[], paidPlayerIds: string[]) => Promise<void>
-  onSearchPlayers?: (query: string) => Promise<{ id: string; name: string }[]>
 }
 
-function BookingDetail({
-  booking,
-  onClose,
-  onCancel,
-  onConfirm,
-  onUpdatePayment,
-  onUpdateBooking,
-  onUpdatePlayers,
-  onSearchPlayers,
-}: BookingDetailProps) {
-  const [loading, setLoading] = useState(false)
+function BookingDetail({ booking, onClose }: BookingDetailProps) {
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editStartTime, setEditStartTime] = useState('')
@@ -164,6 +155,16 @@ function BookingDetail({
   const [playerQuery, setPlayerQuery] = useState('')
   const [playerResults, setPlayerResults] = useState<{ id: string; name: string }[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+
+  const { cancel, confirm, updatePayment, updateTime, updatePlayers } = useBookingMutations(
+    booking?.clubId ?? ''
+  )
+  const loading =
+    cancel.isPending ||
+    confirm.isPending ||
+    updatePayment.isPending ||
+    updateTime.isPending ||
+    updatePlayers.isPending
 
   // Open match conversion state
   const [showConvertModal, setShowConvertModal] = useState(false)
@@ -206,32 +207,41 @@ function BookingDetail({
   }
 
   async function handlePlayerSearch() {
-    if (!onSearchPlayers || !playerQuery.trim()) return
+    if (!playerQuery.trim()) return
     setSearchLoading(true)
+    setError(null)
     try {
-      const results = await onSearchPlayers(playerQuery)
+      const res = await searchPlayers(playerQuery)
+      if (!res.success) {
+        setError(res.error ?? 'Error en la búsqueda.')
+        setPlayerResults([])
+        return
+      }
+      const results = (res.data ?? []).map((r) => ({ id: r.id, name: r.name }))
       setPlayerResults(results.filter((r) => !localPlayers.find((p) => p.id === r.id)))
+    } catch {
+      setError('Error en la búsqueda.')
     } finally {
       setSearchLoading(false)
     }
   }
 
   async function handleSavePlayers() {
-    if (!onUpdatePlayers) return
-    setLoading(true)
     setError(null)
     try {
-      await onUpdatePlayers(
-        booking!.id,
-        localPlayers.map((p) => p.id),
-        localPaidIds
-      )
+      const res = await updatePlayers.mutateAsync({
+        id: booking!.id,
+        playerIds: localPlayers.map((p) => p.id),
+        paidPlayerIds: localPaidIds,
+      })
+      if (!res.success) {
+        setError(res.error ?? 'Error al guardar jugadores.')
+        return
+      }
       setPlayersDirty(false)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar jugadores.')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -285,63 +295,66 @@ function BookingDetail({
   }
 
   async function handleCancel() {
-    if (!onCancel) return
-    setLoading(true)
     setError(null)
     try {
-      await onCancel(booking!.id)
+      const res = await cancel.mutateAsync(booking!.id)
+      if (!res.success) {
+        setError(res.error ?? 'Error al cancelar. Intentá de nuevo.')
+        return
+      }
       onClose()
-    } catch {
-      setError('Error al cancelar. Intentá de nuevo.')
-    } finally {
-      setLoading(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al cancelar. Intentá de nuevo.')
     }
   }
 
   async function handleConfirm() {
-    if (!onConfirm) return
-    setLoading(true)
     setError(null)
     try {
-      await onConfirm(booking!.id)
+      const res = await confirm.mutateAsync(booking!.id)
+      if (!res.success) {
+        setError(res.error ?? 'Error al confirmar. Intentá de nuevo.')
+        return
+      }
       onClose()
-    } catch {
-      setError('Error al confirmar. Intentá de nuevo.')
-    } finally {
-      setLoading(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al confirmar. Intentá de nuevo.')
     }
   }
 
   async function handlePayment(status: 'PAID' | 'UNPAID' | 'MANUAL') {
-    if (!onUpdatePayment) return
-    setLoading(true)
     setError(null)
     try {
-      await onUpdatePayment(booking!.id, status)
+      const res = await updatePayment.mutateAsync({ id: booking!.id, status })
+      if (!res.success) {
+        setError(res.error ?? 'Error al actualizar el pago. Intentá de nuevo.')
+        return
+      }
       onClose()
-    } catch {
-      setError('Error al actualizar el pago. Intentá de nuevo.')
-    } finally {
-      setLoading(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al actualizar el pago. Intentá de nuevo.')
     }
   }
 
   async function handleSaveEdit() {
-    if (!onUpdateBooking) return
-    setLoading(true)
     setError(null)
     try {
-      const data: UpdateBookingData = { startTime: editStartTime, durationMinutes: editDuration }
-      if (booking!.source === 'MANUAL_OWNER') {
-        data.manualName = editName
-        data.manualPhone = editPhone
+      const res = await updateTime.mutateAsync({
+        id: booking!.id,
+        data: {
+          startTime: editStartTime,
+          durationMinutes: editDuration,
+          manualName: editName,
+          manualPhone: editPhone,
+        },
+      })
+      if (!res.success) {
+        setError(res.error ?? 'Error al guardar. Intentá de nuevo.')
+        return
       }
-      await onUpdateBooking(booking!.id, data)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al guardar. Intentá de nuevo.')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -477,7 +490,7 @@ function BookingDetail({
         )}
 
         {/* ── PLAYERS SECTION (view mode only) ── */}
-        {booking.source !== 'BLOCK' && !isEditing && onUpdatePlayers && (
+        {booking.source !== 'BLOCK' && !isEditing && (
           <div className="mb-4 pt-3 border-t border-border">
             <div className="flex items-center justify-between mb-2.5">
               <span className="text-xs text-muted font-medium">Jugadores</span>
@@ -512,8 +525,8 @@ function BookingDetail({
               </div>
             ))}
 
-            {localPlayers.length < 4 && onSearchPlayers && (
-              showPlayerSearch ? (
+            {localPlayers.length < 4 &&
+              (showPlayerSearch ? (
                 <div className="mt-2 space-y-1.5">
                   <div className="flex gap-1.5">
                     <input
@@ -546,9 +559,9 @@ function BookingDetail({
                       ))}
                     </div>
                   )}
-                  {playerResults.length === 0 && playerQuery.trim().length >= 2 && !searchLoading && (
-                    <p className="text-xs text-muted">Sin resultados.</p>
-                  )}
+                  {playerResults.length === 0 &&
+                    playerQuery.trim().length >= 2 &&
+                    !searchLoading && <p className="text-xs text-muted">Sin resultados.</p>}
                   <button
                     onClick={() => {
                       setShowPlayerSearch(false)
@@ -567,8 +580,7 @@ function BookingDetail({
                 >
                   <span className="text-accent font-bold">+</span> Agregar jugador
                 </button>
-              )
-            )}
+              ))}
 
             {playersDirty && (
               <button
@@ -611,7 +623,7 @@ function BookingDetail({
         ) : (
           <div className="space-y-2">
             {/* Payment buttons — shown for non-block active bookings */}
-            {booking.status !== 'CANCELLED' && booking.source !== 'BLOCK' && onUpdatePayment && (
+            {booking.status !== 'CANCELLED' && booking.source !== 'BLOCK' && (
               <div className="flex gap-2">
                 {booking.paymentStatus !== 'PAID' && (
                   <button
@@ -639,7 +651,7 @@ function BookingDetail({
             {/* Edit + cancel/confirm row */}
             {booking.status !== 'CANCELLED' && (
               <div className="flex gap-2">
-                {onUpdateBooking && booking.source !== 'BLOCK' && booking.source !== 'ONLINE' && (
+                {booking.source !== 'BLOCK' && booking.source !== 'ONLINE' && (
                   <button
                     onClick={openEdit}
                     disabled={loading}
@@ -649,7 +661,7 @@ function BookingDetail({
                     Editar
                   </button>
                 )}
-                {booking.status === 'PENDING' && onConfirm && (
+                {booking.status === 'PENDING' && (
                   <button
                     onClick={handleConfirm}
                     disabled={loading}
@@ -659,7 +671,7 @@ function BookingDetail({
                     {loading ? '...' : 'Confirmar'}
                   </button>
                 )}
-                {onCancel && (
+                {cancel && (
                   <button
                     onClick={handleCancel}
                     disabled={loading}
@@ -673,16 +685,18 @@ function BookingDetail({
             )}
 
             {/* Convert to open match button */}
-            {booking.status !== 'CANCELLED' && booking.source !== 'BLOCK' && booking.source !== 'ONLINE' && (
-              <button
-                onClick={() => setShowConvertModal(true)}
-                disabled={loading}
-                className="w-full py-2 rounded-xl border border-accent/30 text-accent text-xs font-semibold
+            {booking.status !== 'CANCELLED' &&
+              booking.source !== 'BLOCK' &&
+              booking.source !== 'ONLINE' && (
+                <button
+                  onClick={() => setShowConvertModal(true)}
+                  disabled={loading}
+                  className="w-full py-2 rounded-xl border border-accent/30 text-accent text-xs font-semibold
                            hover:bg-accent/5 transition-colors disabled:opacity-40"
-              >
-                ✨ Convertir a Partido Abierto
-              </button>
-            )}
+                >
+                  ✨ Convertir a Partido Abierto
+                </button>
+              )}
           </div>
         )}
       </div>
@@ -710,23 +724,21 @@ export default function BookingGrid({
   date,
   gridStart,
   gridEnd,
-  onCancelBooking,
-  onConfirmBooking,
-  onUpdatePayment,
-  onUpdateBooking,
-  onUpdatePlayers,
-  onSearchPlayers,
   highlightBookingId,
 }: BookingGridProps) {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
-  const hasScrolledRef = useRef(false)
+  const scrolledHighlightRef = useRef<string | null>(null)
+  const scrolledNowRef = useRef(false)
+  const slotOpenNonceRef = useRef(0)
   const slotHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const slotHoverPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const [colWidth, setColWidth] = useState(140)
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
+  const [clientTodayStr, setClientTodayStr] = useState<string | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<BookingBlock | null>(null)
   const [highlightId, setHighlightId] = useState<string | undefined>(highlightBookingId)
+  const [showNewBookingPopup, setShowNewBookingPopup] = useState(false)
 
   // Filters
   const [hiddenCourts, setHiddenCourts] = useState<Set<string>>(new Set())
@@ -745,9 +757,14 @@ export default function BookingGrid({
     y: number
   } | null>(null)
 
-  const todayStr = getLocalDateStr()
-  const isViewingToday = date === todayStr
-  const isViewingPast = date < todayStr
+  const isViewingToday = clientTodayStr ? date === clientTodayStr : false
+  const isViewingPast = clientTodayStr ? date < clientTodayStr : false
+
+  const highlightedBooking = highlightId ? bookings.find((b) => b.id === highlightId) : undefined
+
+  useEffect(() => {
+    setHighlightId(highlightBookingId)
+  }, [highlightBookingId])
 
   // Clear highlight after 30 seconds
   useEffect(() => {
@@ -755,6 +772,26 @@ export default function BookingGrid({
     const timer = setTimeout(() => setHighlightId(undefined), 30_000)
     return () => clearTimeout(timer)
   }, [highlightId])
+
+  // Popup "Nueva reserva" for the first few seconds.
+  useEffect(() => {
+    if (!highlightId) {
+      setShowNewBookingPopup(false)
+      return
+    }
+    setShowNewBookingPopup(true)
+    const timer = setTimeout(() => setShowNewBookingPopup(false), 5000)
+    return () => clearTimeout(timer)
+  }, [highlightId])
+
+  useEffect(() => {
+    function updateToday() {
+      setClientTodayStr(getLocalDateStr())
+    }
+    updateToday()
+    const iv = setInterval(updateToday, 60_000)
+    return () => clearInterval(iv)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -794,30 +831,34 @@ export default function BookingGrid({
     return () => clearInterval(iv)
   }, [isViewingToday])
 
-  // Scroll to highlighted booking or current time on mount (once)
+  // Scroll to highlighted booking when available (works even if data arrives later).
   useEffect(() => {
-    if (hasScrolledRef.current || !containerRef.current) return
-    // Small delay to ensure grid is fully painted
-    const t = setTimeout(() => {
-      if (!containerRef.current) return
-      let targetMin: number | null = null
-      if (highlightId) {
-        const b = bookings.find((bk) => bk.id === highlightId)
-        if (b) targetMin = timeToMinutes(b.startTime)
-      }
-      if (targetMin === null && isViewingToday) {
-        const now = new Date()
-        targetMin = now.getHours() * 60 + now.getMinutes()
-      }
-      if (targetMin !== null && targetMin >= gridStart && targetMin <= gridEnd) {
-        const top = ((targetMin - gridStart) / 30) * SLOT_HEIGHT
-        containerRef.current.scrollTop = Math.max(0, top - 120)
-      }
-      hasScrolledRef.current = true
-    }, 80)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    if (!highlightId || !containerRef.current || !highlightedBooking) return
+    if (scrolledHighlightRef.current === highlightId) return
+
+    const targetMin = timeToMinutes(highlightedBooking.startTime)
+    if (targetMin < gridStart || targetMin > gridEnd) return
+
+    const top = ((targetMin - gridStart) / 30) * SLOT_HEIGHT
+    containerRef.current.scrollTo({ top: Math.max(0, top - 120), behavior: 'smooth' })
+    scrolledHighlightRef.current = highlightId
+  }, [highlightId, highlightedBooking, gridStart, gridEnd])
+
+  // Scroll to current time once per date when there is no highlighted booking.
+  useEffect(() => {
+    scrolledNowRef.current = false
+  }, [date])
+
+  useEffect(() => {
+    if (highlightId || !isViewingToday || scrolledNowRef.current || !containerRef.current) return
+    const now = new Date()
+    const targetMin = now.getHours() * 60 + now.getMinutes()
+    if (targetMin < gridStart || targetMin > gridEnd) return
+
+    const top = ((targetMin - gridStart) / 30) * SLOT_HEIGHT
+    containerRef.current.scrollTo({ top: Math.max(0, top - 120), behavior: 'smooth' })
+    scrolledNowRef.current = true
+  }, [highlightId, isViewingToday, gridStart, gridEnd, date])
 
   const totalSlots = (gridEnd - gridStart) / 30
   const gridHeight = totalSlots * SLOT_HEIGHT
@@ -832,8 +873,10 @@ export default function BookingGrid({
     setSlotTooltip(null)
     const timeStr = minutesToTime(slotMinutes)
     const dateParam = encodeURIComponent(date)
+    slotOpenNonceRef.current += 1
+    const nonce = slotOpenNonceRef.current
     router.push(
-      `/admin/reservas/nueva?courtId=${courtId}&date=${dateParam}&time=${timeStr}&view=day`
+      `/admin/reservas/nueva?courtId=${courtId}&date=${dateParam}&time=${timeStr}&view=day&n=${nonce}`
     )
   }
 
@@ -1097,11 +1140,15 @@ export default function BookingGrid({
                         )}
                         {height > 52 && (
                           <span
-                            className="absolute top-1.5 right-1.5 text-[8px] font-bold
-                                       tracking-wider uppercase px-1.5 py-0.5 rounded opacity-60"
+                            className="absolute top-1.5 right-1.5 text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded opacity-60"
                             style={{ background: 'rgba(0,0,0,0.15)' }}
                           >
                             {label}
+                          </span>
+                        )}
+                        {isHighlighted && (
+                          <span className="booking-new-badge" aria-label="Reserva nueva">
+                            NUEVA
                           </span>
                         )}
                         {/* Payment status dot */}
@@ -1146,16 +1193,16 @@ export default function BookingGrid({
 
       {/* Booking detail modal */}
       {selectedBooking && (
-        <BookingDetail
-          booking={selectedBooking}
-          onClose={() => setSelectedBooking(null)}
-          onCancel={onCancelBooking}
-          onConfirm={onConfirmBooking}
-          onUpdatePayment={onUpdatePayment}
-          onUpdateBooking={onUpdateBooking}
-          onUpdatePlayers={onUpdatePlayers}
-          onSearchPlayers={onSearchPlayers}
-        />
+        <BookingDetail booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
+      )}
+
+      {showNewBookingPopup && highlightedBooking && !selectedBooking && (
+        <div className="booking-new-toast" role="status" aria-live="polite">
+          <p className="booking-new-toast-title">Reserva nueva detectada</p>
+          <p className="booking-new-toast-sub">
+            {highlightedBooking.displayName} · {highlightedBooking.startTime}
+          </p>
+        </div>
       )}
 
       {/* Hover tooltip */}
@@ -1169,8 +1216,11 @@ export default function BookingGrid({
           </p>
           <p className="text-xs font-mono text-muted">
             {tooltip.booking.startTime} –{' '}
-            {minutesToTime(timeToMinutes(tooltip.booking.startTime) + tooltip.booking.durationMinutes)}
-            {' · '}{tooltip.booking.durationMinutes}m
+            {minutesToTime(
+              timeToMinutes(tooltip.booking.startTime) + tooltip.booking.durationMinutes
+            )}
+            {' · '}
+            {tooltip.booking.durationMinutes}m
           </p>
           {tooltip.booking.source !== 'BLOCK' && (
             <div className="mt-1.5 flex items-center justify-between">
@@ -1179,9 +1229,7 @@ export default function BookingGrid({
               </span>
               <span
                 className={`text-[10px] font-bold ${
-                  tooltip.booking.paymentStatus === 'PAID'
-                    ? 'text-green-400'
-                    : 'text-orange-400'
+                  tooltip.booking.paymentStatus === 'PAID' ? 'text-green-400' : 'text-orange-400'
                 }`}
               >
                 {tooltip.booking.paymentStatus === 'PAID' ? 'Pagado' : 'Pendiente'}
@@ -1196,9 +1244,7 @@ export default function BookingGrid({
           className="fixed z-50 pointer-events-none bg-surface/95 backdrop-blur-md border border-border-hover/70 rounded-xl shadow-2xl px-3 py-2.5"
           style={{ left: slotTooltip.x, top: slotTooltip.y }}
         >
-          <p className="text-[10px] uppercase tracking-wider text-muted leading-none">
-            Disponible
-          </p>
+          <p className="text-[10px] uppercase tracking-wider text-muted leading-none">Disponible</p>
           <p className="text-[11px] font-semibold text-text leading-none mt-1">
             {slotTooltip.courtName}
           </p>

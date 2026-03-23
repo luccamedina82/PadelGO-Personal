@@ -766,6 +766,7 @@ export default function ManualBookingWizard({
 }: ManualBookingWizardProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [step, setStep] = useState(1)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -786,6 +787,14 @@ export default function ManualBookingWizard({
   const [blockReason, setBlockReason] = useState('')
 
   useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [step])
 
@@ -793,6 +802,10 @@ export default function ManualBookingWizard({
 
   function handleConfirm() {
     if (!courtId || !startTime) return
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current)
+      redirectTimerRef.current = null
+    }
     setError(null)
     startTransition(async () => {
       const result = await createManualBookingAction({
@@ -808,20 +821,22 @@ export default function ManualBookingWizard({
       })
       if (result.success) {
         setSuccess(true)
-        setTimeout(() => {
+        redirectTimerRef.current = setTimeout(() => {
           const newId = result.data?.bookingId
+          setSuccess(false)
           if (onBookingCreated) {
             onBookingCreated({ date, bookingId: newId })
+            redirectTimerRef.current = null
             return
           }
           router.push(`/admin/reservas?date=${date}${newId ? `&new=${newId}` : ''}`)
+          redirectTimerRef.current = null
         }, 2000)
       } else {
         setError(result.error ?? 'Error al crear la reserva.')
       }
     })
   }
-
   return (
     <div
       className="relative flex flex-col h-full bg-bg overflow-y-auto overflow-x-hidden

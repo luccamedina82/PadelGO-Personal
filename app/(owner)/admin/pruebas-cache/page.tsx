@@ -1,35 +1,40 @@
 import { getAdminContext } from '@/lib/dal/admin'
-import { cacheLife, cacheTag, revalidatePath, revalidateTag } from 'next/cache'
+import { getCourtsByClub } from '@/lib/dal/pruebas'
+import { Suspense } from 'react'
+import { CourtsList } from './CourtsList'
+import { CourtType } from '@/app/generated/prisma/browser'
 
-const getData = async () => {
-  'use cache'
-  cacheTag('data-prueba') // Etiqueta esta función para que su caché pueda ser invalidada por otras funciones que usen la misma etiqueta
-  cacheLife('days')
-  await new Promise((resolve) => setTimeout(resolve, 1000))
-  return { message: 'Hola, mundo!', timestamp: new Date().toISOString() }
+interface InterfaceInitialData {
+    id: string;
+    name: string;
+    isActive: boolean;
+    createdAt: Date;
+    clubId: string;
+    type: CourtType;
+    covered: boolean;
+    svgX: number;
+    svgY: number;
+    svgW: number;
+    svgH: number;
 }
 
-const handleRefresh = async () => {
-  'use server'
-    revalidateTag('data-prueba', 'max') // Invalida la caché de cualquier función etiquetada con 'data-prueba', forzando a que se vuelva a ejecutar en la próxima llamada
-    revalidatePath('/admin/pruebas-cache')
-}
 
 export default async function PruebasCache() {
-  const { session } = await getAdminContext(['OWNER', 'STAFF'])
-  console.log(session)
+  const { club } = await getAdminContext(['OWNER', 'STAFF'])
 
-  const data = await getData()
+  if (!club) {
+    return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
+  }
+
+  const initialData: InterfaceInitialData[] = await getCourtsByClub(club.id)
 
   return (
     <div>
-      <p>{data.message}</p>
-      <p>Tiempo: {data.timestamp}</p>
-      <form action={handleRefresh}>
-        <button className="bg-accent text-accent-text font-semibold text-sm px-4 py-2 rounded-lg hover:bg-accent-dark transition-colors">
-          Actualizar
-        </button>
-      </form>
+      <h1>Pruebas de Cache</h1>
+      <Suspense fallback={<div>Cargando canchas...</div>}>
+        <CourtsList clubId={club.id} initialData={initialData} />
+      </Suspense>
     </div>
   )
 }
+

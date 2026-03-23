@@ -1,7 +1,11 @@
 import prisma from '@/lib/prisma'
-import { cache } from 'react'
+import { cacheLife, cacheTag } from 'next/cache'
+import { toUtcDateStr } from '@/lib/date'
+export const getAdminBookingsByDate = async (clubId: string, startDate: Date, endDate: Date) => {
+  'use cache'
+  cacheLife('minutes')
+  cacheTag(`bookings-${clubId}`)
 
-export const getAdminBookingsByDate = cache(async (clubId: string, startDate: Date, endDate: Date) => {
   const rawBookings = await prisma.booking.findMany({
     where: {
       clubId: clubId,
@@ -10,6 +14,7 @@ export const getAdminBookingsByDate = cache(async (clubId: string, startDate: Da
     },
     select: {
       id: true,
+      clubId: true,
       courtId: true,
       date: true,
       startTime: true,
@@ -37,13 +42,9 @@ export const getAdminBookingsByDate = cache(async (clubId: string, startDate: Da
       : []
   const playerMap = new Map(playerList.map((p) => [p.id, p.name]))
 
-  // Helper to format date from Date object
-  function formatDateStr(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-
   return rawBookings.map((b) => ({
     id: b.id,
+    clubId: b.clubId,
     courtId: b.courtId,
     startTime: b.startTime,
     durationMinutes: b.durationMinutes,
@@ -56,13 +57,12 @@ export const getAdminBookingsByDate = cache(async (clubId: string, startDate: Da
     manualPhone: b.manualPhone,
     user: b.user,
     court: {
-        id: b.courtId,
+      id: b.courtId,
     },
     manualName: b.manualName,
     recurringBookingId: b.recurringBookingId,
     playerDetails: b.playerIds.map((id) => ({ id, name: playerMap.get(id) ?? 'Jugador' })),
     paidPlayerIds: b.paidPlayerIds,
-    date: formatDateStr(b.date),
+    date: toUtcDateStr(b.date),
   }))
 }
-)
