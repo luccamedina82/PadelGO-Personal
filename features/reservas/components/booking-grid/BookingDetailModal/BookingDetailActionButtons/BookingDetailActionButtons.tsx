@@ -76,9 +76,15 @@ export default function BookingDetailActionButtons({
     <div className="space-y-2">
       {booking.status !== 'CANCELLED' && booking.source !== 'BLOCK' && (
         <div className="flex gap-2">
-          {booking.paymentStatus !== 'PAID' && (
+          {booking.paymentStatus !== 'PAID' && booking.paymentStatus !== 'MANUAL' && (
             <button
-              onClick={() => onPayment('PAID')}
+              onClick={() =>
+                onPayment(
+                  booking.source === 'MANUAL_OWNER' || booking.source === 'MANUAL_SUPPORT'
+                    ? 'MANUAL'
+                    : 'PAID'
+                )
+              }
               disabled={loading}
               className="flex-1 py-2 rounded-xl bg-green-400/10 border border-green-400/30 text-green-400
                          text-xs font-semibold hover:bg-green-400/20 transition-colors disabled:opacity-40"

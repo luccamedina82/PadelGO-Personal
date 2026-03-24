@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import ForgotPasswordForm from '@/features/auth/components/ForgotPasswordForm'
-import Skeleton from '@/components/ui/Skeleton'
+import Skeleton from '@/components/ui/skeleton'
 
 export const metadata: Metadata = {
   title: 'Recuperar contraseña — PadelGo',

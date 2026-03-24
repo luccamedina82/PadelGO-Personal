@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Toast, useToast } from '@/components/ui'
+import { useToast } from '@/components/ui'
 import type { ActionResult } from '@/types'
 
 interface Availability {
@@ -56,7 +56,7 @@ export default function HorariosClient({
   updateClubAvailabilityAction,
 }: HorariosClientProps) {
   const [isPending, startTransition] = useTransition()
-  const { toast, show: showToast } = useToast(3000)
+  const { show: showToast } = useToast(3000)
   const [isDirty, setIsDirty] = useState(false)
 
   const buildKey = (courtId: string, dow: number) => `${courtId}-${dow}`
@@ -116,9 +116,6 @@ export default function HorariosClient({
 
   return (
     <div className="min-h-screen bg-bg">
-      {/* Toast notification */}
-      {toast && <Toast toast={toast} />}
-
       {/* Sticky header with bulk save button */}
       <div className="sticky top-0 z-10 bg-surface border-b border-border px-4 py-3 flex items-center justify-between gap-4">
         <div>

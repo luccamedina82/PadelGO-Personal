@@ -133,8 +133,20 @@ Keep components under ~200 lines. When a component grows beyond that, extract su
 
 - Tailwind CSS v4 with `tailwind-merge` (`clsx` + `twMerge` for conditional classes)
 - Zustand (`store/themeStore.ts`) for dark/light theme
-- `components/ui/` — shared primitives (Button, Modal, Toast, Skeleton, Badge, etc.)
+- shadcn/ui (installed, Tailwind v4 compatible) — `components.json` at root, `lib/utils.ts` with `cn()`
+- `components/ui/` — shared primitives backed by shadcn: `button`, `dialog`, `badge`, `skeleton`, `sonner`
 - `features/reservas/components/` — booking components: `booking-grid/`, `weekly-booking-grid/`, `manual-booking-wizard/`
 - Spanish UI — all user-facing text is in Spanish (es-AR locale)
 
-**ShadCN:** Do not migrate to ShadCN until it stabilizes support for Tailwind v4. The project uses custom CSS variables (`--bg`, `--card`, `--accent`) that conflict with ShadCN's naming. Evaluate again when ShadCN v4 branch is stable or when complex components (DatePicker, DataTable) are needed.
+**shadcn/ui conventions:**
+- Install new components with `pnpm dlx shadcn@latest add <component>` — they land in `components/ui/` as lowercase files.
+- Always import using **lowercase paths**: `@/components/ui/button`, `@/components/ui/skeleton`, etc. Using uppercase causes TS1149 casing errors on Windows.
+- Use `cn()` from `@/lib/utils` for conditional classes (replaces raw `clsx`).
+
+**CSS variable bridge:** `globals.css` maps shadcn's semantic tokens to our design tokens:
+- `--primary` → `var(--accent)` (lime yellow brand color)
+- `--background` → `var(--bg)`, `--foreground` → `var(--text)`
+- `--muted` → `var(--surface)` (shadcn muted = bg), `--muted-foreground` → `var(--muted)` (shadcn muted-foreground = text)
+- Our custom tokens (`--bg`, `--card`, `--accent`, `--border`, `--text`, `--muted`, etc.) remain unchanged and are used directly in custom components.
+
+**Components:** shadcn-backed: `Button`, `Skeleton`, `Badge`, `Modal` (Dialog), `Toast` (sonner). Custom (kept as-is): `Avatar`, `Tag`, `LevelBar`, `PrintButton`, `DateRangePicker`.

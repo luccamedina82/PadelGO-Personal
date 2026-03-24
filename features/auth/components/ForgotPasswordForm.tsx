@@ -4,7 +4,7 @@ import { useActionState } from 'react'
 import Link from 'next/link'
 import { requestPasswordReset } from '@/features/auth/actions/passwordReset'
 import type { ActionResult } from '@/types'
-import Button from '@/components/ui/Button'
+import Button from '@/components/ui/button'
 
 type State = ActionResult | null
 

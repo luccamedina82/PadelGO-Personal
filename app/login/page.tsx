@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import LoginForm from './LoginForm'
-import Skeleton from '@/components/ui/Skeleton'
+import Skeleton from '@/components/ui/skeleton'
 
 export const metadata: Metadata = {
   title: 'Ingresar — PadelGo',

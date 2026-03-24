@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Bebas_Neue, DM_Sans, DM_Mono, Montserrat } from 'next/font/google'
 import './globals.css'
 import ThemeInitScript from '@/components/layout/ThemeInitScript'
+import { Toaster } from '@/components/ui/sonner'
 
 const bebasNeue = Bebas_Neue({
   weight: '400',
@@ -75,7 +76,10 @@ export default function RootLayout({
         {/* Inline script: apply saved theme before first paint to avoid flash */}
         <ThemeInitScript />
       </head>
-      <body className="font-body bg-bg text-text antialiased">{children}</body>
+      <body className="font-body bg-bg text-text antialiased">
+        {children}
+        <Toaster />
+      </body>
     </html>
   )
 }

@@ -8,6 +8,7 @@ import BookingGridHeader from './BookingGridHeader/BookingGridHeader'
 import BookingGridTimeColumn from './BookingGridTimeColumn/BookingGridTimeColumn'
 import BookingBlockCell from './BookingBlockCell/BookingBlockCell'
 import BookingGridTooltips from './BookingGridTooltips/BookingGridTooltips'
+import BookingGridSkeleton from './BookingGridSkeleton/BookingGridSkeleton'
 import type {
   BookingBlock,
   BookingGridProps,

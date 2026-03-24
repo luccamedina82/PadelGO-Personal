@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { resetPassword } from '@/features/auth/actions/passwordReset'
 import type { ActionResult } from '@/types'
-import Button from '@/components/ui/Button'
+import Button from '@/components/ui/button'
 
 type State = ActionResult | null
 

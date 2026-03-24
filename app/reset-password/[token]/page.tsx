@@ -5,7 +5,7 @@ import prisma from '@/lib/prisma'
 import { hashToken } from '@/lib/auth'
 import ResetPasswordForm from '@/features/auth/components/ResetPasswordForm'
 import { connection } from 'next/server'
-import Skeleton from '@/components/ui/Skeleton'
+import Skeleton from '@/components/ui/skeleton'
 
 export const metadata: Metadata = {
   title: 'Nueva contraseña — PadelGo',

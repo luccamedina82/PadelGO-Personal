@@ -8,7 +8,7 @@ interface BookingGridHeaderProps {
 
 export default function BookingGridHeader({ visibleCourts, colWidth }: BookingGridHeaderProps) {
   return (
-    <div className="flex sticky top-0 z-20 bg-surface border-b-2 border-border-hover">
+    <div className="flex sticky top-0 z-30 bg-surface border-b-2 border-border-hover">
       <div
         style={{ width: TIME_COL_WIDTH, minWidth: TIME_COL_WIDTH }}
         className="shrink-0 border-r border-border"

@@ -1,16 +1,18 @@
-import { clsx } from 'clsx'
+import { cn } from "@/lib/utils"
 
-interface SkeletonProps {
-  className?: string
-}
-
-export default function Skeleton({ className }: SkeletonProps) {
-  return <div className={clsx('animate-pulse rounded-lg bg-surface', className)} />
-}
-
-export function SkeletonText({ lines = 3 }: { lines?: number }) {
+function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div className="space-y-2">
+    <div
+      data-slot="skeleton"
+      className={cn("animate-pulse rounded-md bg-surface", className)}
+      {...props}
+    />
+  )
+}
+
+function SkeletonText({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="flex flex-col gap-2">
       {Array.from({ length: lines }).map((_, i) => (
         <Skeleton key={i} className={`h-4 ${i === lines - 1 ? 'w-3/4' : 'w-full'}`} />
       ))}
@@ -18,11 +20,11 @@ export function SkeletonText({ lines = 3 }: { lines?: number }) {
   )
 }
 
-export function ClubCardSkeleton() {
+function ClubCardSkeleton() {
   return (
     <div className="bg-card border border-border rounded-2xl overflow-hidden">
       <Skeleton className="h-32 rounded-none" />
-      <div className="p-4 space-y-3">
+      <div className="p-4 flex flex-col gap-3">
         <Skeleton className="h-5 w-3/4" />
         <Skeleton className="h-4 w-1/2" />
         <div className="flex gap-2">
@@ -34,3 +36,6 @@ export function ClubCardSkeleton() {
     </div>
   )
 }
+
+export { Skeleton, SkeletonText, ClubCardSkeleton }
+export default Skeleton

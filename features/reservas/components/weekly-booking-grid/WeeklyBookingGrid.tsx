@@ -183,7 +183,7 @@ export default function WeeklyBookingGrid({
       <div ref={containerRef} className="grow overflow-auto min-h-0 flex-1">
         <div className="flex flex-col h-full">
           {/* Day headers */}
-          <div className="flex sticky top-0 z-20 bg-surface border-b-2 border-border-hover shrink-0">
+          <div className="flex sticky top-0 z-30 bg-surface border-b-2 border-border-hover shrink-0">
             <div
               style={{ width: TIME_COL_WIDTH, minWidth: TIME_COL_WIDTH }}
               className="shrink-0 border-r border-border"

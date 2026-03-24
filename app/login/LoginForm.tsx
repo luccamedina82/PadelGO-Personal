@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
 import { login } from '@/actions/auth'
 import type { ActionResult } from '@/types'
-import Button from '@/components/ui/Button'
+import Button from '@/components/ui/button'
 
 type LoginState = ActionResult<{ redirectTo: string }> | null
 

@@ -39,8 +39,7 @@ export default function DateNavigation({ selectedDate }: { selectedDate: string 
         {/* Día anterior */}
         <Link
           href={`/admin/reservas?date=${prevDay}&view=day`}
-          className="shrink-0 self-center w-7 h-7 flex items-center justify-center rounded-lg
-                     bg-card border border-border text-muted hover:text-text hover:border-border-hover transition-colors"
+          className="shrink-0 self-center w-7 h-7 flex items-center justify-center rounded-lg bg-card border border-border text-muted hover:text-text hover:border-border-hover transition-colors"
           title="Día anterior"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -66,15 +65,7 @@ export default function DateNavigation({ selectedDate }: { selectedDate: string 
                   key={d}
                   href={`/admin/reservas?date=${d}&view=day`}
                   data-selected={isSelected ? 'true' : undefined}
-                  className={`flex-1 min-w-[44px] flex flex-col items-center px-1 py-1.5 rounded-xl
-                              text-xs transition-colors
-                              ${
-                                isSelected
-                                  ? 'bg-accent text-accent-text font-bold'
-                                  : isToday
-                                    ? 'bg-accent/10 text-accent font-semibold border border-accent/30'
-                                    : 'bg-card border border-border text-muted hover:text-text hover:border-border-hover'
-                              }`}
+                  className={`flex-1 min-w-[44px] flex flex-col items-center px-1 py-1.5 rounded-xl text-xs transition-colors ${isSelected ? 'bg-accent text-accent-text font-bold' : isToday ? 'bg-accent/10 text-accent font-semibold border border-accent/30' : 'bg-card border border-border text-muted hover:text-text hover:border-border-hover'}`}
                 >
                   <span className="text-[9px] uppercase tracking-wider leading-none mb-0.5">{dow}</span>
                   <span className="text-base font-bold leading-tight">{day}</span>
@@ -87,8 +78,7 @@ export default function DateNavigation({ selectedDate }: { selectedDate: string 
         {/* Día siguiente */}
         <Link
           href={`/admin/reservas?date=${nextDay}&view=day`}
-          className="shrink-0 self-center w-7 h-7 flex items-center justify-center rounded-lg
-                     bg-card border border-border text-muted hover:text-text hover:border-border-hover transition-colors"
+          className="shrink-0 self-center w-7 h-7 flex items-center justify-center rounded-lg bg-card border border-border text-muted hover:text-text hover:border-border-hover transition-colors"
           title="Día siguiente"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

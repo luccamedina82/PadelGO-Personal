@@ -4,7 +4,7 @@ import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
 import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ReservasShell from './ReservasShell'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface BookingClientProps {
   initialBookings: BookingBlock[]
@@ -33,14 +33,17 @@ export default function BookingsClient({
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
   const queryPeriodStart = viewMode === 'week' ? weekStart : date
   const queryPeriodEnd = viewMode === 'week' ? weekEnd : date
+  // Capturamos el timestamp de montaje para que React Query trate los datos SSR como frescos
+  const initialDataTimestamp = useRef(Date.now())
 
-  const { data: allBookings } = useQuery({
+  const { data: allBookings, isFetching } = useQuery({
     queryKey: ['bookings', clubId, queryPeriodStart, queryPeriodEnd],
     queryFn: () => fetchBookingsAction(clubId, queryPeriodStart, queryPeriodEnd),
     initialData: initialBookings,
-    refetchInterval: 30000,
-    staleTime: 0, // Fresh data always considered stale, forcing refetch when explicit
-    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    initialDataUpdatedAt: initialDataTimestamp.current,
+    refetchInterval: 30_000,
+    staleTime: 30_000, // Datos SSR se consideran frescos por 30s, evitando refetch redundante al montar
+    gcTime: 5 * 60 * 1000,
   })
 
   useEffect(() => {
@@ -81,13 +84,21 @@ export default function BookingsClient({
   const bookings = viewMode === 'week' ? allBookings : allBookings.filter((b) => b.date === date)
 
   return (
-    <ReservasShell
-      bookings={bookings}
-      date={date}
-      weekStart={weekStart}
-      viewMode={viewMode}
-      highlightBookingId={eventHighlightBookingId ?? rest.highlightBookingId}
-      {...rest}
-    />
+    <div className="relative h-full min-h-0">
+      {/* Barra de carga superior: visible durante refetch de React Query */}
+      {isFetching && (
+        <div className="absolute top-0 left-0 right-0 z-30 h-0.5 overflow-hidden rounded-t-2xl">
+          <div className="h-full bg-accent animate-[loading-bar_1.2s_ease-in-out_infinite]" />
+        </div>
+      )}
+      <ReservasShell
+        bookings={bookings}
+        date={date}
+        weekStart={weekStart}
+        viewMode={viewMode}
+        highlightBookingId={eventHighlightBookingId ?? rest.highlightBookingId}
+        {...rest}
+      />
+    </div>
   )
 }
