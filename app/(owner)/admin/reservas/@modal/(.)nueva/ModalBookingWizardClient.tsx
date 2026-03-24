@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import ManualBookingWizard from '@/components/booking/ManualBookingWizard'
+import ManualBookingWizard from '@/features/reservas/components/manual-booking-wizard/ManualBookingWizard'
 import type { ActionResult } from '@/types'
 
 interface Court {
@@ -35,6 +35,7 @@ interface ModalBookingWizardClientProps {
   defaultCourtId?: string
   defaultDate?: string
   defaultTime?: string
+  durationOptions: number[]
 }
 
 export default function ModalBookingWizardClient(props: ModalBookingWizardClientProps) {
@@ -46,16 +47,20 @@ export default function ModalBookingWizardClient(props: ModalBookingWizardClient
   }
 
   function handleBookingCreated(payload: { date: string; bookingId?: string }) {
+    // Dispatch event to trigger TanStack Query invalidation
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('reservas:refresh', { detail: payload }))
     }
 
-    // Close intercepted modal first; BookingsClient listens to the event and refetches.
+    // Immediately close the modal
     router.back()
+
+    // Refresh server data to ensure new booking appears
     setTimeout(() => {
       router.refresh()
-    }, 0)
+    }, 600)
   }
+
   return (
     <ManualBookingWizard
       key={searchParams.toString()}

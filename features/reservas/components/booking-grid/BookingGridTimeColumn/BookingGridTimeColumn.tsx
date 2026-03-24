@@ -1,0 +1,51 @@
+import { SLOT_HEIGHT, TIME_COL_WIDTH, minutesToTime } from '../helpers/bookingGrid.helpers'
+
+interface BookingGridTimeColumnProps {
+  gridStart: number
+  gridEnd: number
+  currentMinutes: number | null
+  isViewingPast: boolean
+}
+
+export default function BookingGridTimeColumn({
+  gridStart,
+  gridEnd,
+  currentMinutes,
+  isViewingPast,
+}: BookingGridTimeColumnProps) {
+  const totalSlots = (gridEnd - gridStart) / 30
+  const gridHeight = totalSlots * SLOT_HEIGHT
+
+  return (
+    <div
+      style={{ width: TIME_COL_WIDTH, minWidth: TIME_COL_WIDTH, height: gridHeight }}
+      className="shrink-0 relative border-r border-border bg-bg"
+    >
+      {Array.from({ length: totalSlots }, (_, i) => {
+        const mins = gridStart + i * 30
+        const isHour = mins % 60 === 0
+        const label = isHour ? minutesToTime(mins) : ''
+        const isPast = isViewingPast || (currentMinutes !== null && mins < currentMinutes)
+        return (
+          <div
+            key={i}
+            className={`absolute left-0 right-0 flex items-start justify-end pr-2
+                        ${isPast ? 'opacity-35' : ''}
+                        ${isHour ? 'border-b border-border-hover' : 'border-b border-border/40'}`}
+            style={{
+              top: i * SLOT_HEIGHT,
+              height: SLOT_HEIGHT,
+              background: isHour ? 'var(--grid-row-alt)' : 'transparent',
+            }}
+          >
+            {label && (
+              <span className="text-[10px] font-mono text-muted mt-1.5 leading-none">
+                {label}
+              </span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}

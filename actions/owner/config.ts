@@ -80,6 +80,7 @@ export async function updateClubConfig(input: UpdateClubConfigInput): Promise<Ac
     })
     revalidatePath('/admin/config')
     revalidatePath('/admin')
+    revalidatePath('/admin/reservas')
     revalidatePath(`/club/${clubId}`)
     return { success: true }
   } catch (err) {

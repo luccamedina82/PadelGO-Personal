@@ -9,7 +9,7 @@ import {
   periodLastNDays,
 } from '@/lib/analytics'
 import { getAdminContext } from '@/lib/dal/admin'
-import { getCourtsByClubId } from '@/lib/dal/court'
+import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getFinancialBookings } from '@/lib/dal/analytic'
 import { getBarSalesPeriod } from '@/lib/dal/bar'
 

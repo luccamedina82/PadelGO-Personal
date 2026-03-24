@@ -4,7 +4,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import prisma from '@/lib/prisma'
 import PublicLayout from '@/components/layout/PublicLayout'
-import BookingWizard from '@/components/booking/BookingWizard'
+import BookingWizard from '@/features/reservas/components/booking-wizard/BookingWizard'
 import Tag from '@/components/ui/Tag'
 import { createBooking, createGhostBooking } from '@/actions/booking'
 import {
@@ -13,7 +13,7 @@ import {
   setGuestManualPayment,
 } from '@/actions/payment'
 import { getSession } from '@/actions/auth'
-import type { CourtForWizard, BookingMap } from '@/components/booking/BookingWizard'
+import type { CourtForWizard, BookingMap } from '@/features/reservas/components/booking-wizard/BookingWizard'
 import { formatPrice } from '@/lib/availability'
 import type { AvailabilityConfig } from '@/lib/availability'
 import { argToday } from '@/lib/date'

@@ -1,7 +1,7 @@
 'use client'
 
-import { fetchBookingsAction } from '@/actions/owner/bookings'
-import { BookingBlock, CourtColumn } from '@/components/booking/BookingGrid'
+import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
+import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ReservasShell from './ReservasShell'
 import { useEffect, useState } from 'react'
@@ -39,6 +39,8 @@ export default function BookingsClient({
     queryFn: () => fetchBookingsAction(clubId, queryPeriodStart, queryPeriodEnd),
     initialData: initialBookings,
     refetchInterval: 30000,
+    staleTime: 0, // Fresh data always considered stale, forcing refetch when explicit
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   })
 
   useEffect(() => {
@@ -47,15 +49,28 @@ export default function BookingsClient({
       if (detail?.bookingId) {
         setEventHighlightBookingId(detail.bookingId)
       }
-      await queryClient.invalidateQueries({ queryKey: ['bookings', clubId] })
-      await queryClient.refetchQueries({ queryKey: ['bookings', clubId], type: 'active' })
+
+      // Invalidate the EXACT query key that's currently active
+      const exactQueryKey = ['bookings', clubId, queryPeriodStart, queryPeriodEnd] as const
+      
+      await queryClient.invalidateQueries({
+        queryKey: exactQueryKey,
+        exact: true, // Use exact match for precision
+      })
+
+      // Refetch the exact query
+      await queryClient.refetchQueries({
+        queryKey: exactQueryKey,
+        type: 'active',
+        exact: true,
+      })
     }
 
     window.addEventListener('reservas:refresh', handleReservasRefresh)
     return () => {
       window.removeEventListener('reservas:refresh', handleReservasRefresh)
     }
-  }, [clubId, queryClient])
+  }, [clubId, queryClient, queryPeriodStart, queryPeriodEnd])
 
   useEffect(() => {
     if (!eventHighlightBookingId) return

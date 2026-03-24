@@ -1,12 +1,11 @@
 import { argTodayStr } from '@/lib/date'
-import type { CourtColumn } from '@/components/booking/BookingGrid'
+import type { CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import { getAdminContext } from '@/lib/dal/admin'
-import { getCourtsByClubId } from '@/lib/dal/court'
-import { getAdminBookingsByDate } from '@/lib/dal/booking'
+import { getCourtsByClubId } from '@/features/reservas/dal/courts'
+import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
 import HeaderReservas from './ui/HeaderReservas'
 import DateNavigation from './ui/DayView/DayView'
 import WeekNavigation from './ui/WeeklyView/WeeklyView'
-import Legend from './ui/Legend'
 import BookingsClient from './BookingsClient'
 import { Suspense } from 'react'
 
@@ -108,8 +107,6 @@ export default async function ReservasPage({ searchParams }: Props) {
   const weekEndObj = new Date(`${weekEnd}T00:00:00.000Z`)
   const weekLabel = `${weekStartObj.getUTCDate()} – ${weekEndObj.getUTCDate()} ${weekEndObj.toLocaleDateString('es-AR', { month: 'long', timeZone: 'UTC' })}`
 
-  const activeBookings = bookingsBlocks.filter((b) => b.status !== 'CANCELLED')
-
   return (
     <div className="h-screen bg-bg flex flex-col">
       {/* ── Sticky header ──────────────────────────────────────────── */}
@@ -122,20 +119,17 @@ export default async function ReservasPage({ searchParams }: Props) {
           club={club}
           selectedDate={selectedDate}
         />
-        {/* Date / Week navigation strip (only in day view) */}
+        {/* Date / Week navigation strip */}
         {viewMode === 'day' ? (
           <DateNavigation selectedDate={selectedDate} />
         ) : (
           <WeekNavigation weekStart={weekStart} />
         )}
-
-        {/* Legend + booking count */}
-        <Legend activeBookings={activeBookings} />
       </div>
 
       {/* ── Grid ───────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0 print:overflow-visible print:h-auto">
-        <Suspense fallback={<p className="p-8 text-center">Sincronizando calendario...</p>}>
+        <Suspense fallback={<p className="p-8 text-center text-muted text-sm">Sincronizando calendario...</p>}>
           <BookingsClient
             initialBookings={initialBookings}
             clubId={club.id}

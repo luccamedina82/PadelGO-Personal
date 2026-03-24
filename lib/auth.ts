@@ -54,38 +54,6 @@ export async function verifyAccessToken(token: string): Promise<JwtSession | nul
   }
 }
 
-/**
- * Verify an access token, tolerating expiration (clockTolerance = ∞).
- * Used in proxy to distinguish "expired" from "tampered".
- * Returns { expired: true, payload } if expired but otherwise valid.
- */
-export async function verifyAccessTokenLenient(token: string): Promise<{
-  valid: boolean
-  expired: boolean
-  payload: JwtSession | null
-}> {
-  try {
-    const { payload } = await jwtVerify(token, getJwtSecret(), {
-      clockTolerance: Infinity,
-    })
-    return { valid: true, expired: false, payload: payload as unknown as JwtSession }
-  } catch (err: unknown) {
-    // Check if error is specifically a token expiry (JWTExpired)
-    if (err instanceof Error && err.name === 'JWTExpired') {
-      // Re-verify ignoring expiry to get the payload
-      try {
-        const { payload } = await jwtVerify(token, getJwtSecret(), {
-          clockTolerance: Infinity,
-        })
-        return { valid: true, expired: true, payload: payload as unknown as JwtSession }
-      } catch {
-        return { valid: false, expired: true, payload: null }
-      }
-    }
-    return { valid: false, expired: false, payload: null }
-  }
-}
-
 // ── REFRESH TOKEN (random opaque token, SHA-256 hashed in DB) ─────────────
 
 /** Generate a cryptographically random refresh token (hex string, 64 chars) */

@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
-import ManualBookingWizard from '@/components/booking/ManualBookingWizard'
-import { createManualBooking } from '@/actions/owner/bookings'
+import ManualBookingWizard from '@/features/reservas/components/manual-booking-wizard/ManualBookingWizard'
+import { createManualBooking } from '@/features/reservas/actions/bookings'
 import { calcAvailableSlots } from '@/lib/availability'
 import Link from 'next/link'
 import { argToday, argTodayStr, toUtcDateStr } from '@/lib/date'
@@ -243,7 +243,7 @@ export default async function NuevaReservaPage({ searchParams }: Props) {
                 return (
                   <div
                     key={d}
-                    className={`shrink-0 flex flex-col items-center px-2.5 py-1.5 rounded-xl text-xs min-w-[44px]
+                    className={`shrink-0 flex flex-col items-center px-2.5 py-1.5 rounded-xl text-xs min-w-11
                                 ${isSel ? 'bg-accent text-accent-text font-bold' : 'bg-card border border-border text-muted'}`}
                   >
                     <span className="text-[9px] uppercase tracking-wider leading-none mb-0.5">
@@ -402,8 +402,7 @@ export default async function NuevaReservaPage({ searchParams }: Props) {
           createManualBookingAction={createManualBooking}
           defaultCourtId={defaultCourtId}
           defaultDate={selectedDate}
-          defaultTime={defaultTime}
-        />
+          defaultTime={defaultTime} durationOptions={[]}        />
       </div>
     </div>
   )

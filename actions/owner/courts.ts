@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/actions/auth'
 import type { ActionResult } from '@/types'
@@ -42,6 +42,7 @@ export async function createCourt(
       },
       select: { id: true },
     })
+    revalidateTag(`courts-${input.clubId}`, 'default')
     revalidatePath('/admin/canchas')
     revalidatePath('/admin')
     return { success: true, data: { courtId: court.id } }
@@ -67,6 +68,7 @@ export async function updateCourt(
         ...(data.covered !== undefined && { covered: data.covered }),
       },
     })
+    revalidateTag(`courts-${clubId}`, 'default')
     revalidatePath('/admin/canchas')
     revalidatePath('/admin')
     return { success: true }
@@ -90,6 +92,7 @@ export async function toggleCourt(courtId: string, clubId: string): Promise<Acti
       where: { id: courtId },
       data: { isActive: !court.isActive },
     })
+    revalidateTag(`courts-${clubId}`, 'default')
     revalidatePath('/admin/canchas')
     revalidatePath('/admin')
     return { success: true }

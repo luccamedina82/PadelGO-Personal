@@ -15,7 +15,7 @@ import { COOKIE_ACCESS_TOKEN, COOKIE_REFRESH_TOKEN } from '@/lib/cookies'
 // ── ROUTE CLASSIFICATION ─────────────────────────────────────────────────
 
 /** Routes that never require authentication */
-const PUBLIC_EXACT = new Set(['/', '/login', '/registro', '/buscar'])
+const PUBLIC_EXACT = new Set(['/', '/login', '/registro', '/buscar', '/forgot-password'])
 
 /** Route prefixes that never require authentication */
 const PUBLIC_PREFIX = [
@@ -59,7 +59,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (!session) {
     // Token invalid or expired
     if (refreshToken) {
-      return redirectToRefresh(request, pathname)
+      const response = redirectToRefresh(request, pathname)
+      response.cookies.delete(COOKIE_ACCESS_TOKEN)
+      return response
     }
     const response = redirectToLogin(request, pathname)
     response.cookies.delete(COOKIE_ACCESS_TOKEN)

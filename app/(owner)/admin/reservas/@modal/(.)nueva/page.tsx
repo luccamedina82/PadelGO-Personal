@@ -1,11 +1,12 @@
 import { argToday, argTodayStr } from '@/lib/date'
 import { calcAvailableSlots } from '@/lib/availability'
-import { createManualBooking } from '@/actions/owner/bookings'
+import { createManualBooking } from '@/features/reservas/actions/bookings'
 import ModalBookingWizardClient from './ModalBookingWizardClient'
 import ModalCloseBackdrop from './ModalCloseBackdrop'
 import { getAdminContext } from '@/lib/dal/admin'
-import { getCourtsByClubId } from '@/lib/dal/court'
-import { getAdminBookingsByDate } from '@/lib/dal/booking'
+import { getCourtsByClubId } from '@/features/reservas/dal/courts'
+import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
+import { prisma } from '@/lib/prisma'
 
 interface Props {
   searchParams: Promise<{ courtId?: string; date?: string; time?: string }>
@@ -42,6 +43,10 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
   const to = new Date(`${availableDates[availableDates.length - 1]}T23:59:59.000Z`)
 
   const allBookings = await getAdminBookingsByDate(club.id, from, to)
+  const durationOptions = await prisma.club.findUnique({
+    where: { id: club.id },
+    select: { allowedDurations: true },
+  })
 
   type CourtSlotsEntry = {
     courtId: string
@@ -91,6 +96,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
     type: c.type,
     covered: c.covered,
   }))
+  console.log({durationOptions})
   return (
     <div className="fixed inset-0 z-50">
       <ModalCloseBackdrop />
@@ -108,6 +114,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
           defaultCourtId={defaultCourtId}
           defaultDate={selectedDate}
           defaultTime={defaultTime}
+          durationOptions={durationOptions?.allowedDurations || [60, 90, 120]}
         />
       </div>
     </div>

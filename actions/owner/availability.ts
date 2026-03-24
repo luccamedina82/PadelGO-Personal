@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/actions/auth'
 import type { ActionResult } from '@/types'
@@ -27,6 +27,8 @@ export async function updateAvailability(input: UpdateAvailabilityInput): Promis
   }
 
   try {
+    const court = await prisma.court.findUnique({ where: { id: courtId }, select: { clubId: true } })
+
     const existing = await prisma.courtAvailability.findFirst({
       where: { courtId, dayOfWeek },
       select: { id: true },
@@ -43,6 +45,7 @@ export async function updateAvailability(input: UpdateAvailabilityInput): Promis
       })
     }
 
+    if (court) revalidateTag(`courts-${court.clubId}`, 'default')
     revalidatePath('/admin/horarios')
     revalidatePath('/admin/reservas')
     revalidatePath('/admin')
@@ -102,6 +105,7 @@ export async function updateClubAvailability(input: {
       }
     })
 
+    revalidateTag(`courts-${clubId}`, 'default')
     revalidatePath('/admin/horarios')
     revalidatePath('/admin/reservas')
     revalidatePath('/admin')

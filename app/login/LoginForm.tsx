@@ -91,6 +91,16 @@ export default function LoginForm() {
         {isPending ? 'Ingresando...' : 'Ingresar'}
       </Button>
 
+      {/* Forgot password */}
+      <p className="text-center text-sm text-muted">
+        <Link
+          href="/forgot-password"
+          className="text-muted hover:text-text transition-colors"
+        >
+          ¿Olvidaste tu contraseña?
+        </Link>
+      </p>
+
       {/* Register link */}
       <p className="text-center text-sm text-muted">
         ¿No tenés cuenta?{' '}
