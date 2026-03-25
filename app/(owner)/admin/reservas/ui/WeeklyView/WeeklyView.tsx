@@ -13,24 +13,30 @@ export default function WeekNavigation({ weekStart }: { weekStart: string }) {
   const nextWeek = offsetWeek(weekStart, 1)
 
   return (
-    <div className="px-5 pb-2 flex items-center gap-2 print:hidden">
+    <div className="flex items-center gap-2 print:hidden">
       <Link
         href={`/admin/reservas?date=${prevWeek}&view=week`}
-        className="px-3 py-1.5 bg-card border border-border rounded-lg text-xs text-muted hover:text-text hover:border-border-hover transition-colors"
+        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-card border border-border text-muted hover:text-text hover:border-border-hover transition-colors"
+        title="Semana anterior"
       >
-        ← Anterior
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
       </Link>
       <Link
         href={`/admin/reservas?date=${today}&view=week`}
-        className="px-3 py-1.5 bg-accent/10 border border-accent/30 rounded-lg text-xs text-accent font-semibold hover:bg-accent/20 transition-colors"
+        className="px-2.5 py-1 bg-accent/10 border border-accent/30 rounded-lg text-[11px] text-accent font-semibold hover:bg-accent/20 transition-colors"
       >
         Esta semana
       </Link>
       <Link
         href={`/admin/reservas?date=${nextWeek}&view=week`}
-        className="px-3 py-1.5 bg-card border border-border rounded-lg text-xs text-muted hover:text-text hover:border-border-hover transition-colors"
+        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-card border border-border text-muted hover:text-text hover:border-border-hover transition-colors"
+        title="Semana siguiente"
       >
-        Siguiente →
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
       </Link>
     </div>
   )

@@ -65,6 +65,7 @@
 
   /* Grid chrome */
   --grid-row-alt: rgba(255, 255, 255, 0.008);
+  --grid-col-alt: rgba(255, 255, 255, 0.025);
   --grid-reform-stripe: rgba(255, 255, 255, 0.018);
   --grid-slot-hover: rgba(255, 255, 255, 0.25);
 
@@ -140,6 +141,7 @@
 
   /* Grid chrome */
   --grid-row-alt: rgba(0, 0, 0, 0.018);
+  --grid-col-alt: rgba(0, 0, 0, 0.04);
   --grid-reform-stripe: rgba(0, 0, 0, 0.028);
   --grid-slot-hover: rgba(0, 0, 0, 0.25);
 
@@ -380,6 +382,11 @@ body {
 
 .animate-fadeIn {
   animation: fadeIn 0.15s ease;
+}
+
+/* Mismo fade pero con delay: el overlay de carga no flashea en navegaciones rápidas */
+.animate-fadeIn-delayed {
+  animation: fadeIn 0.2s ease 0.12s both;
 }
 
 @keyframes wz-fade-in {

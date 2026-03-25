@@ -2,6 +2,7 @@
 
 import BookingGrid from '@/features/reservas/components/booking-grid/BookingGrid'
 import WeeklyBookingGrid from '@/features/reservas/components/weekly-booking-grid/WeeklyBookingGrid'
+import AgendaView from '@/features/reservas/components/agenda-view/AgendaView'
 import type { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 
 interface ReservasShellProps {
@@ -14,7 +15,7 @@ interface ReservasShellProps {
   gridStart: number
   gridEnd: number
   highlightBookingId?: string
-  viewMode?: 'day' | 'week'
+  viewMode?: 'day' | 'week' | 'agenda'
 }
 
 export default function ReservasShell({
@@ -38,6 +39,14 @@ export default function ReservasShell({
           gridStart={gridStart}
           gridEnd={gridEnd}
         />
+      </div>
+    )
+  }
+
+  if (viewMode === 'agenda') {
+    return (
+      <div className="h-full min-h-0">
+        <AgendaView bookings={bookings} courts={courts} clubId={clubId ?? ''} />
       </div>
     )
   }

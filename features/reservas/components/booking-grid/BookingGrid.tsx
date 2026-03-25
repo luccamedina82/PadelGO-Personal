@@ -123,6 +123,23 @@ export default function BookingGrid({
     [bookings, typeFilter]
   )
 
+  const unpaidCount = useMemo(
+    () =>
+      bookings.filter(
+        (b) =>
+          b.status !== 'CANCELLED' &&
+          b.source !== 'BLOCK' &&
+          b.paymentStatus !== 'PAID' &&
+          b.paymentStatus !== 'MANUAL'
+      ).length,
+    [bookings]
+  )
+
+  const pendingCount = useMemo(
+    () => bookings.filter((b) => b.status === 'PENDING').length,
+    [bookings]
+  )
+
   const visibleCourtCount = visibleCourts.length
 
   // ── Drag / resize ────────────────────────────────────────────────────
@@ -283,16 +300,15 @@ export default function BookingGrid({
 
   return (
     <>
-      {gridReady && (
-        <BookingGridFilterBar
-          courts={courts}
-          focusCourtId={focusCourtId}
-          typeFilter={typeFilter}
-          bookingCount={bookings.filter((b) => b.status !== 'CANCELLED').length}
-          onFocusCourtChange={setFocusCourtId}
-          onTypeFilterChange={setTypeFilter}
-        />
-      )}
+      <BookingGridFilterBar
+        courts={courts}
+        focusCourtId={focusCourtId}
+        typeFilter={typeFilter}
+        unpaidCount={unpaidCount}
+        pendingCount={pendingCount}
+        onFocusCourtChange={setFocusCourtId}
+        onTypeFilterChange={setTypeFilter}
+      />
 
       <div ref={containerRef} className="grow overflow-auto min-h-0">
         {!gridReady ? (
@@ -309,14 +325,14 @@ export default function BookingGrid({
               isViewingPast={isViewingPast}
             />
 
-            {visibleCourts.map((court) => {
+            {visibleCourts.map((court, courtIndex) => {
               const courtBookings = bookingsByCourt.get(court.id) ?? []
               const occupiedSlots = occupiedSlotsByCourt.get(court.id)
 
               return (
                 <div
                   key={court.id}
-                  style={{ width: colWidth, minWidth: colWidth, height: gridHeight }}
+                  style={{ width: colWidth, minWidth: colWidth, height: gridHeight, background: courtIndex % 2 === 1 ? 'var(--grid-col-alt)' : undefined }}
                   className="relative border-l border-border"
                 >
                   {!court.isActive && <div className="court-reform-overlay" />}
@@ -385,20 +401,40 @@ export default function BookingGrid({
               )
             })}
 
-            {/* Drag ghost — floats at snapped target position */}
-            {ghostPos && draggingId && (
-              <div
-                className={`booking-block ${ghostBlockCls} pointer-events-none opacity-60 border-2 border-dashed`}
-                style={{
-                  position: 'absolute',
-                  top: ((ghostPos.startMin - gridStart) / 30) * SLOT_HEIGHT + 2,
-                  left: TIME_COL_WIDTH + ghostPos.courtIndex * colWidth + 5,
-                  width: colWidth - 10,
-                  height: Math.max((ghostPos.durationMinutes / 30) * SLOT_HEIGHT - 3, 22),
-                  zIndex: 40,
-                }}
-              />
-            )}
+            {/* Drag ghost — muestra el contenido real de la reserva */}
+            {ghostPos && draggingId && ghostBooking && (() => {
+              const ghostEndTime = minutesToTime(ghostPos.startMin + ghostPos.durationMinutes)
+              const ghostStartTime = minutesToTime(ghostPos.startMin)
+              const ghostHeight = Math.max((ghostPos.durationMinutes / 30) * SLOT_HEIGHT - 3, 22)
+              const isPaid = ghostBooking.paymentStatus === 'PAID'
+              const isManualPaid = ghostBooking.paymentStatus === 'MANUAL'
+              const isUnpaid = !isPaid && !isManualPaid && ghostBooking.source !== 'BLOCK'
+              return (
+                <div
+                  className={`booking-block ${ghostBlockCls} pointer-events-none opacity-70 border-2 border-dashed`}
+                  style={{
+                    position: 'absolute',
+                    top: ((ghostPos.startMin - gridStart) / 30) * SLOT_HEIGHT + 2,
+                    left: TIME_COL_WIDTH + ghostPos.courtIndex * colWidth + 5,
+                    width: colWidth - 10,
+                    height: ghostHeight,
+                    zIndex: 40,
+                  }}
+                >
+                  <p className="text-[11px] font-bold leading-tight truncate">{ghostBooking.displayName}</p>
+                  {ghostHeight > 34 && (
+                    <p className="text-[9px] font-mono leading-tight opacity-70">
+                      {ghostStartTime} – {ghostEndTime}
+                    </p>
+                  )}
+                  {ghostHeight > 52 && ghostBooking.source !== 'BLOCK' && (
+                    <p className={`text-[10px] font-semibold mt-auto truncate ${isUnpaid ? 'text-red-400' : 'opacity-75'}`}>
+                      {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(ghostBooking.totalPrice / 100)}
+                    </p>
+                  )}
+                </div>
+              )
+            })()}
 
             {currentLineTop !== null && (
               <div

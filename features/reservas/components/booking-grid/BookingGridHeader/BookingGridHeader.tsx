@@ -13,10 +13,10 @@ export default function BookingGridHeader({ visibleCourts, colWidth }: BookingGr
         style={{ width: TIME_COL_WIDTH, minWidth: TIME_COL_WIDTH }}
         className="shrink-0 border-r border-border"
       />
-      {visibleCourts.map((court) => (
+      {visibleCourts.map((court, courtIndex) => (
         <div
           key={court.id}
-          style={{ width: colWidth, minWidth: colWidth }}
+          style={{ width: colWidth, minWidth: colWidth, background: courtIndex % 2 === 1 ? 'var(--grid-col-alt)' : undefined }}
           className={`flex flex-col items-center justify-center py-2.5 px-2
                       border-l border-border transition-colors
                       ${!court.isActive ? 'opacity-40' : ''}`}

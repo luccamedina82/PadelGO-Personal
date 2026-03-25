@@ -3,6 +3,7 @@
 import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
 import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'next/navigation'
 import ReservasShell from './ReservasShell'
 import { useEffect, useState } from 'react'
 
@@ -12,7 +13,7 @@ interface BookingClientProps {
   date: string
   weekStart: string
   weekEnd: string
-  viewMode: 'day' | 'week'
+  viewMode: 'day' | 'week' | 'agenda'
   // ── Las que te faltaban declarar ──
   courts: CourtColumn[]
   gridStart: number
@@ -30,7 +31,12 @@ export default function BookingsClient({
   ...rest
 }: BookingClientProps) {
   const queryClient = useQueryClient()
+  const searchParams = useSearchParams()
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
+
+  // Detectar navegación pendiente: la URL ya cambió pero el server todavía no respondió con los nuevos datos
+  const urlDate = searchParams.get('date')
+  const isNavigatingToDate = urlDate !== null && urlDate !== date
   const queryPeriodStart = viewMode === 'week' ? weekStart : date
   const queryPeriodEnd = viewMode === 'week' ? weekEnd : date
   // Capturamos el timestamp de montaje para que React Query trate los datos SSR como frescos
@@ -85,8 +91,14 @@ export default function BookingsClient({
 
   return (
     <div className="relative h-full min-h-0">
-      {/* Barra de carga superior: visible durante refetch de React Query */}
-      {isFetching && (
+      {/* Overlay de navegación entre días: blur + spinner, con delay para no flashear en navegaciones rápidas */}
+      {isNavigatingToDate && (
+        <div className="absolute inset-0 z-[25] bg-bg/60 backdrop-blur-[2px] flex items-center justify-center animate-fadeIn-delayed">
+          <div className="w-9 h-9 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+        </div>
+      )}
+      {/* Barra de carga superior: visible durante refetch de React Query (polling) */}
+      {isFetching && !isNavigatingToDate && (
         <div className="absolute top-0 left-0 right-0 z-30 h-0.5 overflow-hidden rounded-t-2xl">
           <div className="h-full bg-accent animate-[loading-bar_1.2s_ease-in-out_infinite]" />
         </div>

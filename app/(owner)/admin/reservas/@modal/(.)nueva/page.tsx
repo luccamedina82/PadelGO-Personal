@@ -23,7 +23,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
     time: defaultTime,
   } = await searchParams
 
-  const {club} = await getAdminContext(['OWNER', 'STAFF'])
+  const { club } = await getAdminContext(['OWNER', 'STAFF'])
 
   if (!club) {
     return null
@@ -31,22 +31,30 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
 
   const selectedDate = dateParam ?? todayStr()
 
-  const courts = await getCourtsByClubId(club.id)
-
+  // Calcular rango de fechas antes de los awaits (pure JS)
   const availableDates = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(argToday())
     d.setUTCDate(d.getUTCDate() + i)
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
   })
-
   const from = new Date(`${availableDates[0]}T00:00:00.000Z`)
   const to = new Date(`${availableDates[availableDates.length - 1]}T23:59:59.000Z`)
 
-  const allBookings = await getAdminBookingsByDate(club.id, from, to)
-  const durationOptions = await prisma.club.findUnique({
-    where: { id: club.id },
-    select: { allowedDurations: true },
-  })
+  // Paralelizar las 3 llamadas independientes
+  const [courts, allBookings, durationOptions] = await Promise.all([
+    getCourtsByClubId(club.id),
+    getAdminBookingsByDate(club.id, from, to),
+    prisma.club.findUnique({ where: { id: club.id }, select: { allowedDurations: true } }),
+  ])
+
+  // Pre-agrupar bookings por courtId:date para búsqueda O(1) en lugar de filter O(n) repetido
+  const bookingsByKey = new Map<string, typeof allBookings>()
+  for (const b of allBookings) {
+    const key = `${b.courtId}:${b.date}`
+    const existing = bookingsByKey.get(key)
+    if (existing) existing.push(b)
+    else bookingsByKey.set(key, [b])
+  }
 
   type CourtSlotsEntry = {
     courtId: string
@@ -67,9 +75,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
         continue
       }
 
-      const courtBookings = allBookings.filter((b) => {
-        return b.courtId === court.id && b.date === dateStr
-      })
+      const courtBookings = bookingsByKey.get(`${court.id}:${dateStr}`) ?? []
 
       const slots = calcAvailableSlots(
         { openTime: avail.openTime, closeTime: avail.closeTime, pricePerHour: avail.pricePerHour },
@@ -96,7 +102,6 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
     type: c.type,
     covered: c.covered,
   }))
-  console.log({durationOptions})
   return (
     <div className="fixed inset-0 z-50">
       <ModalCloseBackdrop />
