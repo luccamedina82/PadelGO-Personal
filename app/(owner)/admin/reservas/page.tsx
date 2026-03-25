@@ -61,8 +61,6 @@ export default async function ReservasPage({ searchParams }: Props) {
   const periodEnd = new Date(`${weekEnd}T23:59:59.999Z`)
 
   const initialBookings = await getAdminBookingsByDate(club.id, periodStart, periodEnd)
-  const bookingsBlocks =
-    viewMode === 'week' ? initialBookings : initialBookings.filter((b) => b.date === selectedDate)
 
   const activeCourtsToday = allCourts.map((court) => ({
     ...court,

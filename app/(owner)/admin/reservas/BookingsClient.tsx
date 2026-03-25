@@ -4,7 +4,7 @@ import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
 import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ReservasShell from './ReservasShell'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface BookingClientProps {
   initialBookings: BookingBlock[]
@@ -34,13 +34,13 @@ export default function BookingsClient({
   const queryPeriodStart = viewMode === 'week' ? weekStart : date
   const queryPeriodEnd = viewMode === 'week' ? weekEnd : date
   // Capturamos el timestamp de montaje para que React Query trate los datos SSR como frescos
-  const initialDataTimestamp = useRef(Date.now())
+  const [initialDataTimestamp] = useState(() => Date.now())
 
   const { data: allBookings, isFetching } = useQuery({
     queryKey: ['bookings', clubId, queryPeriodStart, queryPeriodEnd],
     queryFn: () => fetchBookingsAction(clubId, queryPeriodStart, queryPeriodEnd),
     initialData: initialBookings,
-    initialDataUpdatedAt: initialDataTimestamp.current,
+    initialDataUpdatedAt: initialDataTimestamp,
     refetchInterval: 30_000,
     staleTime: 30_000, // Datos SSR se consideran frescos por 30s, evitando refetch redundante al montar
     gcTime: 5 * 60 * 1000,

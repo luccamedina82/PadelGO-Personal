@@ -39,13 +39,16 @@ export default function BookingDetailModal({ booking, onClose }: BookingDetailPr
     updateTime.isPending ||
     updatePlayers.isPending
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    // Reset local editing state when the selected booking changes
     setLocalPlayers(booking?.playerDetails ?? [])
     setLocalPaidIds(booking?.paidPlayerIds ?? [])
     setPlayersDirty(false)
     setError(null)
     setIsEditing(false)
   }, [booking?.id, booking?.playerDetails, booking?.paidPlayerIds])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!booking) return null
   const activeBooking = booking
