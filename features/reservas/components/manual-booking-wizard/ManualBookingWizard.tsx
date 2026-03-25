@@ -6,6 +6,8 @@ import type { ManualBookingWizardProps, BookingType } from './types/manualBookin
 import { todayLocalStr, formatDateShort } from './helpers/manualBookingWizard.helpers'
 import StepDots from './StepDots/StepDots'
 import ManualBookingWizardStep1 from './ManualBookingWizardStep1/ManualBookingWizardStep1'
+import ManualBookingWizardStep2Time from './ManualBookingWizardStep2Time/ManualBookingWizardStep2Time'
+import ManualBookingWizardStep3Court from './ManualBookingWizardStep3Court/ManualBookingWizardStep3Court'
 import ManualBookingWizardStep2 from './ManualBookingWizardStep2/ManualBookingWizardStep2'
 import ManualBookingWizardStep3 from './ManualBookingWizardStep3/ManualBookingWizardStep3'
 
@@ -35,10 +37,12 @@ export default function ManualBookingWizard({
     defaultCourtId && courts.some((c) => c.id === defaultCourtId) ? defaultCourtId : ''
   )
   const [date, setDate] = useState(defaultDate ?? availableDates[0] ?? todayLocalStr())
+
+  // Step 2 state (time + duration)
   const [startTime, setStartTime] = useState(defaultTime ?? '')
   const [duration, setDuration] = useState(90)
 
-  // Step 2 state
+  // Step 3 state (client info)
   const [bookingType, setBookingType] = useState<BookingType>('PRESENCIAL')
   const [clientName, setClientName] = useState('')
   const [clientPhone, setClientPhone] = useState('')
@@ -53,6 +57,14 @@ export default function ManualBookingWizard({
   }, [step])
 
   const courtName = courts.find((c) => c.id === courtId)?.name ?? ''
+
+  // If all defaults provided, jump straight to client info (step 4)
+  useEffect(() => {
+    if (defaultCourtId && defaultDate && defaultTime && step === 1) {
+      setStep(4)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleConfirm() {
     if (!courtId || !startTime) return
@@ -89,6 +101,8 @@ export default function ManualBookingWizard({
     })
   }
 
+  const TOTAL_STEPS = 5
+
   return (
     <div
       className="relative flex flex-col h-full bg-bg overflow-y-auto overflow-x-hidden
@@ -118,9 +132,9 @@ export default function ManualBookingWizard({
           <div className="min-w-0">
             <h1 className="font-display text-[22px] tracking-[3px] leading-none text-text">NUEVA RESERVA</h1>
             <p className="text-[11px] text-muted mt-[3px] capitalize truncate">
-              {courtName
-                ? `${courtName}${date ? ` · ${formatDateShort(date)}` : ''}`
-                : 'Seleccioná cancha y horario'}
+              {date
+                ? `${formatDateShort(date)}${startTime ? ` · ${startTime}` : ''}${courtName ? ` · ${courtName}` : ''}`
+                : 'Seleccioná una fecha'}
             </p>
           </div>
           <button
@@ -144,7 +158,7 @@ export default function ManualBookingWizard({
       <div className="h-[2px] bg-border shrink-0">
         <div
           className="h-full bg-accent transition-[width] duration-[450ms] ease-[cubic-bezier(.4,0,.2,1)]"
-          style={{ width: `${(step / 3) * 100}%` }}
+          style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
         />
       </div>
 
@@ -152,22 +166,39 @@ export default function ManualBookingWizard({
       <div key={step} className="p-5 flex flex-col animate-wz-fade-in">
         {step === 1 && (
           <ManualBookingWizardStep1
+            date={date}
+            setDate={(d) => { setDate(d); setStartTime(''); setCourtId('') }}
+            availableDates={availableDates}
+            onNext={() => setStep(2)}
+          />
+        )}
+        {step === 2 && (
+          <ManualBookingWizardStep2Time
+            date={date}
+            startTime={startTime}
+            setStartTime={(t) => { setStartTime(t); setCourtId('') }}
+            duration={duration}
+            setDuration={(d) => { setDuration(d); setCourtId('') }}
+            courtSlotsByDate={courtSlotsByDate}
+            durationOptions={durationOptions}
+            onNext={() => setStep(3)}
+            onBack={() => setStep(1)}
+          />
+        )}
+        {step === 3 && (
+          <ManualBookingWizardStep3Court
             courts={courts}
             courtId={courtId}
             setCourtId={setCourtId}
             date={date}
-            setDate={setDate}
             startTime={startTime}
-            setStartTime={setStartTime}
             duration={duration}
-            setDuration={setDuration}
             courtSlotsByDate={courtSlotsByDate}
-            availableDates={availableDates}
-            onNext={() => setStep(2)}
-            durationOptions={durationOptions}
+            onNext={() => setStep(4)}
+            onBack={() => setStep(2)}
           />
         )}
-        {step === 2 && (
+        {step === 4 && (
           <ManualBookingWizardStep2
             bookingType={bookingType}
             setBookingType={setBookingType}
@@ -177,11 +208,11 @@ export default function ManualBookingWizard({
             setClientPhone={setClientPhone}
             blockReason={blockReason}
             setBlockReason={setBlockReason}
-            onNext={() => setStep(3)}
-            onBack={() => setStep(1)}
+            onNext={() => setStep(5)}
+            onBack={() => setStep(3)}
           />
         )}
-        {step === 3 && (
+        {step === 5 && (
           <ManualBookingWizardStep3
             courtName={courtName}
             date={date}
@@ -193,7 +224,7 @@ export default function ManualBookingWizard({
             isPending={isPending}
             error={error}
             onConfirm={handleConfirm}
-            onBack={() => setStep(2)}
+            onBack={() => setStep(4)}
           />
         )}
       </div>

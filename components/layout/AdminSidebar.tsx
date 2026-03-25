@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { clsx } from 'clsx'
 import ThemeToggle from './ThemeToggle'
 import type { Role } from '@/types'
+import { useSidebarStore } from '@/store/sidebarStore'
 
 type NavItem = { href: string; label: string; icon: ReactNode; exact?: boolean }
 
@@ -253,22 +254,46 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ role }: AdminSidebarProps) {
   const pathname = usePathname()
+  const { collapsed, toggle } = useSidebarStore()
   const items = role === 'OWNER' ? [...SHARED_ITEMS, ...OWNER_ONLY_ITEMS] : SHARED_ITEMS
 
   return (
-    <aside className="hidden md:flex fixed left-0 top-0 h-full w-[210px] flex-col bg-surface border-r border-border z-40">
-      {/* Logo + role badge */}
-      <div className="px-5 py-6 border-b border-border">
-        <Link href="/admin" className="flex flex-col gap-1">
-          <span className="font-display text-2xl tracking-widest text-accent">PADELGO</span>
-          <span className="text-[10px] uppercase tracking-widest text-muted font-medium">
-            {role === 'OWNER' ? 'Dashboard Owner' : 'Dashboard Staff'}
-          </span>
-        </Link>
+    <aside
+      className={clsx(
+        'hidden md:flex fixed left-0 top-0 h-full flex-col bg-surface border-r border-border z-40 transition-[width] duration-200',
+        collapsed ? 'w-[60px]' : 'w-[210px]'
+      )}
+    >
+      {/* Logo + toggle button */}
+      <div className={clsx('flex items-center border-b border-border', collapsed ? 'justify-center py-5 px-2' : 'px-5 py-6')}>
+        {!collapsed && (
+          <Link href="/admin" className="flex flex-col gap-1 flex-1 min-w-0">
+            <span className="font-display text-2xl tracking-widest text-accent">PADELGO</span>
+            <span className="text-[10px] uppercase tracking-widest text-muted font-medium">
+              {role === 'OWNER' ? 'Dashboard Owner' : 'Dashboard Staff'}
+            </span>
+          </Link>
+        )}
+        <button
+          onClick={toggle}
+          className={clsx(
+            'flex-shrink-0 flex items-center justify-center rounded-lg text-muted hover:text-text hover:bg-card transition-colors',
+            collapsed ? 'size-9' : 'size-7 ml-2'
+          )}
+          title={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+          aria-label={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            {collapsed
+              ? <><polyline points="9 18 15 12 9 6" /></>
+              : <><polyline points="15 18 9 12 15 6" /></>
+            }
+          </svg>
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+      <nav className={clsx('flex-1 py-4 overflow-y-auto', collapsed ? 'px-1.5' : 'px-3')}>
         <ul className="space-y-1">
           {items.map((item) => {
             const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href)
@@ -278,8 +303,10 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
                 <Link
                   href={item.href}
                   aria-current={isActive ? 'page' : undefined}
+                  title={collapsed ? item.label : undefined}
                   className={clsx(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
+                    'flex items-center rounded-lg text-sm transition-colors',
+                    collapsed ? 'justify-center size-9 mx-auto' : 'gap-3 px-3 py-2.5',
                     isActive
                       ? 'bg-accent/10 text-accent font-medium'
                       : 'text-muted hover:text-text hover:bg-card'
@@ -291,7 +318,7 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
                   >
                     {item.icon}
                   </span>
-                  {item.label}
+                  {!collapsed && item.label}
                 </Link>
               </li>
             )
@@ -299,28 +326,23 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
         </ul>
       </nav>
 
-      {/* Context switcher + theme */}
-      <div className="px-4 py-4 border-t border-border space-y-2">
+      {/* Footer: home link + theme */}
+      <div className={clsx('border-t border-border', collapsed ? 'py-3 flex flex-col items-center gap-3' : 'px-4 py-4 space-y-2')}>
         <Link
           href="/"
-          className="flex items-center gap-2 text-xs text-muted hover:text-text transition-colors"
+          title={collapsed ? 'Modo jugador' : undefined}
+          className={clsx(
+            'flex items-center text-muted hover:text-text transition-colors',
+            collapsed ? 'justify-center size-9 rounded-lg hover:bg-card' : 'gap-2 text-xs'
+          )}
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
           </svg>
-          Modo jugador
+          {!collapsed && 'Modo jugador'}
         </Link>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-sub">Tema</span>
+        <div className={clsx('flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
+          {!collapsed && <span className="text-xs text-sub">Tema</span>}
           <ThemeToggle />
         </div>
       </div>

@@ -17,5 +17,16 @@
         • Componentes mantenidos custom: Avatar, Tag, LevelBar, PrintButton, DateRangePicker
         → Deps añadidas: radix-ui, sonner, next-themes, class-variance-authority, lucide-react. Imports normalizados a lowercase en 20 archivos.
 
- 6-[ ] mejorar el flujo de nueva reserva, no se ve bien del todo, que sea mas paso a paso.
- 7-[ ] mejorar contraste en el tema claro.
+ 6-[x] mejorar el flujo de nueva reserva, no se ve bien del todo, que sea mas paso a paso.
+      → Wizard expandido de 3 a 4 pasos: Step1=Cancha+Fecha, Step2=Turno+Duración, Step3=Cliente, Step4=Confirmar.
+        StepDots actualizado a 4 pasos (Cancha/Turno/Cliente/Confirmar). Nuevo componente ManualBookingWizardStep2Time.
+        El subtítulo del header ahora muestra cancha · fecha · horario a medida que se completan los pasos.
+        Si el wizard se abre con defaults (click en slot del grid), salta directamente al step 2 (turno).
+
+ 7-[x] mejorar contraste en el tema claro.
+      → Ajustados tokens en [data-theme='light']: --muted #606060 → #484848, --sub #888888 → #606060,
+        --border #e0e0d8 → #d2d2c8, --border-hover #c8c8c0 → #aaaaA0.
+        Mejora significativa en legibilidad de textos secundarios sobre fondos claros.
+
+
+        

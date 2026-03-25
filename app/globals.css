@@ -70,6 +70,9 @@
 
   /* Current time indicator (distinct from accent) */
   --now-line: #ef4444;
+
+  /* Booking label tag background */
+  --booking-label-bg: rgba(0, 0, 0, 0.18);
 }
 
 /* ── DESIGN TOKENS — Obsidian Light ─────────────────────────────────── */
@@ -78,15 +81,15 @@
   --surface: #ebebeb;
   --card: #ffffff;
   --card-hover: #f9f9f4;
-  --border: #e0e0d8;
-  --border-hover: #c8c8c0;
+  --border: #d2d2c8;
+  --border-hover: #aaaaA0;
   --accent: #8aa000;
   --accent-dark: #728800;
   --accent-text: #ffffff;
   --accent-glow: rgba(138, 160, 0, 0.15);
   --text: #141414;
-  --muted: #606060;
-  --sub: #888888;
+  --muted: #484848;
+  --sub: #606060;
   --tag: #f0f4d0;
   --tag-text: #6a8000;
   --tag-border: #d8e490;
@@ -110,30 +113,30 @@
   --radius: 0.75rem;
 
   /* ── Booking source colors — light theme ── */
-  --booking-online-bg: rgba(37, 99, 235, 0.18);
-  --booking-online-border: rgba(37, 99, 235, 0.65);
+  --booking-online-bg: #dbeafe;
+  --booking-online-border: #93c5fd;
   --booking-online-bar: #2563eb;
-  --booking-online-text: #1d4ed8;
+  --booking-online-text: #1e40af;
 
-  --booking-manual-bg: rgba(234, 88, 12, 0.18);
-  --booking-manual-border: rgba(234, 88, 12, 0.65);
+  --booking-manual-bg: #ffedd5;
+  --booking-manual-border: #fdba74;
   --booking-manual-bar: #ea580c;
-  --booking-manual-text: #c2410c;
+  --booking-manual-text: #9a3412;
 
-  --booking-block-bg: rgba(100, 100, 90, 0.18);
-  --booking-block-border: rgba(100, 100, 90, 0.52);
-  --booking-block-bar: #9ca3af;
-  --booking-block-text: #6b7280;
+  --booking-block-bg: #f3f4f6;
+  --booking-block-border: #d1d5db;
+  --booking-block-bar: #6b7280;
+  --booking-block-text: #374151;
 
-  --booking-recurring-bg: rgba(15, 118, 110, 0.16);
-  --booking-recurring-border: rgba(15, 118, 110, 0.58);
+  --booking-recurring-bg: #ccfbf1;
+  --booking-recurring-border: #5eead4;
   --booking-recurring-bar: #0f766e;
-  --booking-recurring-text: #0d9488;
+  --booking-recurring-text: #115e59;
 
-  --booking-cancelled-bg: rgba(160, 160, 150, 0.08);
-  --booking-cancelled-border: rgba(160, 160, 150, 0.22);
-  --booking-cancelled-bar: #bbbbaa;
-  --booking-cancelled-text: #aaaaaa;
+  --booking-cancelled-bg: #f9fafb;
+  --booking-cancelled-border: #e5e7eb;
+  --booking-cancelled-bar: #d1d5db;
+  --booking-cancelled-text: #9ca3af;
 
   /* Grid chrome */
   --grid-row-alt: rgba(0, 0, 0, 0.018);
@@ -142,6 +145,9 @@
 
   /* Current time indicator (distinct from accent) */
   --now-line: #dc2626;
+
+  /* Booking label tag background */
+  --booking-label-bg: rgba(0, 0, 0, 0.12);
 }
 
 /* ── TAILWIND v4 THEME — inline = references runtime CSS vars ──────── */
@@ -279,6 +285,11 @@ body {
   color: var(--booking-block-text);
 }
 
+.booking-block-unconfirmed {
+  border-style: dashed !important;
+  opacity: 0.75;
+}
+
 .booking-block-cancelled {
   background-color: var(--booking-cancelled-bg);
   border-color: var(--booking-cancelled-border);
@@ -293,6 +304,36 @@ body {
   border-left-color: var(--booking-recurring-bar);
   color: var(--booking-recurring-text);
 }
+
+/* ── Light theme overrides for booking block internals ── */
+
+/* Secondary text (time, price) — remove opacity reduction; the dark text
+   colors already have 8–10:1 contrast on solid tinted backgrounds */
+[data-theme='light'] .booking-block p {
+  opacity: 1;
+}
+
+/* Payment chips */
+[data-theme='light'] .pay-chip-paid {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border-color: #86efac !important;
+}
+[data-theme='light'] .pay-chip-manual {
+  background: #f3f4f6 !important;
+  color: #374151 !important;
+  border-color: #d1d5db !important;
+}
+[data-theme='light'] .pay-chip-pending {
+  background: #fff7ed !important;
+  color: #c2410c !important;
+  border-color: #fdba74 !important;
+}
+
+/* Payment status dots */
+[data-theme='light'] .pay-dot-paid { background-color: #16a34a !important; }
+[data-theme='light'] .pay-dot-manual { background-color: #6b7280 !important; }
+[data-theme='light'] .pay-dot-pending { background-color: #ea580c !important; }
 
 /* Reform pattern overlay for inactive courts */
 .court-reform-overlay {

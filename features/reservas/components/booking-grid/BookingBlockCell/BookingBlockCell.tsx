@@ -4,7 +4,6 @@ import {
   minutesToTime,
   formatPrice,
   getBlockClass,
-  getSourceLabel,
 } from '../helpers/bookingGrid.helpers'
 import type { BookingBlock } from '../types/bookingGrid.types'
 
@@ -17,6 +16,23 @@ interface BookingBlockCellProps {
   onTooltipEnter: (x: number, y: number) => void
   onTooltipMove: (x: number, y: number) => void
   onTooltipLeave: () => void
+}
+
+function IconCheck({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 12 12" fill="none">
+      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function IconClock({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 12 12" fill="none">
+      <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M6 3.5V6l1.5 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 export default function BookingBlockCell({
@@ -34,24 +50,18 @@ export default function BookingBlockCell({
   const top = ((startMin - gridStart) / 30) * SLOT_HEIGHT
   const height = (b.durationMinutes / 30) * SLOT_HEIGHT - 3
   const blockCls = getBlockClass(b.source, b.status, b.recurringBookingId)
-  const label = getSourceLabel(b.source, b.status, b.recurringBookingId)
 
   if (top < 0 || top > gridHeight) return null
 
-  // Chip de pago: texto completo si hay espacio, dot si el bloque es pequeño
-  const payChip =
-    b.paymentStatus === 'PAID'
-      ? { text: 'Pagado', dot: 'bg-green-400', chip: 'bg-green-400/10 text-green-400 border-green-400/25' }
-      : b.paymentStatus === 'MANUAL'
-        ? { text: 'Manual', dot: 'bg-gray-400', chip: 'bg-gray-400/10 text-gray-400 border-gray-400/20' }
-        : { text: 'Pendiente', dot: 'bg-orange-400', chip: 'bg-orange-400/10 text-orange-400 border-orange-400/25' }
-
-  const showChip = height > 68 && b.source !== 'BLOCK' && b.status !== 'CANCELLED'
-  const showDot  = height > 52 && !showChip && b.source !== 'BLOCK' && b.status !== 'CANCELLED'
+  const isPaid = b.paymentStatus === 'PAID'
+  const isManualPaid = b.paymentStatus === 'MANUAL'
+  const isUnpaid = !isPaid && !isManualPaid
+  const isUnconfirmed = b.status === 'PENDING'
+  const showPaymentRow = height > 52 && b.source !== 'BLOCK' && b.status !== 'CANCELLED'
 
   return (
     <div
-      className={`booking-block ${blockCls}${isHighlighted ? ' booking-block-highlighted' : ''}`}
+      className={`booking-block ${blockCls}${isUnconfirmed ? ' booking-block-unconfirmed' : ''}${isHighlighted ? ' booking-block-highlighted' : ''}`}
       style={{
         top: top + 2,
         left: 5,
@@ -63,37 +73,31 @@ export default function BookingBlockCell({
       onMouseMove={(e) => onTooltipMove(e.clientX, e.clientY)}
       onMouseLeave={onTooltipLeave}
     >
-      {/* Grupo superior: nombre + horario */}
-      <p className="text-[11px] font-bold leading-tight truncate">{b.displayName}</p>
+      {/* Nombre + reloj si sin confirmar */}
+      <div className="flex items-start gap-1 min-w-0">
+        <p className="text-[11px] font-bold leading-tight truncate flex-1">{b.displayName}</p>
+        {isUnconfirmed && (
+          <IconClock className="w-3 h-3 shrink-0 opacity-80 mt-px" />
+        )}
+      </div>
+
+      {/* Horario */}
       {height > 34 && (
         <p className="text-[9px] font-mono leading-tight opacity-70">
           {b.startTime} – {endTime}
         </p>
       )}
 
-      {/* Grupo inferior: precio + estado de pago */}
-      {height > 52 && b.source !== 'BLOCK' && (
+      {/* Precio + indicador de pago */}
+      {showPaymentRow && (
         <div className="flex items-center justify-between mt-auto gap-1">
-          <p className="text-[10px] font-semibold opacity-75 truncate">{formatPrice(b.totalPrice)}</p>
-          {showChip && (
-            <span className={`shrink-0 text-[9px] font-bold px-1 py-px rounded border leading-none ${payChip.chip}`}>
-              {payChip.text}
-            </span>
-          )}
-          {showDot && (
-            <div className={`w-2 h-2 rounded-full shrink-0 ${payChip.dot}`} />
-          )}
+          <p className={`text-[10px] font-semibold truncate ${isUnpaid ? 'text-red-400' : 'opacity-75'}`}>
+            {formatPrice(b.totalPrice)}
+          </p>
+          {isPaid && <IconCheck className="w-3 h-3 text-green-400 shrink-0" />}
+          {isManualPaid && <IconCheck className="w-3 h-3 text-gray-400 shrink-0" />}
+          {isUnpaid && <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />}
         </div>
-      )}
-
-      {/* Label de tipo — solo visible en bloques con espacio, sin superponerse al chip */}
-      {height > 52 && (
-        <span
-          className="absolute top-1.5 right-1.5 text-[9px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded opacity-70"
-          style={{ background: 'rgba(0,0,0,0.15)' }}
-        >
-          {label}
-        </span>
       )}
     </div>
   )

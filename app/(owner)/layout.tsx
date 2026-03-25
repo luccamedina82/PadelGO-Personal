@@ -1,8 +1,9 @@
 import AdminSidebar from '@/components/layout/AdminSidebar'
+import AdminMain from '@/components/layout/AdminMain'
 import BottomNav from '@/components/layout/BottomNav'
 import QueryProvider from '@/components/providers/QueryProvider'
 import { getAdminContext } from '@/lib/dal/admin'
-import { Suspense } from 'react' // 1. Importamos Suspense
+import { Suspense } from 'react'
 
 export default function OwnerLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -33,9 +34,7 @@ async function ProtectedAdminContent({ children }: { children: React.ReactNode }
   return (
     <QueryProvider>
       <AdminSidebar role={session.role} />
-      <main className="flex-1 md:ml-[210px] pb-16 md:pb-0 min-w-0">
-        {children}
-      </main>
+      <AdminMain>{children}</AdminMain>
       <BottomNav />
     </QueryProvider>
   )

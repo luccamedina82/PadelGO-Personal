@@ -47,6 +47,7 @@ export default function BookingGrid({
   const slotHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const slotHoverPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const [colWidth, setColWidth] = useState(140)
+  const [gridReady, setGridReady] = useState(false)
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
   const [clientTodayStr, setClientTodayStr] = useState<string | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<BookingBlock | null>(null)
@@ -151,6 +152,7 @@ export default function BookingGrid({
         const totalWidth = entry.contentRect.width - TIME_COL_WIDTH
         const w = Math.max(100, Math.floor(totalWidth / Math.max(visibleCourtCount, 1)))
         setColWidth(w)
+        setGridReady(true)
       }
     })
     observer.observe(containerRef.current)
@@ -237,16 +239,21 @@ export default function BookingGrid({
 
   return (
     <>
-      <BookingGridFilterBar
-        courts={courts}
-        focusCourtId={focusCourtId}
-        typeFilter={typeFilter}
-        bookingCount={bookings.filter((b) => b.status !== 'CANCELLED').length}
-        onFocusCourtChange={setFocusCourtId}
-        onTypeFilterChange={setTypeFilter}
-      />
+      {gridReady && (
+        <BookingGridFilterBar
+          courts={courts}
+          focusCourtId={focusCourtId}
+          typeFilter={typeFilter}
+          bookingCount={bookings.filter((b) => b.status !== 'CANCELLED').length}
+          onFocusCourtChange={setFocusCourtId}
+          onTypeFilterChange={setTypeFilter}
+        />
+      )}
 
       <div ref={containerRef} className="grow overflow-auto min-h-0">
+        {!gridReady ? (
+          <BookingGridSkeleton courts={visibleCourts} gridStart={gridStart} gridEnd={gridEnd} />
+        ) : (
         <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 100}px` }}>
           <BookingGridHeader visibleCourts={visibleCourts} colWidth={colWidth} />
 
@@ -346,19 +353,22 @@ export default function BookingGrid({
             )}
           </div>
         </div>
+        )}
       </div>
 
-      {selectedBooking && (
+      {gridReady && selectedBooking && (
         <BookingDetailModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
       )}
 
-      <BookingGridTooltips
-        tooltip={tooltip}
-        slotTooltip={slotTooltip}
-        selectedBooking={selectedBooking}
-        showNewBookingPopup={showNewBookingPopup}
-        highlightedBooking={highlightedBooking}
-      />
+      {gridReady && (
+        <BookingGridTooltips
+          tooltip={tooltip}
+          slotTooltip={slotTooltip}
+          selectedBooking={selectedBooking}
+          showNewBookingPopup={showNewBookingPopup}
+          highlightedBooking={highlightedBooking}
+        />
+      )}
     </>
   )
 }
