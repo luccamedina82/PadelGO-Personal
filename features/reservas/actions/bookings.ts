@@ -221,6 +221,7 @@ export interface UpdateBookingInput {
   durationMinutes: number
   manualName?: string
   manualPhone?: string
+  courtId?: string // cross-court drag support
 }
 
 export async function updateBooking(
@@ -229,7 +230,7 @@ export async function updateBooking(
 ): Promise<ActionResult> {
   const session = await requireRole(['OWNER', 'STAFF'])
 
-  const { startTime, durationMinutes, manualName, manualPhone } = data
+  const { startTime, durationMinutes, manualName, manualPhone, courtId: newCourtId } = data
 
   if (!(VALID_DURATIONS as readonly number[]).includes(durationMinutes)) {
     return { success: false, error: 'Duración no válida. Opciones: 60, 90 o 120 minutos.' }
@@ -253,13 +254,21 @@ export async function updateBooking(
       }
       if (booking.status === 'CANCELLED') throw new Error('CANCELLED')
 
+      const targetCourtId = newCourtId ?? booking.courtId
+
+      // Verify new court belongs to same club
+      if (newCourtId && newCourtId !== booking.courtId) {
+        const court = await tx.court.findUnique({ where: { id: newCourtId }, select: { clubId: true } })
+        if (!court || court.clubId !== booking.clubId) throw new Error('INVALID_COURT')
+      }
+
       const newStartMin = timeToMinutes(startTime)
       const newEndMin = newStartMin + durationMinutes
 
-      // Conflict check excluding self
+      // Conflict check on the target court (excluding self)
       const existing = await tx.booking.findMany({
         where: {
-          courtId: booking.courtId,
+          courtId: targetCourtId,
           date: booking.date,
           status: { in: ['PENDING', 'CONFIRMED'] },
           id: { not: bookingId },
@@ -276,6 +285,7 @@ export async function updateBooking(
       if (conflict) throw new Error('SLOT_TAKEN')
 
       const updateData: Record<string, unknown> = { startTime, durationMinutes }
+      if (newCourtId && newCourtId !== booking.courtId) updateData.courtId = newCourtId
       if (booking.source === 'MANUAL_OWNER') {
         if (manualName !== undefined) updateData.manualName = manualName || null
         if (manualPhone !== undefined) updateData.manualPhone = manualPhone || null
@@ -298,6 +308,8 @@ export async function updateBooking(
         return { success: false, error: 'No se puede editar una reserva cancelada.' }
       if (err.message === 'SLOT_TAKEN')
         return { success: false, error: 'Ese horario ya está ocupado.' }
+      if (err.message === 'INVALID_COURT')
+        return { success: false, error: 'La cancha no pertenece a este club.' }
     }
     console.error('[updateBooking]', err)
     return { success: false, error: 'Error al editar la reserva.' }

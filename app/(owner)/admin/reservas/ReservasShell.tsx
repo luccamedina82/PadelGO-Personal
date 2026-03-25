@@ -10,6 +10,7 @@ interface ReservasShellProps {
   weeklyBookings?: BookingBlock[]
   date: string
   weekStart?: string
+  clubId?: string
   gridStart: number
   gridEnd: number
   highlightBookingId?: string
@@ -21,6 +22,7 @@ export default function ReservasShell({
   bookings,
   date,
   weekStart,
+  clubId,
   gridStart,
   gridEnd,
   highlightBookingId,
@@ -46,6 +48,7 @@ export default function ReservasShell({
         courts={courts}
         bookings={bookings}
         date={date}
+        clubId={clubId}
         gridStart={gridStart}
         gridEnd={gridEnd}
         highlightBookingId={highlightBookingId}

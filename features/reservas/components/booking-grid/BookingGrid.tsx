@@ -9,6 +9,7 @@ import BookingGridTimeColumn from './BookingGridTimeColumn/BookingGridTimeColumn
 import BookingBlockCell from './BookingBlockCell/BookingBlockCell'
 import BookingGridTooltips from './BookingGridTooltips/BookingGridTooltips'
 import BookingGridSkeleton from './BookingGridSkeleton/BookingGridSkeleton'
+import { useBookingDragResize } from './hooks/useBookingDragResize'
 import type {
   BookingBlock,
   BookingGridProps,
@@ -20,6 +21,7 @@ import {
   TIME_COL_WIDTH,
   TOOLTIP_DELAY_MS,
   clampTooltipPosition,
+  getBlockClass,
   getLocalDateStr,
   minutesToTime,
   shouldUpdateTooltipPosition,
@@ -35,12 +37,14 @@ export default function BookingGrid({
   courts,
   bookings,
   date,
+  clubId,
   gridStart,
   gridEnd,
   highlightBookingId,
 }: BookingGridProps) {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
+  const gridBodyRef = useRef<HTMLDivElement>(null)
   const scrolledHighlightRef = useRef<string | null>(null)
   const scrolledNowRef = useRef(false)
   const slotOpenNonceRef = useRef(0)
@@ -119,19 +123,51 @@ export default function BookingGrid({
     [bookings, typeFilter]
   )
 
+  const visibleCourtCount = visibleCourts.length
+
+  // ── Drag / resize ────────────────────────────────────────────────────
+
+  const {
+    draggingId,
+    resizingId,
+    ghostPos,
+    resizeHeightPx,
+    localOverrides,
+    handleDragStart,
+    handleResizeStart,
+  } = useBookingDragResize({
+    clubId: clubId ?? bookings[0]?.clubId ?? '',
+    gridStart,
+    gridEnd,
+    visibleCourts,
+    colWidth,
+    containerRef,
+    gridBodyRef,
+  })
+
+  // Apply local overrides for optimistic drag/resize rendering
+  const effectiveBookings = useMemo(() => {
+    const keys = Object.keys(localOverrides)
+    if (keys.length === 0) return visibleBookings
+    return visibleBookings.map((b) => {
+      const ov = localOverrides[b.id]
+      return ov ? { ...b, startTime: ov.startTime, durationMinutes: ov.durationMinutes, courtId: ov.courtId } : b
+    })
+  }, [visibleBookings, localOverrides])
+
   const bookingsByCourt = useMemo(() => {
     const map = new Map<string, BookingBlock[]>()
-    for (const booking of visibleBookings) {
+    for (const booking of effectiveBookings) {
       const current = map.get(booking.courtId)
       if (current) current.push(booking)
       else map.set(booking.courtId, [booking])
     }
     return map
-  }, [visibleBookings])
+  }, [effectiveBookings])
 
   const occupiedSlotsByCourt = useMemo(() => {
     const map = new Map<string, Set<number>>()
-    for (const booking of visibleBookings) {
+    for (const booking of effectiveBookings) {
       const bookingStart = timeToMinutes(booking.startTime)
       const bookingEnd = bookingStart + booking.durationMinutes
       let slots = map.get(booking.courtId)
@@ -141,9 +177,7 @@ export default function BookingGrid({
       }
     }
     return map
-  }, [visibleBookings])
-
-  const visibleCourtCount = visibleCourts.length
+  }, [effectiveBookings])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -213,6 +247,7 @@ export default function BookingGrid({
   }
 
   function handleSlotMouseEnter(courtName: string, slotMinutes: number, x: number, y: number) {
+    if (draggingId) return
     if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
     slotHoverPointerRef.current = { x, y }
     const time = minutesToTime(slotMinutes)
@@ -223,6 +258,7 @@ export default function BookingGrid({
   }
 
   function handleSlotMouseMove(x: number, y: number) {
+    if (draggingId) return
     slotHoverPointerRef.current = { x, y }
     setSlotTooltip((prev) => {
       if (!prev) return prev
@@ -236,6 +272,14 @@ export default function BookingGrid({
     if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
     setSlotTooltip(null)
   }
+
+  // ── Ghost block class (same visual style as source booking) ──────────
+  const ghostBooking = ghostPos
+    ? effectiveBookings.find((b) => b.id === draggingId)
+    : null
+  const ghostBlockCls = ghostBooking
+    ? getBlockClass(ghostBooking.source, ghostBooking.status, ghostBooking.recurringBookingId)
+    : 'booking-block-manual'
 
   return (
     <>
@@ -257,7 +301,7 @@ export default function BookingGrid({
         <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 100}px` }}>
           <BookingGridHeader visibleCourts={visibleCourts} colWidth={colWidth} />
 
-          <div className="relative flex">
+          <div ref={gridBodyRef} className="relative flex">
             <BookingGridTimeColumn
               gridStart={gridStart}
               gridEnd={gridEnd}
@@ -315,14 +359,20 @@ export default function BookingGrid({
                       gridStart={gridStart}
                       gridHeight={gridHeight}
                       isHighlighted={highlightId === b.id}
+                      isDragging={draggingId === b.id}
+                      isResizing={resizingId === b.id}
+                      heightOverride={resizingId === b.id ? (resizeHeightPx ?? undefined) : undefined}
+                      onDragStart={handleDragStart}
+                      onResizeStart={handleResizeStart}
                       onSelect={() => setSelectedBooking(b)}
                       onTooltipEnter={(x, y) => {
+                        if (draggingId) return
                         const pos = clampTooltipPosition(x, y, 220, 96)
                         setTooltip({ booking: b, x: pos.x, y: pos.y })
                       }}
                       onTooltipMove={(x, y) =>
                         setTooltip((prev) => {
-                          if (!prev) return null
+                          if (!prev || draggingId) return null
                           const pos = clampTooltipPosition(x, y, 220, 96)
                           if (!shouldUpdateTooltipPosition(prev.x, prev.y, pos.x, pos.y)) return prev
                           return { ...prev, x: pos.x, y: pos.y }
@@ -334,6 +384,21 @@ export default function BookingGrid({
                 </div>
               )
             })}
+
+            {/* Drag ghost — floats at snapped target position */}
+            {ghostPos && draggingId && (
+              <div
+                className={`booking-block ${ghostBlockCls} pointer-events-none opacity-60 border-2 border-dashed`}
+                style={{
+                  position: 'absolute',
+                  top: ((ghostPos.startMin - gridStart) / 30) * SLOT_HEIGHT + 2,
+                  left: TIME_COL_WIDTH + ghostPos.courtIndex * colWidth + 5,
+                  width: colWidth - 10,
+                  height: Math.max((ghostPos.durationMinutes / 30) * SLOT_HEIGHT - 3, 22),
+                  zIndex: 40,
+                }}
+              />
+            )}
 
             {currentLineTop !== null && (
               <div

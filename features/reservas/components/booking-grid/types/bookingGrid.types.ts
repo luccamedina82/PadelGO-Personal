@@ -27,12 +27,14 @@ export interface UpdateBookingData {
   durationMinutes: number
   manualName?: string
   manualPhone?: string
+  courtId?: string
 }
 
 export interface BookingGridProps {
   courts: CourtColumn[]
   bookings: BookingBlock[]
   date: string // YYYY-MM-DD
+  clubId?: string // needed for drag/resize mutations
   gridStart: number // minutes from midnight, e.g. 7*60 = 420
   gridEnd: number // minutes from midnight, e.g. 23*60 = 1380
   onCancelBooking?: (bookingId: string) => Promise<void>

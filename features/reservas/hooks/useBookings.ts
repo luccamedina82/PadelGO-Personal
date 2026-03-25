@@ -93,6 +93,9 @@ export function useBookingMutations(clubId: string) {
                 ...booking,
                 startTime: variables.data.startTime,
                 durationMinutes: variables.data.durationMinutes,
+                ...(variables.data.courtId !== undefined
+                  ? { courtId: variables.data.courtId }
+                  : {}),
                 ...(variables.data.manualName !== undefined
                   ? { displayName: variables.data.manualName }
                   : {}),

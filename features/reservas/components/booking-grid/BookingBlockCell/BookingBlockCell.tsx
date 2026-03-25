@@ -1,3 +1,4 @@
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import {
   SLOT_HEIGHT,
   timeToMinutes,
@@ -12,6 +13,16 @@ interface BookingBlockCellProps {
   gridStart: number
   gridHeight: number
   isHighlighted: boolean
+  isDragging?: boolean
+  isResizing?: boolean
+  heightOverride?: number
+  onDragStart: (
+    booking: BookingBlock,
+    e: ReactPointerEvent<HTMLDivElement>,
+    offsetY: number,
+    onSelect: () => void
+  ) => void
+  onResizeStart: (booking: BookingBlock, e: ReactPointerEvent<HTMLDivElement>) => void
   onSelect: () => void
   onTooltipEnter: (x: number, y: number) => void
   onTooltipMove: (x: number, y: number) => void
@@ -40,6 +51,11 @@ export default function BookingBlockCell({
   gridStart,
   gridHeight,
   isHighlighted,
+  isDragging,
+  isResizing,
+  heightOverride,
+  onDragStart,
+  onResizeStart,
   onSelect,
   onTooltipEnter,
   onTooltipMove,
@@ -48,7 +64,8 @@ export default function BookingBlockCell({
   const startMin = timeToMinutes(b.startTime)
   const endTime = minutesToTime(startMin + b.durationMinutes)
   const top = ((startMin - gridStart) / 30) * SLOT_HEIGHT
-  const height = (b.durationMinutes / 30) * SLOT_HEIGHT - 3
+  const baseHeight = (b.durationMinutes / 30) * SLOT_HEIGHT - 3
+  const height = heightOverride ?? baseHeight
   const blockCls = getBlockClass(b.source, b.status, b.recurringBookingId)
 
   if (top < 0 || top > gridHeight) return null
@@ -57,38 +74,57 @@ export default function BookingBlockCell({
   const isManualPaid = b.paymentStatus === 'MANUAL'
   const isUnpaid = !isPaid && !isManualPaid
   const isUnconfirmed = b.status === 'PENDING'
-  const showPaymentRow = height > 52 && b.source !== 'BLOCK' && b.status !== 'CANCELLED'
+  const isCancelled = b.status === 'CANCELLED'
+  const showPaymentRow = height > 52 && b.source !== 'BLOCK' && !isCancelled
+  const isActive = !isCancelled
+
+  function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!isActive) return
+    const offsetY = e.clientY - e.currentTarget.getBoundingClientRect().top
+    onDragStart(b, e, offsetY, onSelect)
+  }
 
   return (
     <div
-      className={`booking-block ${blockCls}${isUnconfirmed ? ' booking-block-unconfirmed' : ''}${isHighlighted ? ' booking-block-highlighted' : ''}`}
+      className={[
+        'booking-block group',
+        blockCls,
+        isUnconfirmed ? 'booking-block-unconfirmed' : '',
+        isHighlighted ? 'booking-block-highlighted' : '',
+        isDragging
+          ? 'opacity-80 !scale-[1.02] shadow-xl cursor-grabbing z-50'
+          : isActive
+            ? 'cursor-grab hover:shadow-md transition-shadow'
+            : '',
+        isResizing ? 'select-none' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       style={{
         top: top + 2,
         left: 5,
         right: 5,
         height: Math.max(height, 22),
       }}
-      onClick={onSelect}
-      onMouseEnter={(e) => onTooltipEnter(e.clientX, e.clientY)}
-      onMouseMove={(e) => onTooltipMove(e.clientX, e.clientY)}
+      onPointerDown={handlePointerDown}
+      onMouseEnter={(e) => !isDragging && onTooltipEnter(e.clientX, e.clientY)}
+      onMouseMove={(e) => !isDragging && onTooltipMove(e.clientX, e.clientY)}
       onMouseLeave={onTooltipLeave}
     >
-      {/* Nombre + reloj si sin confirmar */}
+      {/* Name + unconfirmed clock */}
       <div className="flex items-start gap-1 min-w-0">
         <p className="text-[11px] font-bold leading-tight truncate flex-1">{b.displayName}</p>
-        {isUnconfirmed && (
-          <IconClock className="w-3 h-3 shrink-0 opacity-80 mt-px" />
-        )}
+        {isUnconfirmed && <IconClock className="w-3 h-3 shrink-0 opacity-80 mt-px" />}
       </div>
 
-      {/* Horario */}
+      {/* Time range */}
       {height > 34 && (
         <p className="text-[9px] font-mono leading-tight opacity-70">
           {b.startTime} – {endTime}
         </p>
       )}
 
-      {/* Precio + indicador de pago */}
+      {/* Price + payment indicator */}
       {showPaymentRow && (
         <div className="flex items-center justify-between mt-auto gap-1">
           <p className={`text-[10px] font-semibold truncate ${isUnpaid ? 'text-red-400' : 'opacity-75'}`}>
@@ -98,6 +134,14 @@ export default function BookingBlockCell({
           {isManualPaid && <IconCheck className="w-3 h-3 text-gray-400 shrink-0" />}
           {isUnpaid && <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />}
         </div>
+      )}
+
+      {/* Resize handle — only shown on hover at bottom of card */}
+      {isActive && !isDragging && (
+        <div
+          className="absolute bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-current opacity-0 group-hover:opacity-25 transition-opacity cursor-ns-resize"
+          onPointerDown={(e) => onResizeStart(b, e)}
+        />
       )}
     </div>
   )

@@ -96,6 +96,7 @@ export default function BookingsClient({
         date={date}
         weekStart={weekStart}
         viewMode={viewMode}
+        clubId={clubId}
         highlightBookingId={eventHighlightBookingId ?? rest.highlightBookingId}
         {...rest}
       />

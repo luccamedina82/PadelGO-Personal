@@ -29,4 +29,34 @@
         Mejora significativa en legibilidad de textos secundarios sobre fondos claros.
 
 
-        
+        UNIFICAR CANCHAS Y HORARIOS EN UNO MISMO
+        arreglar turnos fijos
+        añadir drag and drop en los turnos
+
+
+
+Actúa como un Desarrollador Frontend Experto y Diseñador UI/UX especializado en interfaces SaaS. Tu tarea es implementar dos funcionalidades interactivas clave en el calendario/grilla de reservas de nuestro sistema (PadelGo), utilizando Tailwind CSS y buenas prácticas de interacción.
+
+IMPLEMENTACIÓN 1: DRAG & DROP Y RESIZING DE RESERVAS
+Debes habilitar la capacidad de arrastrar, soltar y redimensionar las tarjetas de reserva en la grilla. Sigue estas reglas estrictas de UX:
+1. Snap-to-Grid (Ajuste a la cuadrícula): Las tarjetas NO pueden soltarse en coordenadas libres. Al arrastrar o redimensionar, deben hacer un "snap" (imantarse) obligatoriamente a bloques de 30 minutos.
+2. Estados Visuales (Visual Feedback): 
+   - Estado "Hover": El cursor debe cambiar a `cursor-grab`.
+   - Estado "Dragging" (Arrastrando): El cursor cambia a `cursor-grabbing`. La tarjeta debe ganar una sombra profunda (`shadow-xl`), escalar ligeramente (`scale-[1.02]`) y reducir su opacidad al 80% para ver la grilla por debajo.
+3. Resizing (Cambio de duración): El borde inferior de la tarjeta debe tener un "handle" (agarradera) sutil (ej. una pequeña línea horizontal `w-8 h-1 bg-zinc-300 rounded-full`) visible al hacer hover, que permita estirar la tarjeta hacia abajo para extender el turno. Cursor: `ns-resize`.
+4. Prevención de Errores (Undo): Al soltar la tarjeta en su nueva posición, NO muestres un modal de confirmación intrusivo. En su lugar, el cambio se aplica instantáneamente y debe aparecer un Toast/Notificación flotante en la parte inferior de la pantalla que diga: "Reserva movida a las [Nueva Hora]. [Deshacer]".
+
+IMPLEMENTACIÓN 2: POPOVER DE ACCIONES RÁPIDAS (Quick Actions)
+Debes reemplazar el comportamiento del clic en las tarjetas. Un "clic simple" NO debe abrir un modal de pantalla completa (full-page), sino un "Popover" flotante contextual.
+1. Trigger y Posicionamiento: Al hacer un clic simple en una reserva, se abre una pequeña tarjeta flotante (`shadow-lg`, `border-zinc-200` o `border-zinc-800` en dark mode) justo al lado o encima del cursor. Debe cerrarse al hacer clic fuera (Click Outside).
+2. Estructura de la Información (IA): El Popover debe ser compacto y contener:
+   - Header: Nombre del jugador (`font-bold`, `text-lg`), Hora del turno (`tabular-nums`, `text-zinc-500`) y Cancha.
+   - Estado de Pagos (Split Payments): Muestra claramente cuánto está pagado (ej. "Seña: $3.000") y cuánto falta (ej. "Resta: $9.000" en texto rojo/naranja).
+3. Botones de Acción Inmediata: Incluye una botonera minimalista con íconos para las operaciones más comunes en recepción:
+   - [ 💰 Cobrar ] (Botón primario, fondo oscuro/neón).
+   - [ ✅ Asistió ] (Botón secundario outline).
+   - [ 💬 WhatsApp ] (Ícono secundario sutil).
+   - [ ✏️ Editar ] (Para abrir el modal completo si se requiere cambiar datos complejos).
+4. Diseño Pixel-Perfect: Mantén bordes redondeados (`rounded-xl`), padding balanceado (`p-4`), y respeta la paleta del sistema (fondos `zinc-50` para claro, `zinc-900` para oscuro, y botones de acento en verde neón `#d9f924` con texto oscuro para contraste).
+
+Regla general: Prioriza la velocidad de operación. La interfaz debe responder al instante, sin tiempos de carga visuales que bloqueen al usuario (Optimistic UI).
