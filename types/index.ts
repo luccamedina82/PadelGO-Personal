@@ -3,7 +3,7 @@ export type Role = 'SUPERADMIN' | 'OWNER' | 'STAFF' | 'PLAYER'
 export type CourtType = 'CRISTAL' | 'MURO' | 'PANORAMICA'
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'
 export type PaymentStatus = 'UNPAID' | 'PAID' | 'REFUNDED' | 'MANUAL'
-export type BookingSource = 'ONLINE' | 'MANUAL_OWNER' | 'MANUAL_SUPPORT' | 'BLOCK'
+export type BookingSource = 'ONLINE' | 'MANUAL_OWNER' | 'MANUAL_SUPPORT' | 'BLOCK' | 'ENTRENAMIENTO' | 'TORNEO' | 'EVENTO' | 'MANTENIMIENTO'
 export type AchievementCat =
   | 'INICIO'
   | 'CONSTANCIA'

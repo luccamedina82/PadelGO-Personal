@@ -1,15 +1,41 @@
-export const SLOT_HEIGHT = 48 // px per 30-min row
+export const SLOT_HEIGHT = 64 // px per 30-min row
 export const TIME_COL_WIDTH = 52 // px
+
+// Palette for court color indicators (cycles if more than 9 courts)
+export const COURT_COLORS: ReadonlyArray<{ bar: string; bg: string; text: string }> = [
+  { bar: '#7060d0', bg: 'rgba(112,96,208,0.15)', text: '#a090f0' },
+  { bar: '#20a080', bg: 'rgba(32,160,128,0.15)', text: '#40c8b0' },
+  { bar: '#a0a000', bg: 'rgba(160,160,0,0.15)',  text: '#d8d840' },
+  { bar: '#c03060', bg: 'rgba(192,48,96,0.15)',   text: '#f060a0' },
+  { bar: '#2060c0', bg: 'rgba(32,96,192,0.15)',   text: '#5090f0' },
+  { bar: '#c06020', bg: 'rgba(192,96,32,0.15)',   text: '#f09040' },
+  { bar: '#20a040', bg: 'rgba(32,160,64,0.15)',   text: '#40c870' },
+  { bar: '#a020a0', bg: 'rgba(160,32,160,0.15)',  text: '#d060d0' },
+  { bar: '#20a0a0', bg: 'rgba(32,160,160,0.15)',  text: '#40c8c8' },
+]
 export const TOOLTIP_DELAY_MS = 300
 
-export type SourceFilterKey = null | 'ONLINE' | 'MANUAL' | 'BLOCK' | 'RECURRING'
+export type SourceFilterKey =
+  | null
+  | 'ONLINE'
+  | 'MANUAL'
+  | 'BLOCK'
+  | 'RECURRING'
+  | 'ENTRENAMIENTO'
+  | 'TORNEO'
+  | 'EVENTO'
+  | 'MANTENIMIENTO'
 
 export const SOURCE_FILTERS: ReadonlyArray<{ key: SourceFilterKey; label: string }> = [
-  { key: null, label: 'Todos' },
-  { key: 'ONLINE', label: 'Online' },
-  { key: 'MANUAL', label: 'Manual' },
-  { key: 'BLOCK', label: 'Bloqueo' },
-  { key: 'RECURRING', label: 'Turno fijo' },
+  { key: null,           label: 'Todos' },
+  { key: 'ONLINE',       label: 'Online' },
+  { key: 'MANUAL',       label: 'Manual' },
+  { key: 'RECURRING',    label: 'Turno fijo' },
+  { key: 'ENTRENAMIENTO', label: 'Entrenamiento' },
+  { key: 'TORNEO',       label: 'Torneo' },
+  { key: 'EVENTO',       label: 'Evento' },
+  { key: 'MANTENIMIENTO', label: 'Mantenimiento' },
+  { key: 'BLOCK',        label: 'Bloqueo' },
 ]
 
 export function timeToMinutes(time: string): number {
@@ -71,6 +97,19 @@ export function clampTooltipPosition(
   }
 }
 
+/** All sources that represent a "block" (no player, no payment) */
+export const BLOCK_SOURCES = new Set([
+  'BLOCK',
+  'ENTRENAMIENTO',
+  'TORNEO',
+  'EVENTO',
+  'MANTENIMIENTO',
+])
+
+export function isBlockSource(source: string): boolean {
+  return BLOCK_SOURCES.has(source)
+}
+
 export function getBlockClass(
   source: string,
   status: string,
@@ -79,6 +118,10 @@ export function getBlockClass(
   if (status === 'CANCELLED') return 'booking-block-cancelled'
   if (source === 'BLOCK' && recurringBookingId) return 'booking-block-recurring'
   if (source === 'BLOCK') return 'booking-block-block'
+  if (source === 'ENTRENAMIENTO') return 'booking-block-entrenamiento'
+  if (source === 'TORNEO') return 'booking-block-torneo'
+  if (source === 'EVENTO') return 'booking-block-evento'
+  if (source === 'MANTENIMIENTO') return 'booking-block-mantenimiento'
   if (source === 'ONLINE') return 'booking-block-online'
   return 'booking-block-manual'
 }
@@ -91,6 +134,10 @@ export function getSourceLabel(
   if (status === 'CANCELLED') return 'CANCEL'
   if (source === 'BLOCK' && recurringBookingId) return 'TURNO FIJO'
   if (source === 'BLOCK') return 'BLOQUEO'
+  if (source === 'ENTRENAMIENTO') return 'ENTRENAMIENTO'
+  if (source === 'TORNEO') return 'TORNEO'
+  if (source === 'EVENTO') return 'EVENTO'
+  if (source === 'MANTENIMIENTO') return 'MANTENIMIENTO'
   if (source === 'ONLINE') return 'ONLINE'
   return 'MANUAL'
 }

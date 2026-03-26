@@ -14,7 +14,7 @@ interface DragInfo {
   origStartMin: number
   durationMinutes: number
   offsetY: number
-  onSelect: () => void
+  onSelect: (x: number, y: number) => void
   isDrag: boolean
   startClientX: number
   startClientY: number
@@ -57,7 +57,7 @@ export interface DragResizeResult {
     booking: BookingBlock,
     e: ReactPointerEvent<HTMLDivElement>,
     offsetY: number,
-    onSelect: () => void
+    onSelect: (x: number, y: number) => void
   ) => void
   handleResizeStart: (booking: BookingBlock, e: React.PointerEvent<HTMLDivElement>) => void
 }
@@ -289,7 +289,7 @@ export function useBookingDragResize({
         const ghost = ghostPosRef.current
 
         if (!drag.isDrag) {
-          drag.onSelect()
+          drag.onSelect(drag.startClientX, drag.startClientY)
         } else if (ghost) {
           commitDrop(drag, ghost)
         }
@@ -329,7 +329,7 @@ export function useBookingDragResize({
     booking: BookingBlock,
     e: ReactPointerEvent<HTMLDivElement>,
     offsetY: number,
-    onSelect: () => void
+    onSelect: (x: number, y: number) => void
   ) {
     if (booking.status === 'CANCELLED') return
     e.preventDefault() // suppress subsequent click event

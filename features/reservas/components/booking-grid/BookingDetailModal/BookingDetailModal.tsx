@@ -6,6 +6,7 @@ import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
 import type { BookingBlock } from '../types/bookingGrid.types'
 import {
   getBlockClass,
+  isBlockSource,
   minutesToTime,
   timeToMinutes,
 } from '../helpers/bookingGrid.helpers'
@@ -156,14 +157,21 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
     timeToMinutes(activeBooking.startTime) + activeBooking.durationMinutes
   )
 
+  const SOURCE_LABELS: Record<string, string> = {
+    ENTRENAMIENTO: 'Entrenamiento',
+    TORNEO: 'Torneo',
+    EVENTO: 'Evento',
+    MANTENIMIENTO: 'Mantenimiento',
+  }
   const sourceLabel =
     activeBooking.source === 'BLOCK' && activeBooking.recurringBookingId
       ? 'Turno fijo'
-      : activeBooking.source === 'BLOCK'
-        ? 'Bloqueo'
-        : activeBooking.source === 'ONLINE'
-          ? 'Reserva online'
-          : 'Reserva manual'
+      : SOURCE_LABELS[activeBooking.source]
+        ?? (activeBooking.source === 'BLOCK'
+          ? 'Bloqueo'
+          : activeBooking.source === 'ONLINE'
+            ? 'Reserva online'
+            : 'Reserva manual')
 
   const statusLabel =
     activeBooking.status === 'CONFIRMED'
@@ -259,7 +267,7 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
         )}
 
         {/* Players/Payment */}
-        {activeBooking.source !== 'BLOCK' && !isEditing && (
+        {!isBlockSource(activeBooking.source) && !isEditing && (
           <BookingDetailPaymentSection
             localPlayers={localPlayers}
             localPaidIds={localPaidIds}

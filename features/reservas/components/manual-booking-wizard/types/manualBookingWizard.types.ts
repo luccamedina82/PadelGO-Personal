@@ -36,6 +36,7 @@ export interface ManualBookingWizardProps {
     manualName?: string
     manualPhone?: string
     blockReason?: string
+    blockSource?: string
   }) => Promise<ActionResult<{ bookingId: string }>>
   defaultCourtId?: string
   defaultDate?: string

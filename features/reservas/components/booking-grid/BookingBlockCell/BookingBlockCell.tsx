@@ -5,6 +5,7 @@ import {
   minutesToTime,
   formatPrice,
   getBlockClass,
+  isBlockSource,
 } from '../helpers/bookingGrid.helpers'
 import type { BookingBlock } from '../types/bookingGrid.types'
 
@@ -21,10 +22,10 @@ interface BookingBlockCellProps {
     booking: BookingBlock,
     e: ReactPointerEvent<HTMLDivElement>,
     offsetY: number,
-    onSelect: () => void
+    onSelect: (x: number, y: number) => void
   ) => void
   onResizeStart: (booking: BookingBlock, e: ReactPointerEvent<HTMLDivElement>) => void
-  onSelect: () => void
+  onSelect: (x: number, y: number) => void
   onTooltipEnter: (x: number, y: number) => void
   onTooltipMove: (x: number, y: number) => void
   onTooltipLeave: () => void
@@ -76,7 +77,9 @@ export default function BookingBlockCell({
   const isUnpaid = !isPaid
   const isUnconfirmed = b.status === 'PENDING'
   const isCancelled = b.status === 'CANCELLED'
-  const showPaymentRow = height > 52 && b.source !== 'BLOCK' && !isCancelled
+  const isBlock = isBlockSource(b.source)
+  const showPaymentRow = height > 52 && !isBlock && !isCancelled
+  const showPaymentDot = !showPaymentRow && !isBlock && !isCancelled // compact: dot only
   const isActive = !isCancelled
 
   function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
@@ -90,6 +93,7 @@ export default function BookingBlockCell({
       className={[
         'booking-block group',
         blockCls,
+        !isBlock && !isCancelled ? (isPaid ? 'booking-block-paid' : 'booking-block-unpaid') : '',
         isUnconfirmed ? 'booking-block-unconfirmed' : '',
         isHighlighted ? 'booking-block-highlighted' : '',
         isPast && !isDragging ? 'opacity-40 grayscale-[0.4]' : '',
@@ -119,14 +123,21 @@ export default function BookingBlockCell({
         {isUnconfirmed && <IconClock className="w-3 h-3 shrink-0 opacity-80 mt-px" />}
       </div>
 
-      {/* Time range */}
+      {/* Time range + compact payment dot */}
       {height > 34 && (
-        <p className="text-[9px] font-mono leading-tight opacity-70">
-          {b.startTime} – {endTime}
-        </p>
+        <div className="flex items-center gap-1">
+          <p className="text-[9px] font-mono leading-tight opacity-70 flex-1">
+            {b.startTime} – {endTime}
+          </p>
+          {showPaymentDot && (
+            isPaid
+              ? <IconCheck className="w-3 h-3 text-green-400 shrink-0" />
+              : <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+          )}
+        </div>
       )}
 
-      {/* Price + payment indicator */}
+      {/* Price + payment indicator (full row, taller slots) */}
       {showPaymentRow && (
         <div className="flex items-center justify-between mt-auto gap-1">
           <p className={`text-[10px] font-semibold truncate ${isUnpaid ? 'text-red-400' : 'opacity-75'}`}>

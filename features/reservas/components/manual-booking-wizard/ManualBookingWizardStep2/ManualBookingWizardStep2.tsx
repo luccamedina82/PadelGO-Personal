@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { type BookingType, BOOKING_TYPES } from '../types/manualBookingWizard.types'
 
 const BLOCK_CATEGORIES = [
-  { id: 'entrenamiento', label: 'Entrenamiento', icon: '🏋️' },
-  { id: 'torneo',        label: 'Torneo',        icon: '🏆' },
-  { id: 'evento',        label: 'Evento',        icon: '🎉' },
-  { id: 'mantenimiento', label: 'Mantenimiento', icon: '🔧' },
-  { id: 'otro',          label: 'Otro',          icon: '✏️' },
+  { id: 'entrenamiento', label: 'Entrenamiento', icon: '🏋️', source: 'ENTRENAMIENTO' },
+  { id: 'torneo',        label: 'Torneo',        icon: '🏆', source: 'TORNEO' },
+  { id: 'evento',        label: 'Evento',        icon: '🎉', source: 'EVENTO' },
+  { id: 'mantenimiento', label: 'Mantenimiento', icon: '🔧', source: 'MANTENIMIENTO' },
+  { id: 'otro',          label: 'Otro',          icon: '✏️', source: 'BLOCK' },
 ] as const
 
 type BlockCategoryId = (typeof BLOCK_CATEGORIES)[number]['id']
@@ -20,6 +20,7 @@ interface ManualBookingWizardStep2Props {
   setClientPhone(v: string): void
   blockReason: string
   setBlockReason(v: string): void
+  setBlockSource(source: string): void
   onNext(): void
   onBack(): void
 }
@@ -33,6 +34,7 @@ export default function ManualBookingWizardStep2({
   setClientPhone,
   blockReason,
   setBlockReason,
+  setBlockSource,
   onNext,
   onBack,
 }: ManualBookingWizardStep2Props) {
@@ -40,7 +42,9 @@ export default function ManualBookingWizardStep2({
 
   function handleCategorySelect(cat: BlockCategoryId) {
     setBlockCategory(cat)
-    if (cat !== 'otro') setBlockReason(BLOCK_CATEGORIES.find((c) => c.id === cat)!.label)
+    const found = BLOCK_CATEGORIES.find((c) => c.id === cat)!
+    setBlockSource(found.source)
+    if (cat !== 'otro') setBlockReason(found.label)
     else setBlockReason('')
   }
 

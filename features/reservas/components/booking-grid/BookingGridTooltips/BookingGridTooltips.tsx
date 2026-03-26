@@ -1,5 +1,5 @@
 import type { BookingBlock } from '../types/bookingGrid.types'
-import { formatPrice, minutesToTime, timeToMinutes } from '../helpers/bookingGrid.helpers'
+import { formatPrice, isBlockSource, minutesToTime, timeToMinutes } from '../helpers/bookingGrid.helpers'
 
 interface BookingGridTooltipsProps {
   tooltip: { booking: BookingBlock; x: number; y: number } | null
@@ -43,7 +43,7 @@ export default function BookingGridTooltips({
             {' · '}
             {tooltip.booking.durationMinutes}m
           </p>
-          {tooltip.booking.source !== 'BLOCK' && (
+          {!isBlockSource(tooltip.booking.source) && (
             <div className="mt-1.5 flex items-center justify-between">
               <span className="text-xs font-mono text-text">
                 {formatPrice(tooltip.booking.totalPrice)}

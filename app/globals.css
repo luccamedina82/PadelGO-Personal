@@ -63,6 +63,27 @@
   --booking-cancelled-bar: #444444;
   --booking-cancelled-text: #555555;
 
+  /* Block subtypes — dark theme */
+  --booking-entrenamiento-bg: rgba(34, 197, 94, 0.15);
+  --booking-entrenamiento-border: rgba(34, 197, 94, 0.4);
+  --booking-entrenamiento-bar: #22c55e;
+  --booking-entrenamiento-text: #4ade80;
+
+  --booking-torneo-bg: rgba(234, 179, 8, 0.15);
+  --booking-torneo-border: rgba(234, 179, 8, 0.4);
+  --booking-torneo-bar: #eab308;
+  --booking-torneo-text: #facc15;
+
+  --booking-evento-bg: rgba(168, 85, 247, 0.15);
+  --booking-evento-border: rgba(168, 85, 247, 0.4);
+  --booking-evento-bar: #a855f7;
+  --booking-evento-text: #c084fc;
+
+  --booking-mantenimiento-bg: rgba(251, 146, 60, 0.15);
+  --booking-mantenimiento-border: rgba(251, 146, 60, 0.4);
+  --booking-mantenimiento-bar: #fb923c;
+  --booking-mantenimiento-text: #fdba74;
+
   /* Grid chrome */
   --grid-row-alt: rgba(255, 255, 255, 0.008);
   --grid-col-alt: rgba(255, 255, 255, 0.025);
@@ -138,6 +159,27 @@
   --booking-cancelled-border: #e5e7eb;
   --booking-cancelled-bar: #d1d5db;
   --booking-cancelled-text: #9ca3af;
+
+  /* Block subtypes — light theme */
+  --booking-entrenamiento-bg: #dcfce7;
+  --booking-entrenamiento-border: #86efac;
+  --booking-entrenamiento-bar: #16a34a;
+  --booking-entrenamiento-text: #14532d;
+
+  --booking-torneo-bg: #fef9c3;
+  --booking-torneo-border: #fde047;
+  --booking-torneo-bar: #ca8a04;
+  --booking-torneo-text: #713f12;
+
+  --booking-evento-bg: #f3e8ff;
+  --booking-evento-border: #d8b4fe;
+  --booking-evento-bar: #9333ea;
+  --booking-evento-text: #581c87;
+
+  --booking-mantenimiento-bg: #fff7ed;
+  --booking-mantenimiento-border: #fdba74;
+  --booking-mantenimiento-bar: #ea580c;
+  --booking-mantenimiento-text: #7c2d12;
 
   /* Grid chrome */
   --grid-row-alt: rgba(0, 0, 0, 0.018);
@@ -246,8 +288,8 @@ body {
   border-radius: 8px;
   border-width: 1px;
   border-style: solid;
-  border-left-width: 3px;
-  padding: 6px 8px;
+  border-left-width: 4px;
+  padding: 8px 10px;
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -282,9 +324,63 @@ body {
 
 .booking-block-block {
   background-color: var(--booking-block-bg);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    rgba(128, 128, 128, 0.07) 5px,
+    rgba(128, 128, 128, 0.07) 10px
+  );
+  border-style: dashed !important;
   border-color: var(--booking-block-border);
   border-left-color: var(--booking-block-bar);
+  border-left-style: solid !important;
   color: var(--booking-block-text);
+}
+
+/* Block subtypes */
+.booking-block-entrenamiento {
+  background-color: var(--booking-entrenamiento-bg);
+  border-color: var(--booking-entrenamiento-border);
+  border-left-color: var(--booking-entrenamiento-bar);
+  color: var(--booking-entrenamiento-text);
+}
+
+.booking-block-torneo {
+  background-color: var(--booking-torneo-bg);
+  border-color: var(--booking-torneo-border);
+  border-left-color: var(--booking-torneo-bar);
+  color: var(--booking-torneo-text);
+}
+
+.booking-block-evento {
+  background-color: var(--booking-evento-bg);
+  border-color: var(--booking-evento-border);
+  border-left-color: var(--booking-evento-bar);
+  color: var(--booking-evento-text);
+}
+
+.booking-block-mantenimiento {
+  background-color: var(--booking-mantenimiento-bg);
+  border-color: var(--booking-mantenimiento-border);
+  border-left-color: var(--booking-mantenimiento-bar);
+  color: var(--booking-mantenimiento-text);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 5px,
+    rgba(128, 128, 128, 0.07) 5px,
+    rgba(128, 128, 128, 0.07) 10px
+  );
+}
+
+/* Payment status — left border accent overrides source color */
+.booking-block-unpaid {
+  border-left-color: #f87171 !important; /* red-400 */
+}
+
+.booking-block-paid {
+  border-left-color: #4ade80 !important; /* green-400 */
 }
 
 .booking-block-unconfirmed {

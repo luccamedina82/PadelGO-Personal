@@ -1,5 +1,5 @@
 import type { BookingBlock } from '../../types/bookingGrid.types'
-import { formatPrice } from '../../helpers/bookingGrid.helpers'
+import { formatPrice, isBlockSource } from '../../helpers/bookingGrid.helpers'
 
 interface BookingDetailInfoSectionProps {
   booking: BookingBlock
@@ -25,7 +25,7 @@ export default function BookingDetailInfoSection({
         ...(booking.manualPhone ? [{ label: 'Teléfono', value: booking.manualPhone, mono: true }] : []),
         { label: 'Horario', value: `${booking.startTime} – ${endTime}`, mono: true },
         { label: 'Duración', value: `${booking.durationMinutes} min`, mono: false },
-        ...(booking.source !== 'BLOCK'
+        ...(!isBlockSource(booking.source)
           ? [{ label: 'Total', value: formatPrice(booking.totalPrice), mono: true }]
           : []),
       ].map(({ label, value, mono }) => (
@@ -44,7 +44,7 @@ export default function BookingDetailInfoSection({
         </span>
       </div>
 
-      {booking.source !== 'BLOCK' && (
+      {!isBlockSource(booking.source) && (
         <div className="flex justify-between items-center">
           <span className="text-xs text-muted">Pago</span>
           <span className={`text-xs font-semibold ${payColor}`}>{payLabel}</span>

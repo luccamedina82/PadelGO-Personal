@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { BookingBlock } from '../../types/bookingGrid.types'
+import { isBlockSource } from '../../helpers/bookingGrid.helpers'
 
 interface BookingDetailActionButtonsProps {
   booking: BookingBlock
@@ -74,7 +75,7 @@ export default function BookingDetailActionButtons({
 
   return (
     <div className="space-y-2">
-      {booking.status !== 'CANCELLED' && booking.source !== 'BLOCK' && (
+      {booking.status !== 'CANCELLED' && !isBlockSource(booking.source) && (
         <div className="flex gap-2">
           {booking.paymentStatus !== 'PAID' && (
             <button
@@ -101,7 +102,7 @@ export default function BookingDetailActionButtons({
 
       {booking.status !== 'CANCELLED' && (
         <div className="flex gap-2">
-          {booking.source !== 'BLOCK' && booking.source !== 'ONLINE' && (
+          {!isBlockSource(booking.source) && booking.source !== 'ONLINE' && (
             <button
               onClick={onEdit}
               disabled={loading}

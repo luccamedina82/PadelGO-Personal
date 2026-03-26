@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import BookingDetailModal from './BookingDetailModal/BookingDetailModal'
+import BookingQuickPopover from './BookingQuickPopover/BookingQuickPopover'
 import BookingGridFilterBar from './BookingGridFilterBar/BookingGridFilterBar'
 import BookingGridHeader from './BookingGridHeader/BookingGridHeader'
 import BookingGridTimeColumn from './BookingGridTimeColumn/BookingGridTimeColumn'
@@ -20,9 +21,11 @@ import {
   SLOT_HEIGHT,
   TIME_COL_WIDTH,
   TOOLTIP_DELAY_MS,
+  BLOCK_SOURCES,
   clampTooltipPosition,
   getBlockClass,
   getLocalDateStr,
+  isBlockSource,
   minutesToTime,
   shouldUpdateTooltipPosition,
   timeToMinutes,
@@ -55,10 +58,16 @@ export default function BookingGrid({
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
   const [clientTodayStr, setClientTodayStr] = useState<string | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<BookingBlock | null>(null)
+  const [quickPopover, setQuickPopover] = useState<{
+    booking: BookingBlock
+    courtName: string
+    x: number
+    y: number
+  } | null>(null)
   const [highlightId, setHighlightId] = useState<string | undefined>(highlightBookingId)
   const [showNewBookingPopup, setShowNewBookingPopup] = useState(false)
 
-  const [focusCourtId, setFocusCourtId] = useState<string | null>(null)
+  const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<SourceFilterKey>(null)
 
   const [tooltip, setTooltip] = useState<{
@@ -108,9 +117,15 @@ export default function BookingGrid({
   }, [])
 
   const visibleCourts = useMemo(
-    () => (focusCourtId ? courts.filter((c) => c.id === focusCourtId) : courts),
-    [courts, focusCourtId]
+    () => (focusCourtIds.length > 0 ? courts.filter((c) => focusCourtIds.includes(c.id)) : courts),
+    [courts, focusCourtIds]
   )
+
+  function toggleCourtFilter(id: string) {
+    setFocusCourtIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
 
   const visibleBookings = useMemo(
     () =>
@@ -123,15 +138,17 @@ export default function BookingGrid({
     [bookings, typeFilter]
   )
 
+
   const unpaidCount = useMemo(
     () =>
       bookings.filter(
         (b) =>
           b.status !== 'CANCELLED' &&
-          b.source !== 'BLOCK' &&
+          !BLOCK_SOURCES.has(b.source) &&
           b.paymentStatus !== 'PAID' &&
           b.paymentStatus !== 'MANUAL'
       ).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [bookings]
   )
 
@@ -309,11 +326,12 @@ export default function BookingGrid({
     <>
       <BookingGridFilterBar
         courts={courts}
-        focusCourtId={focusCourtId}
+        focusCourtIds={focusCourtIds}
         typeFilter={typeFilter}
         unpaidCount={unpaidCount}
         pendingCount={pendingCount}
-        onFocusCourtChange={setFocusCourtId}
+        onCourtToggle={toggleCourtFilter}
+        onClearCourts={() => setFocusCourtIds([])}
         onTypeFilterChange={setTypeFilter}
       />
 
@@ -322,7 +340,7 @@ export default function BookingGrid({
           <BookingGridSkeleton courts={visibleCourts} gridStart={gridStart} gridEnd={gridEnd} />
         ) : (
         <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 100}px` }}>
-          <BookingGridHeader visibleCourts={visibleCourts} colWidth={colWidth} />
+          <BookingGridHeader courts={courts} visibleCourts={visibleCourts} colWidth={colWidth} />
 
           <div ref={gridBodyRef} className="relative flex">
             <BookingGridTimeColumn
@@ -395,7 +413,7 @@ export default function BookingGrid({
                       isPast={isBookingPast}
                       onDragStart={handleDragStart}
                       onResizeStart={handleResizeStart}
-                      onSelect={() => setSelectedBooking(b)}
+                      onSelect={(x, y) => setQuickPopover({ booking: b, courtName: court.name, x, y })}
                       onTooltipEnter={(x, y) => {
                         if (draggingId) return
                         const pos = clampTooltipPosition(x, y, 220, 96)
@@ -424,7 +442,7 @@ export default function BookingGrid({
               const ghostHeight = Math.max((ghostPos.durationMinutes / 30) * SLOT_HEIGHT - 3, 22)
               const isPaid = ghostBooking.paymentStatus === 'PAID'
               const isManualPaid = ghostBooking.paymentStatus === 'MANUAL'
-              const isUnpaid = !isPaid && !isManualPaid && ghostBooking.source !== 'BLOCK'
+              const isUnpaid = !isPaid && !isManualPaid && !isBlockSource(ghostBooking.source)
               return (
                 <div
                   className={`booking-block ${ghostBlockCls} pointer-events-none opacity-70 border-2 border-dashed`}
@@ -443,7 +461,7 @@ export default function BookingGrid({
                       {ghostStartTime} – {ghostEndTime}
                     </p>
                   )}
-                  {ghostHeight > 52 && ghostBooking.source !== 'BLOCK' && (
+                  {ghostHeight > 52 && !isBlockSource(ghostBooking.source) && (
                     <p className={`text-[10px] font-semibold mt-auto truncate ${isUnpaid ? 'text-red-400' : 'opacity-75'}`}>
                       {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(ghostBooking.totalPrice / 100)}
                     </p>
@@ -452,7 +470,7 @@ export default function BookingGrid({
               )
             })()}
 
-            {currentLineTop !== null && (
+            {currentLineTop !== null && currentMinutes !== null && (
               <div
                 className="absolute left-0 right-0 z-20 pointer-events-none"
                 style={{ top: currentLineTop }}
@@ -460,11 +478,24 @@ export default function BookingGrid({
                 <div className="flex items-center">
                   <div
                     style={{ width: TIME_COL_WIDTH, minWidth: TIME_COL_WIDTH }}
-                    className="shrink-0 flex items-center justify-end pr-0.5"
+                    className="shrink-0 flex items-center justify-end pr-1 relative"
                   >
-                    <div className="w-3 h-3 rounded-full now-dot" style={{ background: 'var(--now-line)', boxShadow: '0 0 10px 3px rgba(217,249,36,0.6)' }} />
+                    {/* hora actual sobre la columna de tiempo */}
+                    <span
+                      className="absolute right-full mr-0.5 text-[9px] font-bold tabular-nums leading-none"
+                      style={{ color: 'var(--now-line)', transform: 'translateY(-50%)' }}
+                    >
+                      {String(Math.floor(currentMinutes / 60)).padStart(2, '0')}:{String(currentMinutes % 60).padStart(2, '0')}
+                    </span>
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ background: 'var(--now-line)', boxShadow: '0 0 10px 3px rgba(217,249,36,0.55)' }}
+                    />
                   </div>
-                  <div className="flex-1 h-px" style={{ background: 'var(--now-line)', boxShadow: '0 0 4px rgba(217,249,36,0.4)' }} />
+                  <div
+                    className="flex-1"
+                    style={{ height: '1.5px', background: 'var(--now-line)', boxShadow: '0 0 5px rgba(217,249,36,0.35)' }}
+                  />
                 </div>
               </div>
             )}
@@ -482,6 +513,20 @@ export default function BookingGrid({
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--now-line)] opacity-80" />
           ahora
         </button>
+      )}
+
+      {gridReady && quickPopover && (
+        <BookingQuickPopover
+          booking={quickPopover.booking}
+          courtName={quickPopover.courtName}
+          anchorX={quickPopover.x}
+          anchorY={quickPopover.y}
+          onClose={() => setQuickPopover(null)}
+          onOpenDetail={() => {
+            setSelectedBooking(quickPopover.booking)
+            setQuickPopover(null)
+          }}
+        />
       )}
 
       {gridReady && selectedBooking && (

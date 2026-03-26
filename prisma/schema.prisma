@@ -415,6 +415,10 @@ enum BookingSource {
   MANUAL_OWNER
   MANUAL_SUPPORT
   BLOCK
+  ENTRENAMIENTO
+  TORNEO
+  EVENTO
+  MANTENIMIENTO
 }
 
 enum AchievementCat {

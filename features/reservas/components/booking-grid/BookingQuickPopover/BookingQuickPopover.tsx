@@ -1,0 +1,382 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
+import { formatPrice, getSourceLabel, isBlockSource, minutesToTime, timeToMinutes } from '../helpers/bookingGrid.helpers'
+import type { BookingBlock } from '../types/bookingGrid.types'
+
+const POPOVER_WIDTH = 264
+const POPOVER_MARGIN = 10
+
+function typeColorVars(cssVar: string) {
+  return {
+    bar: `var(${cssVar}-bar)`,
+    bg: `color-mix(in srgb, var(${cssVar}-bar) 10%, transparent)`,
+    text: `var(${cssVar}-bar)`,
+    subtext: `color-mix(in srgb, var(${cssVar}-bar) 65%, transparent)`,
+  }
+}
+
+const TYPE_COLORS: Record<string, { bar: string; bg: string; text: string; subtext: string }> = {
+  'booking-block-online':        typeColorVars('--booking-online'),
+  'booking-block-manual':        typeColorVars('--booking-manual'),
+  'booking-block-block':         typeColorVars('--booking-block'),
+  'booking-block-recurring':     typeColorVars('--booking-recurring'),
+  'booking-block-entrenamiento': typeColorVars('--booking-entrenamiento'),
+  'booking-block-torneo':        typeColorVars('--booking-torneo'),
+  'booking-block-evento':        typeColorVars('--booking-evento'),
+  'booking-block-mantenimiento': typeColorVars('--booking-mantenimiento'),
+  'booking-block-cancelled':     { bar: '#6b7280', bg: 'rgba(107,114,128,0.08)', text: '#6b7280', subtext: '#4b5563' },
+}
+
+function getTypeColor(source: string, status: string, recurringBookingId?: string | null) {
+  if (status === 'CANCELLED') return TYPE_COLORS['booking-block-cancelled']!
+  if (source === 'BLOCK' && recurringBookingId) return TYPE_COLORS['booking-block-recurring']!
+  if (source === 'BLOCK') return TYPE_COLORS['booking-block-block']!
+  if (source === 'ENTRENAMIENTO') return TYPE_COLORS['booking-block-entrenamiento']!
+  if (source === 'TORNEO') return TYPE_COLORS['booking-block-torneo']!
+  if (source === 'EVENTO') return TYPE_COLORS['booking-block-evento']!
+  if (source === 'MANTENIMIENTO') return TYPE_COLORS['booking-block-mantenimiento']!
+  if (source === 'ONLINE') return TYPE_COLORS['booking-block-online']!
+  return TYPE_COLORS['booking-block-manual']!
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
+
+function cleanPhone(phone: string): string {
+  return phone.replace(/[\s\-().+]/g, '')
+}
+
+interface BookingQuickPopoverProps {
+  booking: BookingBlock
+  courtName: string
+  anchorX: number
+  anchorY: number
+  onClose: () => void
+  onOpenDetail: () => void
+}
+
+export default function BookingQuickPopover({
+  booking: b,
+  courtName,
+  anchorX,
+  anchorY,
+  onClose,
+  onOpenDetail,
+}: BookingQuickPopoverProps) {
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
+
+  const { cancel, confirm, updatePayment } = useBookingMutations(b.clubId ?? '')
+  const loading = cancel.isPending || confirm.isPending || updatePayment.isPending
+
+  // ── Positioning ───────────────────────────────────────────────────────
+  const pos = (() => {
+    if (typeof window === 'undefined') return { left: anchorX, top: anchorY }
+    const estimatedHeight = isBlockSource(b.source) ? 200 : 280
+    const offsetX = 18
+
+    let left = anchorX + offsetX
+    if (left + POPOVER_WIDTH > window.innerWidth - POPOVER_MARGIN) {
+      left = anchorX - POPOVER_WIDTH - offsetX
+    }
+    left = Math.max(POPOVER_MARGIN, left)
+
+    let top = anchorY - 40
+    if (top + estimatedHeight > window.innerHeight - POPOVER_MARGIN) {
+      top = window.innerHeight - estimatedHeight - POPOVER_MARGIN
+    }
+    top = Math.max(POPOVER_MARGIN, top)
+
+    return { left, top }
+  })()
+
+  // ── Close on outside click / Escape ──────────────────────────────────
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    function onPointerDown(e: PointerEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    // Small delay so the pointerdown that opened the popover doesn't immediately close it
+    const t = setTimeout(() => document.addEventListener('pointerdown', onPointerDown), 120)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      clearTimeout(t)
+      document.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [onClose])
+
+  // ── Derived data ─────────────────────────────────────────────────────
+  const color = getTypeColor(b.source, b.status, b.recurringBookingId)
+  const endTime = minutesToTime(timeToMinutes(b.startTime) + b.durationMinutes)
+  const durationHours = b.durationMinutes / 60
+  const durationLabel = durationHours === Math.floor(durationHours)
+    ? `${durationHours}h`
+    : `${b.durationMinutes} min`
+
+  const isBlock = isBlockSource(b.source)
+  const isCancelled = b.status === 'CANCELLED'
+  const isPaid = b.paymentStatus === 'PAID'
+  const isUnpaid = !isPaid && !isCancelled && b.paymentStatus !== 'MANUAL'
+  const isPending = b.status === 'PENDING'
+  const primaryPlayer = b.playerDetails?.[0]
+  const phone = b.manualPhone ?? null
+  const typeLabel = getSourceLabel(b.source, b.status, b.recurringBookingId)
+
+  // ── Handlers ─────────────────────────────────────────────────────────
+  async function handleCobrar() {
+    const res = await updatePayment.mutateAsync({ id: b.id, status: 'PAID' })
+    if (!res.success) { toast.error(res.error ?? 'Error al cobrar.'); return }
+    toast.success('Reserva cobrada.')
+    onClose()
+  }
+
+  async function handleConfirm() {
+    const res = await confirm.mutateAsync(b.id)
+    if (!res.success) { toast.error(res.error ?? 'Error al confirmar.'); return }
+    onClose()
+  }
+
+  async function handleCancel() {
+    const res = await cancel.mutateAsync(b.id)
+    if (!res.success) { toast.error(res.error ?? 'Error al cancelar.'); return }
+    onClose()
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────
+  return (
+    <div
+      ref={popoverRef}
+      className="fixed z-[80] rounded-xl overflow-hidden shadow-2xl border animate-in fade-in zoom-in-95 duration-100"
+      style={{
+        left: pos.left,
+        top: pos.top,
+        width: POPOVER_WIDTH,
+        borderColor: `color-mix(in srgb, ${color.bar} 30%, var(--border))`,
+        background: 'var(--card)',
+      }}
+    >
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <div
+        className="px-3.5 pt-3 pb-2.5"
+        style={{ background: color.bg, borderBottom: `1px solid color-mix(in srgb, ${color.bar} 20%, var(--border))` }}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold leading-snug truncate" style={{ color: color.text }}>
+              {b.displayName}
+            </p>
+            <p className="text-[11px] mt-0.5" style={{ color: color.subtext }}>
+              {b.startTime} – {endTime} &nbsp;·&nbsp; {durationLabel}
+            </p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
+              {courtName}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
+              style={{
+                background: `color-mix(in srgb, ${color.bar} 15%, transparent)`,
+                color: color.text,
+                border: `1px solid color-mix(in srgb, ${color.bar} 30%, transparent)`,
+              }}
+            >
+              {typeLabel}
+            </span>
+            <button
+              onClick={onClose}
+              className="w-5 h-5 flex items-center justify-center rounded text-muted hover:text-text transition-colors"
+            >
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Jugador ─────────────────────────────────────────────────── */}
+      {(primaryPlayer ?? phone) && !isBlock && (
+        <div
+          className="flex items-center gap-2.5 px-3.5 py-2.5"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+            style={{
+              background: color.bg,
+              border: `1px solid color-mix(in srgb, ${color.bar} 30%, transparent)`,
+              color: color.text,
+            }}
+          >
+            {initials(primaryPlayer?.name ?? b.displayName)}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-text truncate">
+              {primaryPlayer?.name ?? b.displayName}
+            </p>
+            {phone && (
+              <p className="text-[11px] text-muted truncate">{phone}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Precio ──────────────────────────────────────────────────── */}
+      {!isBlock && !isCancelled && (
+        <div
+          className="flex items-center justify-between px-3.5 py-2"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <span className="text-[11px] text-muted">Total</span>
+          <span
+            className="text-[14px] font-semibold"
+            style={{ color: isPaid ? 'var(--color-green-400, #4ade80)' : isUnpaid ? '#f87171' : 'var(--text)' }}
+          >
+            {formatPrice(b.totalPrice)}
+            <span className="text-[11px] font-normal ml-1.5" style={{ color: 'var(--muted)' }}>
+              {isPaid ? '· Cobrado' : b.paymentStatus === 'MANUAL' ? '· Manual' : '· Sin cobrar'}
+            </span>
+          </span>
+        </div>
+      )}
+
+      {/* ── Confirmación de cancelación ──────────────────────────── */}
+      {confirmingCancel && (
+        <div
+          className="px-3.5 py-2.5 flex flex-col gap-2"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <p className="text-[12px] text-center text-muted">¿Cancelar esta reserva?</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setConfirmingCancel(false)}
+              disabled={loading}
+              className="flex-1 py-2 rounded-lg border border-border text-muted text-[12px] font-medium hover:text-text transition-colors disabled:opacity-40"
+            >
+              No
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={loading}
+              className="flex-1 py-2 rounded-lg text-[12px] font-semibold transition-colors disabled:opacity-40"
+              style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.35)', color: '#f87171' }}
+            >
+              {loading ? 'Cancelando...' : 'Sí, cancelar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Acciones ────────────────────────────────────────────────── */}
+      {!confirmingCancel && (
+        <div className="grid grid-cols-2">
+          {/* Cobrar ahora — solo si sin cobrar y no es bloqueo */}
+          {!isBlock && !isCancelled && isUnpaid && (
+            <button
+              onClick={handleCobrar}
+              disabled={loading}
+              className="col-span-2 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-semibold transition-colors disabled:opacity-40"
+              style={{
+                borderBottom: '1px solid var(--border)',
+                background: 'rgba(74,222,128,0.08)',
+                color: '#4ade80',
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M4 6.5l1.5 1.5 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {loading ? 'Guardando...' : 'Cobrar ahora'}
+            </button>
+          )}
+
+          {/* Confirmar — solo si pendiente */}
+          {!isBlock && !isCancelled && isPending && (
+            <button
+              onClick={handleConfirm}
+              disabled={loading}
+              className="col-span-2 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-semibold transition-colors disabled:opacity-40"
+              style={{
+                borderBottom: '1px solid var(--border)',
+                background: 'rgba(217,249,36,0.08)',
+                color: 'var(--accent)',
+              }}
+            >
+              {loading ? 'Confirmando...' : 'Confirmar reserva'}
+            </button>
+          )}
+
+          {/* Ver detalles */}
+          <button
+            onClick={onOpenDetail}
+            className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium text-muted hover:text-text hover:bg-card transition-colors"
+            style={{ borderRight: '1px solid var(--border)', borderTop: '1px solid var(--border)' }}
+          >
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M6 5v3M6 4h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+            Ver detalles
+          </button>
+
+          {/* WhatsApp */}
+          {phone ? (
+            <a
+              href={`https://wa.me/${cleanPhone(phone)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors hover:bg-card"
+              style={{ color: '#4dc870', borderTop: '1px solid var(--border)' }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+              </svg>
+              WhatsApp
+            </a>
+          ) : (
+            /* Editar en lugar de WhatsApp si no hay teléfono */
+            <button
+              onClick={onOpenDetail}
+              className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium text-muted hover:text-text hover:bg-card transition-colors"
+              style={{ borderTop: '1px solid var(--border)' }}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Editar
+            </button>
+          )}
+
+          {/* Cancelar reserva */}
+          {!isCancelled && !isBlock && (
+            <button
+              onClick={() => setConfirmingCancel(true)}
+              disabled={loading}
+              className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors hover:bg-card disabled:opacity-40"
+              style={{ color: '#f87171', borderTop: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M4 4l4 4M8 4l-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+              Cancelar
+            </button>
+          )}
+
+          {/* Bloqueo: solo Ver detalles (ya está arriba) */}
+        </div>
+      )}
+    </div>
+  )
+}

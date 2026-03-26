@@ -18,6 +18,7 @@ export interface CreateManualBookingInput {
   manualName?: string
   manualPhone?: string
   blockReason?: string
+  blockSource?: string  // e.g. 'ENTRENAMIENTO' | 'TORNEO' | 'EVENTO' | 'MANTENIMIENTO' | 'BLOCK'
   userId?: string
 }
 
@@ -36,6 +37,7 @@ export async function createManualBooking(
     manualName,
     manualPhone,
     blockReason,
+    blockSource,
     userId,
   } = input
 
@@ -106,7 +108,7 @@ export async function createManualBooking(
       }
 
       const bookingUserId = userId ?? session.userId
-      const source = bookingType === 'BLOQUEO' ? 'BLOCK' : 'MANUAL_OWNER'
+      const source = (bookingType === 'BLOQUEO' ? (blockSource ?? 'BLOCK') : 'MANUAL_OWNER') as import('@/app/generated/prisma/client').BookingSource
 
       return tx.booking.create({
         data: {
@@ -483,7 +485,7 @@ export async function convertBookingToOpenMatch(
       return { success: false, error: 'Solo podés abrir reservas pendientes o confirmadas.' }
     }
 
-    if (booking.source === 'BLOCK') {
+    if (['BLOCK', 'ENTRENAMIENTO', 'TORNEO', 'EVENTO', 'MANTENIMIENTO'].includes(booking.source)) {
       return { success: false, error: 'No se puede convertir un bloqueo a partido abierto.' }
     }
 

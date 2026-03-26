@@ -57,6 +57,7 @@ export default function ManualBookingWizard({
   const [clientName, setClientName] = useState('')
   const [clientPhone, setClientPhone] = useState('')
   const [blockReason, setBlockReason] = useState('')
+  const [blockSource, setBlockSource] = useState<string>('BLOCK')
 
   useEffect(() => {
     return () => { if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current) }
@@ -91,6 +92,7 @@ export default function ManualBookingWizard({
         manualName: bookingType !== 'BLOQUEO' ? clientName.trim() || undefined : undefined,
         manualPhone: bookingType !== 'BLOQUEO' ? clientPhone.trim() || undefined : undefined,
         blockReason: bookingType === 'BLOQUEO' ? blockReason.trim() || undefined : undefined,
+        blockSource: bookingType === 'BLOQUEO' ? blockSource : undefined,
       })
       if (result.success) {
         setSuccess(true)
@@ -218,6 +220,7 @@ export default function ManualBookingWizard({
             setClientPhone={setClientPhone}
             blockReason={blockReason}
             setBlockReason={setBlockReason}
+            setBlockSource={setBlockSource}
             onNext={() => setStep(5)}
             onBack={() => setStep(3)}
           />
