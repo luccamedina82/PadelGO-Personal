@@ -148,3 +148,13 @@ Valor de producto: Protege el inventario del due√±o. Al liberar la cancha autom√
 
 LOS BLOQUEOS NO DETECTAN LAS RESERVAS ONLINE EN EL DRAG AND DROP LAS PUEDO PONER UNA ENCIMA DE LA OTRA, quedaron reservas viejas con horarios no justos 00:00:00:00
 Atenuar el Pasado (Dimming Past Events) dejo de funcionar 
+OJO HAY UN PARCHE ACA
+      <CanchasClient
+        clubId={id}
+        clubName={club.name}
+        courts={courts}
+        createCourtAction={createCourt}
+        updateCourtAction={updateCourt}
+        toggleCourtAction={toggleCourt}
+        updateAvailabilityAction={updateAvailabilityBatch}
+      /> EN ../app/(superadmin)/superadmin/clubs/[id]/canchas/page.tsx:45:8

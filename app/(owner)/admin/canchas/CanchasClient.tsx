@@ -122,7 +122,7 @@ export default function CanchasClient({
         setNewCourt({ name: '', type: 'CRISTAL', covered: false })
         setShowAdd(false)
         toast.success('Cancha creada.')
-      } else { setError(res.error ?? 'Error al crear cancha.') }
+      } else { setError(!res.success ? res.error ?? 'Error al crear cancha.' : 'Error al crear cancha.') }
     })
   }
 
