@@ -69,8 +69,8 @@ export default function AgendaCard({ booking, courtName, onCobrar, isPaying }: A
             </button>
           </div>
         ) : (
-          <span className="text-[11px] text-muted px-2 py-1 rounded-lg bg-surface border border-border">
-            Manual
+          <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">
+            NO PAGADO
           </span>
         )}
       </div>

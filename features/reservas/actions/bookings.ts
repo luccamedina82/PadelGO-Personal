@@ -65,6 +65,24 @@ export async function createManualBooking(
 
   try {
     const booking = await prisma.$transaction(async (tx) => {
+      const clubData = await tx.club.findUnique({ where: { id: clubId }, select: { allowedDurations: true } })
+      if (clubData && !clubData.allowedDurations.includes(durationMinutes)) {
+        throw new Error('DURATION_NOT_ALLOWED')
+      }
+
+      const dayOfWeek = dateObj.getUTCDay()
+      const availability = await tx.courtAvailability.findFirst({
+        where: { courtId, dayOfWeek, isActive: true },
+        select: { pricePerHour: true, closeTime: true },
+      })
+
+      if (!availability) {
+        if (bookingType !== 'BLOQUEO') throw new Error('NO_AVAILABILITY')
+      } else {
+        const closeMin = timeToMinutes(availability.closeTime)
+        if (newEndMin > closeMin) throw new Error('EXCEEDS_CLOSE_TIME')
+      }
+
       const existing = await tx.booking.findMany({
         where: {
           courtId,
@@ -83,15 +101,8 @@ export async function createManualBooking(
       if (conflict) throw new Error('SLOT_TAKEN')
 
       let totalPrice = 0
-      if (bookingType !== 'BLOQUEO') {
-        const dayOfWeek = dateObj.getUTCDay()
-        const availability = await tx.courtAvailability.findFirst({
-          where: { courtId, dayOfWeek, isActive: true },
-          select: { pricePerHour: true },
-        })
-        if (availability) {
-          totalPrice = calcBookingPrice(availability.pricePerHour, durationMinutes)
-        }
+      if (bookingType !== 'BLOQUEO' && availability) {
+        totalPrice = calcBookingPrice(availability.pricePerHour, durationMinutes)
       }
 
       const bookingUserId = userId ?? session.userId
@@ -126,6 +137,15 @@ export async function createManualBooking(
   } catch (err) {
     if (err instanceof Error && err.message === 'SLOT_TAKEN') {
       return { success: false, error: 'Ese horario ya está ocupado.' }
+    }
+    if (err instanceof Error && err.message === 'EXCEEDS_CLOSE_TIME') {
+      return { success: false, error: 'La reserva excede el horario de cierre de la cancha.' }
+    }
+    if (err instanceof Error && err.message === 'NO_AVAILABILITY') {
+      return { success: false, error: 'La cancha no tiene horario configurado para ese día.' }
+    }
+    if (err instanceof Error && err.message === 'DURATION_NOT_ALLOWED') {
+      return { success: false, error: 'Esa duración no está habilitada para este club.' }
     }
     console.error('[createManualBooking]', err)
     return { success: false, error: 'Error al crear la reserva.' }
@@ -254,6 +274,11 @@ export async function updateBooking(
       }
       if (booking.status === 'CANCELLED') throw new Error('CANCELLED')
 
+      const clubData = await tx.club.findUnique({ where: { id: booking.clubId }, select: { allowedDurations: true } })
+      if (clubData && !clubData.allowedDurations.includes(durationMinutes)) {
+        throw new Error('DURATION_NOT_ALLOWED')
+      }
+
       const targetCourtId = newCourtId ?? booking.courtId
 
       // Verify new court belongs to same club
@@ -265,6 +290,17 @@ export async function updateBooking(
       const newStartMin = timeToMinutes(startTime)
       const newEndMin = newStartMin + durationMinutes
 
+      // CloseTime check on the target court
+      const dayOfWeek = (booking.date as Date).getUTCDay()
+      const avail = await tx.courtAvailability.findFirst({
+        where: { courtId: targetCourtId, dayOfWeek, isActive: true },
+        select: { closeTime: true },
+      })
+      if (avail) {
+        const closeMin = timeToMinutes(avail.closeTime)
+        if (newEndMin > closeMin) throw new Error('EXCEEDS_CLOSE_TIME')
+      }
+    
       // Conflict check on the target court (excluding self)
       const existing = await tx.booking.findMany({
         where: {
@@ -275,7 +311,6 @@ export async function updateBooking(
         },
         select: { startTime: true, durationMinutes: true },
       })
-
       const conflict = existing.some((b) => {
         const bStart = timeToMinutes(b.startTime)
         const bEnd = bStart + b.durationMinutes
@@ -308,6 +343,10 @@ export async function updateBooking(
         return { success: false, error: 'No se puede editar una reserva cancelada.' }
       if (err.message === 'SLOT_TAKEN')
         return { success: false, error: 'Ese horario ya está ocupado.' }
+      if (err.message === 'EXCEEDS_CLOSE_TIME')
+        return { success: false, error: 'La reserva excede el horario de cierre de la cancha.' }
+      if (err.message === 'DURATION_NOT_ALLOWED')
+        return { success: false, error: 'Esa duración no está habilitada para este club.' }
       if (err.message === 'INVALID_COURT')
         return { success: false, error: 'La cancha no pertenece a este club.' }
     }

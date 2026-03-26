@@ -11,10 +11,6 @@ interface BookingClientProps {
   initialBookings: BookingBlock[]
   clubId: string
   date: string
-  weekStart: string
-  weekEnd: string
-  viewMode: 'day' | 'week' | 'agenda'
-  // ── Las que te faltaban declarar ──
   courts: CourtColumn[]
   gridStart: number
   gridEnd: number
@@ -25,30 +21,23 @@ export default function BookingsClient({
   initialBookings,
   clubId,
   date,
-  weekStart,
-  weekEnd,
-  viewMode,
   ...rest
 }: BookingClientProps) {
   const queryClient = useQueryClient()
   const searchParams = useSearchParams()
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
 
-  // Detectar navegación pendiente: la URL ya cambió pero el server todavía no respondió con los nuevos datos
   const urlDate = searchParams.get('date')
   const isNavigatingToDate = urlDate !== null && urlDate !== date
-  const queryPeriodStart = viewMode === 'week' ? weekStart : date
-  const queryPeriodEnd = viewMode === 'week' ? weekEnd : date
-  // Capturamos el timestamp de montaje para que React Query trate los datos SSR como frescos
   const [initialDataTimestamp] = useState(() => Date.now())
 
   const { data: allBookings, isFetching } = useQuery({
-    queryKey: ['bookings', clubId, queryPeriodStart, queryPeriodEnd],
-    queryFn: () => fetchBookingsAction(clubId, queryPeriodStart, queryPeriodEnd),
+    queryKey: ['bookings', clubId, date],
+    queryFn: () => fetchBookingsAction(clubId, date, date),
     initialData: initialBookings,
     initialDataUpdatedAt: initialDataTimestamp,
     refetchInterval: 30_000,
-    staleTime: 30_000, // Datos SSR se consideran frescos por 30s, evitando refetch redundante al montar
+    staleTime: 30_000,
     gcTime: 5 * 60 * 1000,
   })
 
@@ -59,15 +48,13 @@ export default function BookingsClient({
         setEventHighlightBookingId(detail.bookingId)
       }
 
-      // Invalidate the EXACT query key that's currently active
-      const exactQueryKey = ['bookings', clubId, queryPeriodStart, queryPeriodEnd] as const
-      
+      const exactQueryKey = ['bookings', clubId, date] as const
+
       await queryClient.invalidateQueries({
         queryKey: exactQueryKey,
-        exact: true, // Use exact match for precision
+        exact: true,
       })
 
-      // Refetch the exact query
       await queryClient.refetchQueries({
         queryKey: exactQueryKey,
         type: 'active',
@@ -79,7 +66,7 @@ export default function BookingsClient({
     return () => {
       window.removeEventListener('reservas:refresh', handleReservasRefresh)
     }
-  }, [clubId, queryClient, queryPeriodStart, queryPeriodEnd])
+  }, [clubId, queryClient, date])
 
   useEffect(() => {
     if (!eventHighlightBookingId) return
@@ -87,11 +74,11 @@ export default function BookingsClient({
     return () => clearTimeout(timer)
   }, [eventHighlightBookingId])
 
-  const bookings = viewMode === 'week' ? allBookings : allBookings.filter((b) => b.date === date)
+  const bookings = allBookings.filter((b) => b.date === date)
 
   return (
     <div className="relative h-full min-h-0">
-      {/* Overlay de navegación entre días: blur + spinner, con delay para no flashear en navegaciones rápidas */}
+      {/* Overlay de navegación entre días: blur + spinner */}
       {isNavigatingToDate && (
         <div className="absolute inset-0 z-[25] bg-bg/60 backdrop-blur-[2px] flex items-center justify-center animate-fadeIn-delayed">
           <div className="w-9 h-9 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
@@ -106,8 +93,6 @@ export default function BookingsClient({
       <ReservasShell
         bookings={bookings}
         date={date}
-        weekStart={weekStart}
-        viewMode={viewMode}
         clubId={clubId}
         highlightBookingId={eventHighlightBookingId ?? rest.highlightBookingId}
         {...rest}

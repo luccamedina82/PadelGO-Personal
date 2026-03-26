@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import BookingDetailModal from './BookingDetailModal/BookingDetailModal'
 import BookingGridFilterBar from './BookingGridFilterBar/BookingGridFilterBar'
@@ -233,15 +233,22 @@ export default function BookingGrid({
 
   useEffect(() => { scrolledNowRef.current = false }, [date])
 
-  useEffect(() => {
-    if (highlightId || !isViewingToday || scrolledNowRef.current || !containerRef.current) return
+  const scrollToNow = useCallback(() => {
+    if (!containerRef.current) return
     const now = new Date()
     const targetMin = now.getHours() * 60 + now.getMinutes()
     if (targetMin < gridStart || targetMin > gridEnd) return
     const top = ((targetMin - gridStart) / 30) * SLOT_HEIGHT
     containerRef.current.scrollTo({ top: Math.max(0, top - 120), behavior: 'smooth' })
-    scrolledNowRef.current = true
-  }, [highlightId, isViewingToday, gridStart, gridEnd, date])
+  }, [gridStart, gridEnd])
+
+  useEffect(() => {
+    if (highlightId || !isViewingToday || scrolledNowRef.current || !gridReady) return
+    requestAnimationFrame(() => {
+      scrollToNow()
+      scrolledNowRef.current = true
+    })
+  }, [highlightId, isViewingToday, gridStart, gridEnd, date, gridReady, scrollToNow])
 
   const totalSlots = (gridEnd - gridStart) / 30
   const gridHeight = totalSlots * SLOT_HEIGHT
@@ -310,7 +317,7 @@ export default function BookingGrid({
         onTypeFilterChange={setTypeFilter}
       />
 
-      <div ref={containerRef} className="grow overflow-auto min-h-0">
+      <div ref={containerRef} className="grow overflow-auto min-h-0 relative">
         {!gridReady ? (
           <BookingGridSkeleton courts={visibleCourts} gridStart={gridStart} gridEnd={gridEnd} />
         ) : (
@@ -341,18 +348,22 @@ export default function BookingGrid({
                     const slotMin = gridStart + i * 30
                     const isHour = slotMin % 60 === 0
                     const hasBookingAtSlot = occupiedSlots?.has(slotMin) ?? false
+                    const courtCloseMin = court.closeTimeMinutes ?? gridEnd
+                    const courtOpenMin = court.openTimeMinutes ?? gridStart
                     const isPast =
                       !court.isActive ||
                       isViewingPast ||
                       (currentMinutes !== null && slotMin < currentMinutes) ||
-                      hasBookingAtSlot
+                      hasBookingAtSlot ||
+                      slotMin < courtOpenMin ||
+                      slotMin + 60 > courtCloseMin
                     return (
                       <div
                         key={i}
                         className={`absolute left-0 right-0 transition-colors
                                     ${isHour ? 'bg-(--grid-row-alt)' : ''}
-                                    ${isHour ? 'border-b border-border-hover' : 'border-b border-border/40'}
-                                    ${isPast ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'group cursor-pointer'}`}
+                                    ${isHour ? 'border-b border-zinc-800/60' : 'border-b border-zinc-800/25'}
+                                    ${isPast ? 'opacity-40 cursor-not-allowed pointer-events-none' : draggingId ? 'pointer-events-none' : 'group cursor-pointer'}`}
                         style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
                         onMouseEnter={(e) =>
                           !isPast && handleSlotMouseEnter(court.name, slotMin, e.clientX, e.clientY)
@@ -368,7 +379,10 @@ export default function BookingGrid({
                     )
                   })}
 
-                  {courtBookings.map((b) => (
+                  {courtBookings.map((b) => {
+                    const bookingEndMin = timeToMinutes(b.startTime) + b.durationMinutes
+                    const isBookingPast = isViewingPast || (isViewingToday && currentMinutes !== null && bookingEndMin <= currentMinutes)
+                    return (
                     <BookingBlockCell
                       key={b.id}
                       booking={b}
@@ -378,6 +392,7 @@ export default function BookingGrid({
                       isDragging={draggingId === b.id}
                       isResizing={resizingId === b.id}
                       heightOverride={resizingId === b.id ? (resizeHeightPx ?? undefined) : undefined}
+                      isPast={isBookingPast}
                       onDragStart={handleDragStart}
                       onResizeStart={handleResizeStart}
                       onSelect={() => setSelectedBooking(b)}
@@ -396,7 +411,8 @@ export default function BookingGrid({
                       }
                       onTooltipLeave={() => setTooltip(null)}
                     />
-                  ))}
+                  )
+                  })}
                 </div>
               )
             })}
@@ -446,9 +462,9 @@ export default function BookingGrid({
                     style={{ width: TIME_COL_WIDTH, minWidth: TIME_COL_WIDTH }}
                     className="shrink-0 flex items-center justify-end pr-0.5"
                   >
-                    <div className="w-2.5 h-2.5 rounded-full now-dot" style={{ background: 'var(--now-line)' }} />
+                    <div className="w-3 h-3 rounded-full now-dot" style={{ background: 'var(--now-line)', boxShadow: '0 0 10px 3px rgba(217,249,36,0.6)' }} />
                   </div>
-                  <div className="flex-1 h-px opacity-70" style={{ background: 'var(--now-line)' }} />
+                  <div className="flex-1 h-px" style={{ background: 'var(--now-line)', boxShadow: '0 0 4px rgba(217,249,36,0.4)' }} />
                 </div>
               </div>
             )}
@@ -457,8 +473,24 @@ export default function BookingGrid({
         )}
       </div>
 
+      {gridReady && isViewingToday && currentLineTop !== null && (
+        <button
+          onClick={scrollToNow}
+          title="Ir al timeline"
+          className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card/90 border border-border text-[11px] text-sub hover:text-text hover:border-accent/40 transition-colors shadow-sm backdrop-blur-sm"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--now-line)] opacity-80" />
+          ahora
+        </button>
+      )}
+
       {gridReady && selectedBooking && (
-        <BookingDetailModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
+        <BookingDetailModal
+          booking={selectedBooking}
+          onClose={() => setSelectedBooking(null)}
+          closeTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.closeTimeMinutes}
+          openTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.openTimeMinutes}
+        />
       )}
 
       {gridReady && (

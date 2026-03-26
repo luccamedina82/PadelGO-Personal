@@ -69,7 +69,8 @@ export function calcAvailableSlots(
   config: AvailabilityConfig,
   existingBookings: ExistingBooking[],
   selectedDate: Date,
-  now: Date = new Date()
+  now: Date = new Date(),
+  minAdvanceMinutes: number = MIN_ADVANCE_MINUTES
 ): TimeSlot[] {
   const openMinutes = timeToMinutes(config.openTime)
   const closeMinutes = timeToMinutes(config.closeTime)
@@ -112,7 +113,7 @@ export function calcAvailableSlots(
     if (durationOptions.length === 0) continue
 
     // Is slot too close to now? (1h advance rule, only for same-day)
-    const isTooSoon = isSameDay && start < nowMinutes + MIN_ADVANCE_MINUTES
+    const isTooSoon = isSameDay && start < nowMinutes + minAdvanceMinutes
 
     // Is slot blocked by an existing booking?
     // A new booking of ANY valid duration overlaps if: start < bookingEnd AND slotEnd > bookingStart

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
 import type { BookingBlock } from '../types/bookingGrid.types'
 import {
@@ -16,9 +17,11 @@ import BookingDetailActionButtons from './BookingDetailActionButtons/BookingDeta
 interface BookingDetailProps {
   booking: BookingBlock | null
   onClose: () => void
+  closeTimeMinutes?: number
+  openTimeMinutes?: number
 }
 
-export default function BookingDetailModal({ booking, onClose }: BookingDetailProps) {
+export default function BookingDetailModal({ booking, onClose, closeTimeMinutes, openTimeMinutes }: BookingDetailProps) {
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editStartTime, setEditStartTime] = useState('')
@@ -109,6 +112,7 @@ export default function BookingDetailModal({ booking, onClose }: BookingDetailPr
     try {
       const res = await updatePayment.mutateAsync({ id: activeBooking.id, status })
       if (!res.success) { setError(res.error ?? 'Error al actualizar el pago. Intentá de nuevo.'); return }
+      toast.success(status === 'UNPAID' ? 'Marcado como sin cobrar.' : 'Reserva cobrada.')
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al actualizar el pago. Intentá de nuevo.')
@@ -236,6 +240,8 @@ export default function BookingDetailModal({ booking, onClose }: BookingDetailPr
             editName={editName}
             editPhone={editPhone}
             source={activeBooking.source}
+            closeTimeMinutes={closeTimeMinutes}
+            openTimeMinutes={openTimeMinutes}
             onStartTimeChange={setEditStartTime}
             onDurationChange={setEditDuration}
             onNameChange={setEditName}

@@ -53,27 +53,30 @@ export default async function NuevaReservaPage({ searchParams }: Props) {
   })
 
 
-  // Fetch courts with all availabilities (needed for both wizard and backdrop)
-  const courts = await prisma.court.findMany({
-    where: { clubId: club.id, isActive: true },
-    select: {
-      id: true,
-      name: true,
-      type: true,
-      covered: true,
-      availabilities: {
-        where: { isActive: true },
-        select: {
-          dayOfWeek: true,
-          openTime: true,
-          closeTime: true,
-          pricePerHour: true,
-          isActive: true,
+  // Fetch courts and club config in parallel
+  const [courts, clubConfig] = await Promise.all([
+    prisma.court.findMany({
+      where: { clubId: club.id, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        covered: true,
+        availabilities: {
+          where: { isActive: true },
+          select: {
+            dayOfWeek: true,
+            openTime: true,
+            closeTime: true,
+            pricePerHour: true,
+            isActive: true,
+          },
         },
       },
-    },
-    orderBy: { name: 'asc' },
-  })
+      orderBy: { name: 'asc' },
+    }),
+    prisma.club.findUnique({ where: { id: club.id }, select: { allowedDurations: true, bookingWindowDays: true } }),
+  ])
 
   // Compute gridStart/gridEnd for the backdrop (from selected date's DOW)
   let gridStart = 8 * 60
@@ -130,7 +133,8 @@ export default async function NuevaReservaPage({ searchParams }: Props) {
 
   // ── Wizard data: 14-day slot computation ──────────────────────────────
 
-  const availableDates = Array.from({ length: 14 }, (_, i) => {
+  const bookingWindowDays = clubConfig?.bookingWindowDays ?? 14
+  const availableDates = Array.from({ length: bookingWindowDays }, (_, i) => {
     const d = new Date(argToday())
     d.setUTCDate(d.getUTCDate() + i)
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
@@ -175,7 +179,9 @@ export default async function NuevaReservaPage({ searchParams }: Props) {
       const slots = calcAvailableSlots(
         { openTime: avail.openTime, closeTime: avail.closeTime, pricePerHour: avail.pricePerHour },
         courtBookings,
-        dObj
+        dObj,
+        new Date(),
+        0 // admin bypass: no advance time restriction
       )
 
       dateSlots.push({
@@ -402,7 +408,9 @@ export default async function NuevaReservaPage({ searchParams }: Props) {
           createManualBookingAction={createManualBooking}
           defaultCourtId={defaultCourtId}
           defaultDate={selectedDate}
-          defaultTime={defaultTime} durationOptions={[]}        />
+          defaultTime={defaultTime}
+          durationOptions={clubConfig?.allowedDurations ?? [60, 90, 120]}
+        />
       </div>
     </div>
   )

@@ -74,36 +74,11 @@ export async function updateClubAvailability(input: {
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
-      for (const row of rows) {
-        const existing = await tx.courtAvailability.findFirst({
-          where: { courtId: row.courtId, dayOfWeek: row.dayOfWeek },
-          select: { id: true },
-        })
-        if (existing) {
-          await tx.courtAvailability.update({
-            where: { id: existing.id },
-            data: {
-              isActive: row.isActive,
-              openTime: row.openTime,
-              closeTime: row.closeTime,
-              pricePerHour: row.pricePerHour,
-            },
-          })
-        } else {
-          await tx.courtAvailability.create({
-            data: {
-              courtId: row.courtId,
-              dayOfWeek: row.dayOfWeek,
-              isActive: row.isActive,
-              openTime: row.openTime,
-              closeTime: row.closeTime,
-              pricePerHour: row.pricePerHour,
-            },
-          })
-        }
-      }
-    })
+    const courtIds = [...new Set(rows.map((r) => r.courtId))]
+    await prisma.$transaction([
+      prisma.courtAvailability.deleteMany({ where: { courtId: { in: courtIds } } }),
+      prisma.courtAvailability.createMany({ data: rows }),
+    ])
 
     revalidateTag(`courts-${clubId}`, 'default')
     revalidatePath('/admin/horarios')

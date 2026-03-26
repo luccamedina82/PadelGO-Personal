@@ -86,6 +86,8 @@ model Club {
   cancelHoursBeforeStart Int     @default(2) // horas minimas para cancelar sin cargo
   cancellationFeePercent Int     @default(0) // porcentaje de cargo por cancelacion tardia (0-100)
   allowedDurations     Int[]     @default([60, 90, 120]) // duraciones permitidas en minutos
+  minAdvanceMinutes    Int       @default(60)            // minutos mínimos de antelación para reservar
+  bookingWindowDays    Int       @default(14)            // días disponibles para reservar hacia adelante
   ownerId              String
   owner                User      @relation("ClubOwner", fields: [ownerId], references: [id])
   createdAt            DateTime  @default(now())

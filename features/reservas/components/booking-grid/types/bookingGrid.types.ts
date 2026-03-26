@@ -20,6 +20,8 @@ export interface CourtColumn {
   id: string
   name: string
   isActive: boolean
+  openTimeMinutes?: number  // apertura de cancha en minutos desde medianoche
+  closeTimeMinutes?: number // cierre de cancha en minutos desde medianoche
 }
 
 export interface UpdateBookingData {

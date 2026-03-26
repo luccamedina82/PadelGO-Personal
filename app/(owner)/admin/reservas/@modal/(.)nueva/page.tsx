@@ -31,8 +31,14 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
 
   const selectedDate = dateParam ?? todayStr()
 
-  // Calcular rango de fechas antes de los awaits (pure JS)
-  const availableDates = Array.from({ length: 14 }, (_, i) => {
+  // Fetch club config first to get bookingWindowDays
+  const clubConfig = await prisma.club.findUnique({
+    where: { id: club.id },
+    select: { allowedDurations: true, bookingWindowDays: true },
+  })
+
+  const bookingWindowDays = clubConfig?.bookingWindowDays ?? 14
+  const availableDates = Array.from({ length: bookingWindowDays }, (_, i) => {
     const d = new Date(argToday())
     d.setUTCDate(d.getUTCDate() + i)
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
@@ -40,11 +46,10 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
   const from = new Date(`${availableDates[0]}T00:00:00.000Z`)
   const to = new Date(`${availableDates[availableDates.length - 1]}T23:59:59.000Z`)
 
-  // Paralelizar las 3 llamadas independientes
-  const [courts, allBookings, durationOptions] = await Promise.all([
+  // Paralelizar courts y bookings
+  const [courts, allBookings] = await Promise.all([
     getCourtsByClubId(club.id),
     getAdminBookingsByDate(club.id, from, to),
-    prisma.club.findUnique({ where: { id: club.id }, select: { allowedDurations: true } }),
   ])
 
   // Pre-agrupar bookings por courtId:date para búsqueda O(1) en lugar de filter O(n) repetido
@@ -80,7 +85,9 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
       const slots = calcAvailableSlots(
         { openTime: avail.openTime, closeTime: avail.closeTime, pricePerHour: avail.pricePerHour },
         courtBookings,
-        dObj
+        dObj,
+        new Date(),
+        0 // admin bypass: no advance time restriction
       )
 
       dateSlots.push({
@@ -119,7 +126,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
           defaultCourtId={defaultCourtId}
           defaultDate={selectedDate}
           defaultTime={defaultTime}
-          durationOptions={durationOptions?.allowedDurations || [60, 90, 120]}
+          durationOptions={clubConfig?.allowedDurations ?? [60, 90, 120]}
         />
       </div>
     </div>

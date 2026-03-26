@@ -81,25 +81,6 @@ const SHARED_ITEMS: NavItem[] = [
     ),
   },
   {
-    href: '/admin/horarios',
-    label: 'Horarios',
-    icon: (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
-      </svg>
-    ),
-  },
-  {
     href: '/admin/open-matches',
     label: 'Partidos abiertos',
     icon: (
@@ -128,7 +109,7 @@ const SHARED_ITEMS: NavItem[] = [
 const OWNER_ONLY_ITEMS: NavItem[] = [
   {
     href: '/admin/canchas',
-    label: 'Canchas',
+    label: 'Canchas y Horarios',
     icon: (
       <svg
         width="18"
@@ -328,19 +309,6 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
 
       {/* Footer: home link + theme */}
       <div className={clsx('border-t border-border', collapsed ? 'py-3 flex flex-col items-center gap-3' : 'px-4 py-4 space-y-2')}>
-        <Link
-          href="/"
-          title={collapsed ? 'Modo jugador' : undefined}
-          className={clsx(
-            'flex items-center text-muted hover:text-text transition-colors',
-            collapsed ? 'justify-center size-9 rounded-lg hover:bg-card' : 'gap-2 text-xs'
-          )}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-          </svg>
-          {!collapsed && 'Modo jugador'}
-        </Link>
         <div className={clsx('flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
           {!collapsed && <span className="text-xs text-sub">Tema</span>}
           <ThemeToggle />

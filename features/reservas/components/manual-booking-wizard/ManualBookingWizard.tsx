@@ -40,7 +40,17 @@ export default function ManualBookingWizard({
 
   // Step 2 state (time + duration)
   const [startTime, setStartTime] = useState(defaultTime ?? '')
-  const [duration, setDuration] = useState(90)
+  const [duration, setDuration] = useState(() => {
+    // When opening from the grid (all defaults provided), cap duration to what the specific
+    // court actually allows at that time (closeTime constraint).
+    if (defaultCourtId && defaultDate && defaultTime) {
+      const courtSlots = courtSlotsByDate[defaultDate]?.find((cs) => cs.courtId === defaultCourtId)
+      const slot = courtSlots?.slots.find((s) => s.time === defaultTime)
+      const opts = slot?.durationOptions ?? []
+      if (opts.length > 0) return opts.includes(90) ? 90 : opts[opts.length - 1]!
+    }
+    return 60
+  })
 
   // Step 3 state (client info)
   const [bookingType, setBookingType] = useState<BookingType>('PRESENCIAL')

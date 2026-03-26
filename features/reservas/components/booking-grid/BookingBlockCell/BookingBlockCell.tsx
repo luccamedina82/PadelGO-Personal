@@ -16,6 +16,7 @@ interface BookingBlockCellProps {
   isDragging?: boolean
   isResizing?: boolean
   heightOverride?: number
+  isPast?: boolean
   onDragStart: (
     booking: BookingBlock,
     e: ReactPointerEvent<HTMLDivElement>,
@@ -54,6 +55,7 @@ export default function BookingBlockCell({
   isDragging,
   isResizing,
   heightOverride,
+  isPast,
   onDragStart,
   onResizeStart,
   onSelect,
@@ -71,8 +73,7 @@ export default function BookingBlockCell({
   if (top < 0 || top > gridHeight) return null
 
   const isPaid = b.paymentStatus === 'PAID'
-  const isManualPaid = b.paymentStatus === 'MANUAL'
-  const isUnpaid = !isPaid && !isManualPaid
+  const isUnpaid = !isPaid
   const isUnconfirmed = b.status === 'PENDING'
   const isCancelled = b.status === 'CANCELLED'
   const showPaymentRow = height > 52 && b.source !== 'BLOCK' && !isCancelled
@@ -91,6 +92,7 @@ export default function BookingBlockCell({
         blockCls,
         isUnconfirmed ? 'booking-block-unconfirmed' : '',
         isHighlighted ? 'booking-block-highlighted' : '',
+        isPast && !isDragging ? 'opacity-40 grayscale-[0.4]' : '',
         isDragging
           ? 'opacity-80 !scale-[1.02] shadow-xl cursor-grabbing z-50'
           : isActive
@@ -131,7 +133,6 @@ export default function BookingBlockCell({
             {formatPrice(b.totalPrice)}
           </p>
           {isPaid && <IconCheck className="w-3 h-3 text-green-400 shrink-0" />}
-          {isManualPaid && <IconCheck className="w-3 h-3 text-gray-400 shrink-0" />}
           {isUnpaid && <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />}
         </div>
       )}
