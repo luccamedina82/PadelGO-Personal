@@ -3,7 +3,6 @@
 import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
 import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'next/navigation'
 import ReservasShell from './ReservasShell'
 import { useEffect, useState } from 'react'
 
@@ -24,12 +23,20 @@ export default function BookingsClient({
   ...rest
 }: BookingClientProps) {
   const queryClient = useQueryClient()
-  const searchParams = useSearchParams()
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
+  const [isNavigating, setIsNavigating] = useState(false)
 
-  const urlDate = searchParams.get('date')
-  const isNavigatingToDate = urlDate !== null && urlDate !== date
   const [initialDataTimestamp] = useState(() => Date.now())
+
+  useEffect(() => {
+    function onNavigating() { setIsNavigating(true) }
+    window.addEventListener('reservas:date-navigating', onNavigating)
+    return () => window.removeEventListener('reservas:date-navigating', onNavigating)
+  }, [])
+
+  useEffect(() => {
+    setIsNavigating(false)
+  }, [date])
 
   const { data: allBookings, isFetching } = useQuery({
     queryKey: ['bookings', clubId, date],
@@ -78,14 +85,8 @@ export default function BookingsClient({
 
   return (
     <div className="relative h-full min-h-0">
-      {/* Overlay de navegación entre días: blur + spinner */}
-      {isNavigatingToDate && (
-        <div className="absolute inset-0 z-[25] bg-bg/60 backdrop-blur-[2px] flex items-center justify-center animate-fadeIn-delayed">
-          <div className="w-9 h-9 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
-        </div>
-      )}
       {/* Barra de carga superior: visible durante refetch de React Query (polling) */}
-      {isFetching && !isNavigatingToDate && (
+      {isFetching && !isNavigating && (
         <div className="absolute top-0 left-0 right-0 z-30 h-0.5 overflow-hidden rounded-t-2xl">
           <div className="h-full bg-accent animate-[loading-bar_1.2s_ease-in-out_infinite]" />
         </div>
@@ -94,6 +95,7 @@ export default function BookingsClient({
         bookings={bookings}
         date={date}
         clubId={clubId}
+        isNavigating={isNavigating}
         highlightBookingId={eventHighlightBookingId ?? rest.highlightBookingId}
         {...rest}
       />

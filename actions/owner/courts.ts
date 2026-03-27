@@ -45,6 +45,7 @@ export async function createCourt(
     revalidateTag(`courts-${input.clubId}`, 'default')
     revalidatePath('/admin/canchas')
     revalidatePath('/admin')
+    revalidatePath('/admin/reservas')
     return { success: true, data: { courtId: court.id } }
   } catch (err) {
     console.error('[createCourt]', err)
@@ -71,6 +72,7 @@ export async function updateCourt(
     revalidateTag(`courts-${clubId}`, 'default')
     revalidatePath('/admin/canchas')
     revalidatePath('/admin')
+    revalidatePath('/admin/reservas')
     return { success: true }
   } catch (err) {
     console.error('[updateCourt]', err)
@@ -95,6 +97,7 @@ export async function toggleCourt(courtId: string, clubId: string): Promise<Acti
     revalidateTag(`courts-${clubId}`, 'default')
     revalidatePath('/admin/canchas')
     revalidatePath('/admin')
+    revalidatePath('/admin/reservas')
     return { success: true }
   } catch (err) {
     console.error('[toggleCourt]', err)

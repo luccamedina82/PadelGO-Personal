@@ -103,6 +103,11 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
     courtSlotsByDate[dateStr] = dateSlots
   }
 
+  const dateHasSlots: Record<string, boolean> = {}
+  for (const [dateStr, slots] of Object.entries(courtSlotsByDate)) {
+    dateHasSlots[dateStr] = slots.some((cs) => cs.slots.some((s) => s.available))
+  }
+
   const courtsForWizard = courts.map((c) => ({
     id: c.id,
     name: c.name,
@@ -127,6 +132,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
           defaultDate={selectedDate}
           defaultTime={defaultTime}
           durationOptions={clubConfig?.allowedDurations ?? [60, 90, 120]}
+          dateHasSlots={dateHasSlots}
         />
       </div>
     </div>

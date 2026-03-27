@@ -44,6 +44,7 @@ export default function BookingGrid({
   gridStart,
   gridEnd,
   highlightBookingId,
+  isNavigating,
 }: BookingGridProps) {
   const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -368,7 +369,13 @@ export default function BookingGrid({
         onStatusFilterChange={setStatusFilter}
       />
 
-      <div ref={containerRef} className="grow overflow-auto min-h-0 relative">
+      <div className="grow min-h-0 relative overflow-hidden">
+        {isNavigating && (
+          <div className="absolute inset-0 z-[25] bg-bg/60 backdrop-blur-[2px] flex items-center justify-center animate-fadeIn">
+            <div className="w-9 h-9 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+          </div>
+        )}
+      <div ref={containerRef} className="h-full overflow-auto">
         {!gridReady ? (
           <BookingGridSkeleton courts={visibleCourts} gridStart={gridStart} gridEnd={gridEnd} />
         ) : (
@@ -535,6 +542,7 @@ export default function BookingGrid({
           </div>
         </div>
         )}
+      </div>
       </div>
 
       {gridReady && isViewingToday && currentLineTop !== null && (() => {

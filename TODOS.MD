@@ -142,18 +142,8 @@ Valor de producto: Protege el inventario del due√±o. Al liberar la cancha autom√
 
 
 
-cuando actualizas el nombre de una cancha no refresca la cache en reservas.
-esta mal aplicado el scroll horizontal.
+cuando actualizas el nombre de una cancha en canchas y horarios no refresca la cache en reservas.
 en el popover de cuando estas en editar cuando tocas cancelar te lleva al detalle, ese cancelar es cancelar edicion.
+no aparece el spinning apenas cambias de dia, tiene que ser primero interfaz y luego el resultado, algo asi se llamaba el patron, para que no parezca que esta tildado y este en ese estado pending.
+en nueva reserva no te deja desplazarte en siguientes dias, solo los primeros 8, ademas deberia mostrarte si tiene horarios disponibles, para no mostrarte dias que tienen todo ocupado, podriamos encontrar una mejor forma de realizar ese flujo sin trabas visuales y sin entrar a lugares que no tienen informacion valiosa para el usuario.
 
-
-OJO HAY UN PARCHE ACA
-      <CanchasClient
-        clubId={id}
-        clubName={club.name}
-        courts={courts}
-        createCourtAction={createCourt}
-        updateCourtAction={updateCourt}
-        toggleCourtAction={toggleCourt}
-        updateAvailabilityAction={updateAvailabilityBatch}
-      /> EN ../app/(superadmin)/superadmin/clubs/[id]/canchas/page.tsx:45:8

@@ -188,6 +188,7 @@ export default function DateHeader({ selectedDate }: DateHeaderProps) {
       {/* Prev day */}
       <Link
         href={`/admin/reservas?date=${prevDay}`}
+        onClick={() => window.dispatchEvent(new CustomEvent('reservas:date-navigating'))}
         className="w-7 h-7 flex items-center justify-center rounded-lg text-muted hover:text-text hover:bg-card transition-colors shrink-0"
         title="Día anterior"
       >
@@ -204,6 +205,7 @@ export default function DateHeader({ selectedDate }: DateHeaderProps) {
       {/* Next day */}
       <Link
         href={`/admin/reservas?date=${nextDay}`}
+        onClick={() => window.dispatchEvent(new CustomEvent('reservas:date-navigating'))}
         className="w-7 h-7 flex items-center justify-center rounded-lg text-muted hover:text-text hover:bg-card transition-colors shrink-0"
         title="Día siguiente"
       >
@@ -231,7 +233,7 @@ export default function DateHeader({ selectedDate }: DateHeaderProps) {
       {calendarOpen && (
         <CalendarPopover
           selectedDate={selectedDate}
-          onSelect={(d) => router.push(`/admin/reservas?date=${d}`)}
+          onSelect={(d) => { window.dispatchEvent(new CustomEvent('reservas:date-navigating')); router.push(`/admin/reservas?date=${d}`) }}
           onClose={() => setCalendarOpen(false)}
           anchorRef={calendarBtnRef}
         />
@@ -241,6 +243,7 @@ export default function DateHeader({ selectedDate }: DateHeaderProps) {
       {!isToday && (
         <Link
           href="/admin/reservas"
+          onClick={() => window.dispatchEvent(new CustomEvent('reservas:date-navigating'))}
           className="shrink-0 px-2.5 py-1 text-[11px] font-semibold text-accent bg-accent/10 border border-accent/30 rounded-lg hover:bg-accent/20 transition-colors"
         >
           Hoy

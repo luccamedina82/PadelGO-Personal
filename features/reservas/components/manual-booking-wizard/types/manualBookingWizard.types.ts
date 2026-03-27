@@ -44,6 +44,7 @@ export interface ManualBookingWizardProps {
   onClose?: (date: string) => void
   onBookingCreated?: (payload: { date: string; bookingId?: string }) => void
   durationOptions: number[]
+  dateHasSlots?: Record<string, boolean>
 }
 
 export const BOOKING_TYPES: { id: BookingType; icon: string; label: string }[] = [

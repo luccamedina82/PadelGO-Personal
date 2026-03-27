@@ -50,4 +50,5 @@ export interface BookingGridProps {
   ) => Promise<void>
   onSearchPlayers?: (query: string) => Promise<{ id: string; name: string }[]>
   highlightBookingId?: string
+  isNavigating?: boolean
 }

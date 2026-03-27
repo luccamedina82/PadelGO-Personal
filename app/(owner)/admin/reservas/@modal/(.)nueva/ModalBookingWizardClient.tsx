@@ -36,6 +36,7 @@ interface ModalBookingWizardClientProps {
   defaultDate?: string
   defaultTime?: string
   durationOptions: number[]
+  dateHasSlots?: Record<string, boolean>
 }
 
 export default function ModalBookingWizardClient(props: ModalBookingWizardClientProps) {

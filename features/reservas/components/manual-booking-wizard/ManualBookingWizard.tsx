@@ -53,6 +53,7 @@ export default function ManualBookingWizard({
   onClose,
   onBookingCreated,
   durationOptions,
+  dateHasSlots,
 }: ManualBookingWizardProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -240,6 +241,7 @@ export default function ManualBookingWizard({
             date={date}
             setDate={(d) => { setDate(d); setStartTime(''); setCourtId(''); setStep(2) }}
             availableDates={availableDates}
+            dateHasSlots={dateHasSlots}
           />
         )}
         {step === 2 && (

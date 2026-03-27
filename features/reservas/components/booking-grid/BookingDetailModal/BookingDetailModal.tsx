@@ -299,7 +299,7 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
           booking={activeBooking}
           loading={loading}
           isEditing={isEditing}
-          onCancelEdit={() => { setIsEditing(false); setError(null) }}
+          onCancelEdit={defaultEditing ? onClose : () => { setIsEditing(false); setError(null) }}
           onSaveEdit={handleSaveEdit}
           onCancel={handleCancel}
           onConfirm={handleConfirm}

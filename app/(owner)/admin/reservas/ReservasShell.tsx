@@ -11,6 +11,7 @@ interface ReservasShellProps {
   gridStart: number
   gridEnd: number
   highlightBookingId?: string
+  isNavigating?: boolean
 }
 
 export default function ReservasShell({
@@ -21,6 +22,7 @@ export default function ReservasShell({
   gridStart,
   gridEnd,
   highlightBookingId,
+  isNavigating,
 }: ReservasShellProps) {
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -32,6 +34,7 @@ export default function ReservasShell({
         gridStart={gridStart}
         gridEnd={gridEnd}
         highlightBookingId={highlightBookingId}
+        isNavigating={isNavigating}
       />
     </div>
   )
