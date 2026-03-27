@@ -121,7 +121,7 @@ export async function createManualBooking(
           playerIds: [bookingUserId],
           status: 'CONFIRMED',
           totalPrice,
-          paymentStatus: 'MANUAL',
+          paymentStatus: 'UNPAID',
           source,
           manualName: bookingType !== 'BLOQUEO' ? (manualName ?? null) : (blockReason ?? 'Bloqueo'),
           manualPhone: bookingType !== 'BLOQUEO' ? (manualPhone ?? null) : null,

@@ -30,7 +30,7 @@ export default function BookingGridHeader({ courts, visibleCourts, colWidth }: B
                         border-l border-border transition-colors
                         ${!court.isActive ? 'opacity-40' : ''}`}
           >
-            <p className="text-xs font-bold text-text tracking-wide truncate">{court.name}</p>
+            <p className="text-sm font-bold text-text tracking-wide truncate">{court.name}</p>
             <div
               className="mt-1.5 rounded-full"
               style={{

@@ -4,7 +4,7 @@ import type { CourtColumn } from '@/features/reservas/components/booking-grid/Bo
 import { getAdminContext } from '@/lib/dal/admin'
 import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
-import DateNavigation from './ui/DayView/DayView'
+import DateHeader from './ui/DateHeader/DateHeader'
 import BookingsClient from './BookingsClient'
 import { Suspense } from 'react'
 
@@ -94,35 +94,33 @@ export default async function ReservasPage({ searchParams }: Props) {
     <div className="h-screen bg-bg flex flex-col">
       {/* ── Sticky header ──────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-surface border-b border-border print:static print:border-0">
-        <div className="pl-5 pr-4 py-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 print:hidden">
+        <div className="pl-4 pr-4 py-2.5 flex items-center gap-3 print:hidden">
+          {/* Nombre del club */}
+          <p className="text-[11px] font-bold text-muted uppercase tracking-widest leading-none shrink-0">
+            {club.name}
+          </p>
 
-          {/* Izquierda: club + fecha */}
-          <div className="shrink-0">
-            <p className="text-[10px] font-semibold text-muted uppercase tracking-widest leading-none mb-0.5">{club.name}</p>
-            <h1 className="font-display text-2xl font-bold text-text capitalize leading-none">
-              {dateLabel}
-            </h1>
-          </div>
+          {/* Separador */}
+          <div className="w-px h-5 bg-border shrink-0" />
 
-          {/* Centro: navegación de fecha */}
-          <div className="flex-1 flex justify-center">
-            <DateNavigation selectedDate={selectedDate} />
-          </div>
+          {/* Navegación de fecha */}
+          <DateHeader selectedDate={selectedDate} />
 
-          {/* Derecha: nueva reserva */}
-          <div className="flex items-center justify-end gap-1.5">
-            <Link
-              href={`/admin/reservas/nueva?date=${selectedDate}`}
-              prefetch
-              className="flex items-center gap-1.5 px-4 py-2 bg-accent text-accent-text text-sm font-bold rounded-xl hover:bg-accent-dark transition-colors shadow-sm"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Nueva reserva
-            </Link>
-          </div>
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Nueva reserva */}
+          <Link
+            href={`/admin/reservas/nueva?date=${selectedDate}`}
+            prefetch
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-accent text-accent-text text-sm font-bold rounded-xl hover:bg-accent-dark transition-colors shadow-sm"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Nueva reserva
+          </Link>
         </div>
 
         {/* Print-only header */}

@@ -119,20 +119,20 @@ export default function BookingBlockCell({
     >
       {/* Name + unconfirmed clock */}
       <div className="flex items-start gap-1 min-w-0">
-        <p className="text-[11px] font-bold leading-tight truncate flex-1">{b.displayName}</p>
-        {isUnconfirmed && <IconClock className="w-3 h-3 shrink-0 opacity-80 mt-px" />}
+        <p className="text-[13px] font-bold leading-tight line-clamp-2 flex-1">{b.displayName}</p>
+        {isUnconfirmed && <IconClock className="w-3.5 h-3.5 shrink-0 opacity-80 mt-px" />}
       </div>
 
       {/* Time range + compact payment dot */}
       {height > 34 && (
         <div className="flex items-center gap-1">
-          <p className="text-[9px] font-mono leading-tight opacity-70 flex-1">
+          <p className="text-[11px] font-mono leading-tight opacity-70 flex-1">
             {b.startTime} – {endTime}
           </p>
           {showPaymentDot && (
             isPaid
-              ? <IconCheck className="w-3 h-3 text-green-400 shrink-0" />
-              : <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+              ? <IconCheck className="w-3.5 h-3.5 text-green-400 shrink-0" />
+              : <div className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" />
           )}
         </div>
       )}
@@ -140,11 +140,11 @@ export default function BookingBlockCell({
       {/* Price + payment indicator (full row, taller slots) */}
       {showPaymentRow && (
         <div className="flex items-center justify-between mt-auto gap-1">
-          <p className={`text-[10px] font-semibold truncate ${isUnpaid ? 'text-red-400' : 'opacity-75'}`}>
+          <p className={`text-[14px] font-bold ${isPaid ? 'text-green-400' : 'text-orange-400'}`}>
             {formatPrice(b.totalPrice)}
           </p>
-          {isPaid && <IconCheck className="w-3 h-3 text-green-400 shrink-0" />}
-          {isUnpaid && <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />}
+          {isPaid && <IconCheck className="w-3.5 h-3.5 text-green-400 shrink-0" />}
+          {isUnpaid && <div className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" />}
         </div>
       )}
 

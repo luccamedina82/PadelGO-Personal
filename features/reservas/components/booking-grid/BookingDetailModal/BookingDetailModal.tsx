@@ -20,9 +20,10 @@ interface BookingDetailProps {
   onClose: () => void
   closeTimeMinutes?: number
   openTimeMinutes?: number
+  defaultEditing?: boolean
 }
 
-export default function BookingDetailModal({ booking, onClose, closeTimeMinutes, openTimeMinutes }: BookingDetailProps) {
+export default function BookingDetailModal({ booking, onClose, closeTimeMinutes, openTimeMinutes, defaultEditing }: BookingDetailProps) {
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editStartTime, setEditStartTime] = useState('')
@@ -52,6 +53,18 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
     setError(null)
     setIsEditing(false)
   }, [booking?.id, booking?.playerDetails, booking?.paidPlayerIds])
+
+  // Open in edit mode if requested (runs after the reset above)
+  useEffect(() => {
+    if (defaultEditing && booking) {
+      setEditStartTime(booking.startTime)
+      setEditDuration(booking.durationMinutes)
+      setEditName(booking.displayName)
+      setEditPhone(booking.manualPhone ?? '')
+      setIsEditing(true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!booking) return null
@@ -108,7 +121,7 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
     }
   }
 
-  async function handlePayment(status: 'PAID' | 'UNPAID' | 'MANUAL') {
+  async function handlePayment(status: 'PAID' | 'UNPAID') {
     setError(null)
     try {
       const res = await updatePayment.mutateAsync({ id: activeBooking.id, status })
@@ -190,16 +203,12 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
   const payLabel =
     activeBooking.paymentStatus === 'PAID'
       ? 'Pagado'
-      : activeBooking.paymentStatus === 'MANUAL'
-        ? 'Manual'
-        : 'Sin cobrar'
+      : 'Sin cobrar'
 
   const payColor =
     activeBooking.paymentStatus === 'PAID'
       ? 'text-green-400'
-      : activeBooking.paymentStatus === 'MANUAL'
-        ? 'text-muted'
-        : 'text-orange-400'
+      : 'text-orange-400'
 
   return (
     <div

@@ -10,7 +10,7 @@ interface BookingDetailActionButtonsProps {
   onSaveEdit: () => void
   onCancel: () => void
   onConfirm: () => void
-  onPayment: (status: 'PAID' | 'UNPAID' | 'MANUAL') => void
+  onPayment: (status: 'PAID' | 'UNPAID') => void
   onEdit: () => void
 }
 
@@ -87,7 +87,7 @@ export default function BookingDetailActionButtons({
               {loading ? 'Guardando...' : '$ Cobrado'}
             </button>
           )}
-          {booking.paymentStatus !== 'UNPAID' && (
+          {booking.paymentStatus === 'PAID' && (
             <button
               onClick={() => onPayment('UNPAID')}
               disabled={loading}

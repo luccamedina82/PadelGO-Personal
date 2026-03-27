@@ -142,12 +142,11 @@ Valor de producto: Protege el inventario del due√±o. Al liberar la cancha autom√
 
 
 
+cuando actualizas el nombre de una cancha no refresca la cache en reservas.
+esta mal aplicado el scroll horizontal.
+en el popover de cuando estas en editar cuando tocas cancelar te lleva al detalle, ese cancelar es cancelar edicion.
 
 
-
-
-LOS BLOQUEOS NO DETECTAN LAS RESERVAS ONLINE EN EL DRAG AND DROP LAS PUEDO PONER UNA ENCIMA DE LA OTRA, quedaron reservas viejas con horarios no justos 00:00:00:00
-Atenuar el Pasado (Dimming Past Events) dejo de funcionar 
 OJO HAY UN PARCHE ACA
       <CanchasClient
         clubId={id}

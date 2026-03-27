@@ -69,6 +69,9 @@ export default function BookingGrid({
 
   const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<SourceFilterKey>(null)
+  const [paymentFilter, setPaymentFilter] = useState<'PAID' | 'UNPAID' | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'PENDING' | null>(null)
+  const [openInEditMode, setOpenInEditMode] = useState(false)
 
   const [tooltip, setTooltip] = useState<{
     booking: BookingBlock
@@ -130,12 +133,20 @@ export default function BookingGrid({
   const visibleBookings = useMemo(
     () =>
       bookings.filter((b) => {
-        if (typeFilter === null) return true
-        if (typeFilter === 'MANUAL') return b.source === 'MANUAL_OWNER' || b.source === 'MANUAL_SUPPORT'
-        if (typeFilter === 'RECURRING') return !!b.recurringBookingId
-        return b.source === typeFilter
+        if (typeFilter !== null) {
+          if (typeFilter === 'MANUAL' && b.source !== 'MANUAL_OWNER' && b.source !== 'MANUAL_SUPPORT') return false
+          else if (typeFilter === 'RECURRING' && !b.recurringBookingId) return false
+          else if (typeFilter !== 'MANUAL' && typeFilter !== 'RECURRING' && b.source !== typeFilter) return false
+        }
+        if (paymentFilter !== null) {
+          if (isBlockSource(b.source) || b.status === 'CANCELLED') return false
+          if (paymentFilter === 'PAID' && b.paymentStatus !== 'PAID') return false
+          if (paymentFilter === 'UNPAID' && (b.paymentStatus === 'PAID' || b.paymentStatus === 'MANUAL')) return false
+        }
+        if (statusFilter === 'PENDING' && b.status !== 'PENDING') return false
+        return true
       }),
-    [bookings, typeFilter]
+    [bookings, typeFilter, paymentFilter, statusFilter]
   )
 
 
@@ -218,7 +229,7 @@ export default function BookingGrid({
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const totalWidth = entry.contentRect.width - TIME_COL_WIDTH
-        const w = Math.max(100, Math.floor(totalWidth / Math.max(visibleCourtCount, 1)))
+        const w = Math.max(160, Math.floor(totalWidth / Math.max(visibleCourtCount, 1)))
         setColWidth(w)
         setGridReady(true)
       }
@@ -258,6 +269,24 @@ export default function BookingGrid({
     const top = ((targetMin - gridStart) / 30) * SLOT_HEIGHT
     containerRef.current.scrollTo({ top: Math.max(0, top - 120), behavior: 'smooth' })
   }, [gridStart, gridEnd])
+
+  const scrollToNextFree = useCallback(() => {
+    if (!containerRef.current) return
+    const now = new Date()
+    const currentMin = now.getHours() * 60 + now.getMinutes()
+    const startMin = Math.ceil(currentMin / 30) * 30
+    for (let slotMin = startMin; slotMin <= gridEnd - 30; slotMin += 30) {
+      const hasFree = visibleCourts.some((court) => {
+        if (!court.isActive) return false
+        return !occupiedSlotsByCourt.get(court.id)?.has(slotMin)
+      })
+      if (hasFree) {
+        const top = ((slotMin - gridStart) / 30) * SLOT_HEIGHT
+        containerRef.current.scrollTo({ top: Math.max(0, top - 120), behavior: 'smooth' })
+        return
+      }
+    }
+  }, [visibleCourts, occupiedSlotsByCourt, gridStart, gridEnd])
 
   useEffect(() => {
     if (highlightId || !isViewingToday || scrolledNowRef.current || !gridReady) return
@@ -328,18 +357,22 @@ export default function BookingGrid({
         courts={courts}
         focusCourtIds={focusCourtIds}
         typeFilter={typeFilter}
+        paymentFilter={paymentFilter}
+        statusFilter={statusFilter}
         unpaidCount={unpaidCount}
         pendingCount={pendingCount}
         onCourtToggle={toggleCourtFilter}
         onClearCourts={() => setFocusCourtIds([])}
         onTypeFilterChange={setTypeFilter}
+        onPaymentFilterChange={setPaymentFilter}
+        onStatusFilterChange={setStatusFilter}
       />
 
       <div ref={containerRef} className="grow overflow-auto min-h-0 relative">
         {!gridReady ? (
           <BookingGridSkeleton courts={visibleCourts} gridStart={gridStart} gridEnd={gridEnd} />
         ) : (
-        <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 100}px` }}>
+        <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 160}px` }}>
           <BookingGridHeader courts={courts} visibleCourts={visibleCourts} colWidth={colWidth} />
 
           <div ref={gridBodyRef} className="relative flex">
@@ -504,16 +537,23 @@ export default function BookingGrid({
         )}
       </div>
 
-      {gridReady && isViewingToday && currentLineTop !== null && (
-        <button
-          onClick={scrollToNow}
-          title="Ir al timeline"
-          className="fixed bottom-5 right-5 z-50 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-card/90 border border-border text-[11px] text-sub hover:text-text hover:border-accent/40 transition-colors shadow-sm backdrop-blur-sm"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--now-line)] opacity-80" />
-          ahora
-        </button>
-      )}
+      {gridReady && isViewingToday && currentLineTop !== null && (() => {
+        const currentSlotMin = currentMinutes !== null ? Math.floor(currentMinutes / 30) * 30 : null
+        const hasFreeCourt = currentSlotMin !== null && visibleCourts.some((court) => {
+          if (!court.isActive) return false
+          return !occupiedSlotsByCourt.get(court.id)?.has(currentSlotMin)
+        })
+        return (
+          <button
+            onClick={hasFreeCourt ? scrollToNow : scrollToNextFree}
+            title={hasFreeCourt ? 'Ir al timeline' : 'Ir al próximo slot libre'}
+            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/95 border border-border text-[11px] text-sub hover:text-text hover:border-accent/40 transition-colors shadow-md backdrop-blur-sm"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--now-line)] opacity-80" />
+            {hasFreeCourt ? 'Ahora' : 'Próximo libre'}
+          </button>
+        )
+      })()}
 
       {gridReady && quickPopover && (
         <BookingQuickPopover
@@ -523,6 +563,12 @@ export default function BookingGrid({
           anchorY={quickPopover.y}
           onClose={() => setQuickPopover(null)}
           onOpenDetail={() => {
+            setOpenInEditMode(false)
+            setSelectedBooking(quickPopover.booking)
+            setQuickPopover(null)
+          }}
+          onOpenEdit={() => {
+            setOpenInEditMode(true)
             setSelectedBooking(quickPopover.booking)
             setQuickPopover(null)
           }}
@@ -531,10 +577,12 @@ export default function BookingGrid({
 
       {gridReady && selectedBooking && (
         <BookingDetailModal
+          key={`${selectedBooking.id}-${openInEditMode}`}
           booking={selectedBooking}
-          onClose={() => setSelectedBooking(null)}
+          onClose={() => { setSelectedBooking(null); setOpenInEditMode(false) }}
           closeTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.closeTimeMinutes}
           openTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.openTimeMinutes}
+          defaultEditing={openInEditMode}
         />
       )}
 

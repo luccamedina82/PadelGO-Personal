@@ -39,7 +39,7 @@ export default function BookingGridTimeColumn({
             }}
           >
             {label && (
-              <span className="text-[10px] font-mono text-muted mt-1.5 leading-none">
+              <span className="text-[11px] font-mono text-muted mt-1.5 leading-none">
                 {label}
               </span>
             )}
