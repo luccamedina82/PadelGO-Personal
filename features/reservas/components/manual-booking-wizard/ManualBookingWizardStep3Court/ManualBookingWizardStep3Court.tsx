@@ -53,12 +53,12 @@ export default function ManualBookingWizardStep3Court({
                             ${
                               isActive
                                 ? 'border-accent bg-accent/8'
-                                : 'border-border bg-card hover:border-border-hover hover:bg-card-hover'
+                                : 'border-accent/35 bg-accent/5 hover:border-accent/60 hover:bg-accent/10'
                             }`}
               >
                 <span
                   className={`size-2 rounded-full shrink-0 transition-colors duration-[130ms]
-                              ${isActive ? 'bg-accent' : 'bg-border'}`}
+                              ${isActive ? 'bg-accent' : 'bg-accent/50'}`}
                 />
                 <span
                   className={`text-sm font-semibold flex-1 text-left

@@ -5,7 +5,6 @@ interface BookingGridTooltipsProps {
   tooltip: { booking: BookingBlock; x: number; y: number } | null
   slotTooltip: { courtName: string; time: string; x: number; y: number } | null
   selectedBooking: BookingBlock | null
-  showNewBookingPopup: boolean
   highlightedBooking: BookingBlock | undefined
 }
 
@@ -13,12 +12,11 @@ export default function BookingGridTooltips({
   tooltip,
   slotTooltip,
   selectedBooking,
-  showNewBookingPopup,
   highlightedBooking,
 }: BookingGridTooltipsProps) {
   return (
     <>
-      {showNewBookingPopup && highlightedBooking && !selectedBooking && (
+      { highlightedBooking && !selectedBooking && (
         <div className="booking-new-toast" role="status" aria-live="polite">
           <p className="booking-new-toast-title">Reserva nueva detectada</p>
           <p className="booking-new-toast-sub">

@@ -1,5 +1,5 @@
-import Link from 'next/link'
 import { argTodayStr } from '@/lib/date'
+import NuevaReservaButton from './ui/NuevaReservaButton'
 import type { CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import { getAdminContext } from '@/lib/dal/admin'
 import { getCourtsByClubId } from '@/features/reservas/dal/courts'
@@ -104,23 +104,13 @@ export default async function ReservasPage({ searchParams }: Props) {
           <div className="w-px h-5 bg-border shrink-0" />
 
           {/* Navegación de fecha */}
-          <DateHeader selectedDate={selectedDate} />
+          <DateHeader selectedDate={selectedDate} clubId={club.id} />
 
           {/* Spacer */}
           <div className="flex-1" />
 
           {/* Nueva reserva */}
-          <Link
-            href={`/admin/reservas/nueva?date=${selectedDate}`}
-            prefetch
-            className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-accent text-accent-text text-sm font-bold rounded-xl hover:bg-accent-dark transition-colors shadow-sm"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Nueva reserva
-          </Link>
+          <NuevaReservaButton key={selectedDate}/>
         </div>
 
         {/* Print-only header */}

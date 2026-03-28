@@ -5,6 +5,7 @@ import { BookingBlock, CourtColumn } from '@/features/reservas/components/bookin
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ReservasShell from './ReservasShell'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface BookingClientProps {
   initialBookings: BookingBlock[]
@@ -25,6 +26,7 @@ export default function BookingsClient({
   const queryClient = useQueryClient()
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
   const [isNavigating, setIsNavigating] = useState(false)
+  const router = useRouter()
 
   const [initialDataTimestamp] = useState(() => Date.now())
 
@@ -51,22 +53,25 @@ export default function BookingsClient({
   useEffect(() => {
     async function handleReservasRefresh(event: Event) {
       const detail = (event as CustomEvent<{ bookingId?: string }>).detail
-      if (detail?.bookingId) {
-        setEventHighlightBookingId(detail.bookingId)
+      const newId = detail?.bookingId
+      if (newId) {
+        setEventHighlightBookingId(newId)
       }
 
       const exactQueryKey = ['bookings', clubId, date] as const
 
-      await queryClient.invalidateQueries({
-        queryKey: exactQueryKey,
-        exact: true,
-      })
+      await queryClient.invalidateQueries({ queryKey: exactQueryKey, exact: true })
+      await queryClient.refetchQueries({ queryKey: exactQueryKey, type: 'active', exact: true })
 
-      await queryClient.refetchQueries({
-        queryKey: exactQueryKey,
-        type: 'active',
-        exact: true,
-      })
+      if (newId) {
+        setTimeout(() => {
+          const el = document.getElementById('booking-' + newId)
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setTimeout(() => el.classList.remove('ring-2', 'ring-accent', 'animate-pulse'), 5000)
+          }
+        }, 50)
+      }
     }
 
     window.addEventListener('reservas:refresh', handleReservasRefresh)
@@ -76,12 +81,31 @@ export default function BookingsClient({
   }, [clubId, queryClient, date])
 
   useEffect(() => {
+    const handleRelayNav = (e: Event) => {
+      const { date: targetDate, bookingId } = (e as CustomEvent<{ date: string; bookingId?: string }>).detail;
+      
+      const exactQueryKey = ['bookings', clubId, targetDate] as const;
+      queryClient.invalidateQueries({ queryKey: exactQueryKey, exact: true });
+
+      setTimeout(() => {
+        const targetUrl = `/admin/reservas?date=${targetDate}${bookingId ? '&new=' + bookingId : ''}`;
+        router.push(targetUrl);
+      }, 150);
+    };
+
+    window.addEventListener('reservas:refresh', handleRelayNav);
+    return () => window.removeEventListener('reservas:refresh', handleRelayNav);
+  }, [router, queryClient, clubId]);
+
+
+  useEffect(() => {
     if (!eventHighlightBookingId) return
     const timer = setTimeout(() => setEventHighlightBookingId(undefined), 30_000)
     return () => clearTimeout(timer)
   }, [eventHighlightBookingId])
 
   const bookings = allBookings.filter((b) => b.date === date)
+
 
   return (
     <div className="relative h-full min-h-0">

@@ -150,3 +150,13 @@ Keep components under ~200 lines. When a component grows beyond that, extract su
 - Our custom tokens (`--bg`, `--card`, `--accent`, `--border`, `--text`, `--muted`, etc.) remain unchanged and are used directly in custom components.
 
 **Components:** shadcn-backed: `Button`, `Skeleton`, `Badge`, `Modal` (Dialog), `Toast` (sonner). Custom (kept as-is): `Avatar`, `Tag`, `LevelBar`, `PrintButton`, `DateRangePicker`.
+
+
+
+## AI Behavior & Workflow Instructions
+
+- **No Explanations:** When fixing bugs or implementing features, output ONLY the modified code. Do not include explanatory text, greetings, or summaries unless explicitly asked "why" or "explain".
+- **Optimistic UI First:** When modifying interactive components (like the booking grid or date changes), always implement Optimistic UI patterns. Show the immediate visual change or loading state (spinner) *before* awaiting the server response to prevent the UI from feeling frozen.
+- **Component Modifications:** When fixing UI bugs (e.g., overlapping hover states in drag-and-drop, or popover cancel buttons), ensure the fix remains within the ~200 lines limit convention.
+- **Cache Invalidation:** Pay special attention to cross-domain cache. If modifying `features/canchas`, ensure `revalidateTag('bookings-${clubId}')` is called so the booking grid updates immediately.
+- **Toasts:** Any new or modified success/error notifications must be unified to appear in the bottom-right corner.

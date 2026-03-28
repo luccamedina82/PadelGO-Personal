@@ -90,6 +90,7 @@ export default function BookingBlockCell({
 
   return (
     <div
+      id={`booking-${b.id}`}
       className={[
         'booking-block group',
         blockCls,

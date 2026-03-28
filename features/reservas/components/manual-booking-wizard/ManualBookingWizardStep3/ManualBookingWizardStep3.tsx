@@ -73,10 +73,10 @@ export default function ManualBookingWizardStep3({
       </div>
 
       <div className="mb-[22px]">
-        <div className="flex items-center justify-between px-[14px] py-[10px] rounded-xl bg-accent/8 border border-accent/25">
-          <span className="text-xs text-muted">Estado al crear</span>
-          <span className="text-[11px] font-bold px-[10px] py-[3px] rounded-full bg-accent/15 text-accent border border-accent/30">
-            ✓ Confirmada
+        <div className="flex items-center justify-between px-[14px] py-[11px] rounded-xl bg-accent/15 border border-accent/40">
+          <span className="text-xs font-medium text-text">Estado al crear</span>
+          <span className="text-[11px] font-bold px-[10px] py-[3px] rounded-full bg-accent/20 text-accent border border-accent/40">
+            ● Confirmada
           </span>
         </div>
       </div>

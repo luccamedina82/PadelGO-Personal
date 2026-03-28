@@ -5,3 +5,8 @@ dist/
 build/
 *.log
 .env*
+.turbo/
+prisma/migrations/
+*.sqlite
+public/images/
+assets/

@@ -66,7 +66,6 @@ export default function BookingGrid({
     y: number
   } | null>(null)
   const [highlightId, setHighlightId] = useState<string | undefined>(highlightBookingId)
-  const [showNewBookingPopup, setShowNewBookingPopup] = useState(false)
 
   const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<SourceFilterKey>(null)
@@ -99,13 +98,6 @@ export default function BookingGrid({
   useEffect(() => {
     if (!highlightId) return
     const timer = setTimeout(() => setHighlightId(undefined), 30_000)
-    return () => clearTimeout(timer)
-  }, [highlightId])
-
-  useEffect(() => {
-    if (!highlightId) { setShowNewBookingPopup(false); return }
-    setShowNewBookingPopup(true)
-    const timer = setTimeout(() => setShowNewBookingPopup(false), 5000)
     return () => clearTimeout(timer)
   }, [highlightId])
 
@@ -599,7 +591,6 @@ export default function BookingGrid({
           tooltip={tooltip}
           slotTooltip={slotTooltip}
           selectedBooking={selectedBooking}
-          showNewBookingPopup={showNewBookingPopup}
           highlightedBooking={highlightedBooking}
         />
       )}

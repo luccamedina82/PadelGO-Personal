@@ -17,27 +17,31 @@ export default function ManualBookingWizardStep2Time({
 }: ManualBookingWizardStep2TimeProps) {
   // Union of slots across all courts for this date
   const allCourtSlots = courtSlotsByDate[date] ?? []
-  const timeMap = new Map<string, { available: boolean; durationOptions: number[] }>()
+  const timeMap = new Map<string, { available: boolean; availableCourtCount: number; durationOptions: number[] }>()
   for (const cs of allCourtSlots) {
     for (const slot of cs.slots) {
       const existing = timeMap.get(slot.time)
       if (!existing) {
-        timeMap.set(slot.time, { available: slot.available, durationOptions: [...slot.durationOptions] })
+        timeMap.set(slot.time, {
+          available: slot.available,
+          availableCourtCount: slot.available ? 1 : 0,
+          durationOptions: [...slot.durationOptions],
+        })
       } else {
-        if (slot.available) existing.available = true
+        if (slot.available) { existing.available = true; existing.availableCourtCount++ }
         for (const d of slot.durationOptions) {
           if (!existing.durationOptions.includes(d)) existing.durationOptions.push(d)
         }
       }
     }
   }
-  const currentSlots: AvailabilitySlot[] = Array.from(timeMap.entries())
+  const currentSlots = Array.from(timeMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([time, v]) => ({
       time,
       available: v.available,
+      availableCourtCount: v.availableCourtCount,
       durationOptions: v.durationOptions.sort((a, b) => a - b),
-      pricePerHour: 0,
     }))
 
   return (
@@ -64,8 +68,9 @@ export default function ManualBookingWizardStep2Time({
                     onNext()
                   }}
                   disabled={!s.available && !isActive}
-                  className={`py-[10px] px-1 rounded-[10px] border text-[11px] font-mono font-semibold
+                  className={`py-[8px] px-1 rounded-[10px] border text-[11px] font-mono font-semibold
                               cursor-pointer transition-all duration-[120ms] active:scale-95
+                              flex flex-col items-center gap-[3px]
                               ${
                                 isActive
                                   ? 'bg-accent border-accent text-accent-text font-bold'
@@ -74,7 +79,12 @@ export default function ManualBookingWizardStep2Time({
                                     : 'border-border bg-card text-muted hover:border-border-hover hover:text-text'
                               }`}
                 >
-                  {s.time}
+                  <span>{s.time}</span>
+                  {!isActive && s.available && (
+                    <span className={`text-[8px] font-normal leading-none ${s.availableCourtCount === 1 ? 'text-accent' : 'text-muted'}`}>
+                      {s.availableCourtCount === 1 ? '1 cancha' : `${s.availableCourtCount} canchas`}
+                    </span>
+                  )}
                 </button>
               )
             })}

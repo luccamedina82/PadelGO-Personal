@@ -1,129 +1,34 @@
-import { argToday, argTodayStr } from '@/lib/date'
-import { calcAvailableSlots } from '@/lib/availability'
 import { createManualBooking } from '@/features/reservas/actions/bookings'
+import { getAdminContext } from '@/lib/dal/admin'
+import { getWizardPageData } from '@/features/reservas/dal/wizardData'
+import { argTodayStr } from '@/lib/date'
 import ModalBookingWizardClient from './ModalBookingWizardClient'
 import ModalCloseBackdrop from './ModalCloseBackdrop'
-import { getAdminContext } from '@/lib/dal/admin'
-import { getCourtsByClubId } from '@/features/reservas/dal/courts'
-import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
-import { prisma } from '@/lib/prisma'
 
 interface Props {
   searchParams: Promise<{ courtId?: string; date?: string; time?: string }>
 }
 
-function todayStr() {
-  return argTodayStr()
-}
-
 export default async function NuevaReservaModalPage({ searchParams }: Props) {
-  const {
-    courtId: defaultCourtId,
-    date: dateParam,
-    time: defaultTime,
-  } = await searchParams
-
+  const { courtId: defaultCourtId, date: dateParam, time: defaultTime } = await searchParams
   const { club } = await getAdminContext(['OWNER', 'STAFF'])
+  console.log({dateParam})
+  if (!club) return null
 
-  if (!club) {
-    return null
-  }
+  const { courts, courtSlotsByDate, availableDates, dateHasSlots, durationOptions } =
+    await getWizardPageData(club.id, dateParam)
 
-  const selectedDate = dateParam ?? todayStr()
+  const selectedDate = dateParam ?? argTodayStr()
 
-  // Fetch club config first to get bookingWindowDays
-  const clubConfig = await prisma.club.findUnique({
-    where: { id: club.id },
-    select: { allowedDurations: true, bookingWindowDays: true },
-  })
-
-  const bookingWindowDays = clubConfig?.bookingWindowDays ?? 14
-  const availableDates = Array.from({ length: bookingWindowDays }, (_, i) => {
-    const d = new Date(argToday())
-    d.setUTCDate(d.getUTCDate() + i)
-    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-  })
-  const from = new Date(`${availableDates[0]}T00:00:00.000Z`)
-  const to = new Date(`${availableDates[availableDates.length - 1]}T23:59:59.000Z`)
-
-  // Paralelizar courts y bookings
-  const [courts, allBookings] = await Promise.all([
-    getCourtsByClubId(club.id),
-    getAdminBookingsByDate(club.id, from, to),
-  ])
-
-  // Pre-agrupar bookings por courtId:date para búsqueda O(1) en lugar de filter O(n) repetido
-  const bookingsByKey = new Map<string, typeof allBookings>()
-  for (const b of allBookings) {
-    const key = `${b.courtId}:${b.date}`
-    const existing = bookingsByKey.get(key)
-    if (existing) existing.push(b)
-    else bookingsByKey.set(key, [b])
-  }
-
-  type CourtSlotsEntry = {
-    courtId: string
-    slots: { time: string; available: boolean; durationOptions: number[]; pricePerHour: number }[]
-  }
-
-  const courtSlotsByDate: Record<string, CourtSlotsEntry[]> = {}
-
-  for (const dateStr of availableDates) {
-    const dObj = new Date(`${dateStr}T00:00:00.000Z`)
-    const dow = dObj.getUTCDay()
-    const dateSlots: CourtSlotsEntry[] = []
-
-    for (const court of courts) {
-      const avail = court.availabilities.find((a) => a.dayOfWeek === dow)
-      if (!avail) {
-        dateSlots.push({ courtId: court.id, slots: [] })
-        continue
-      }
-
-      const courtBookings = bookingsByKey.get(`${court.id}:${dateStr}`) ?? []
-
-      const slots = calcAvailableSlots(
-        { openTime: avail.openTime, closeTime: avail.closeTime, pricePerHour: avail.pricePerHour },
-        courtBookings,
-        dObj,
-        new Date(),
-        0 // admin bypass: no advance time restriction
-      )
-
-      dateSlots.push({
-        courtId: court.id,
-        slots: slots.map((s) => ({
-          time: s.time,
-          available: s.available,
-          durationOptions: s.durationOptions,
-          pricePerHour: s.pricePerHour,
-        })),
-      })
-    }
-    courtSlotsByDate[dateStr] = dateSlots
-  }
-
-  const dateHasSlots: Record<string, boolean> = {}
-  for (const [dateStr, slots] of Object.entries(courtSlotsByDate)) {
-    dateHasSlots[dateStr] = slots.some((cs) => cs.slots.some((s) => s.available))
-  }
-
-  const courtsForWizard = courts.map((c) => ({
-    id: c.id,
-    name: c.name,
-    type: c.type,
-    covered: c.covered,
-  }))
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <ModalCloseBackdrop />
-
       <div
-        className="absolute right-0 top-0 bottom-0 w-full max-w-110 border-l border-border bg-bg"
-        style={{ boxShadow: '-12px 0 40px rgba(0,0,0,0.28)' }}
+        className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl border border-border bg-bg flex flex-col overflow-hidden"
+        style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.50)' }}
       >
         <ModalBookingWizardClient
-          courts={courtsForWizard}
+          courts={courts}
           courtSlotsByDate={courtSlotsByDate}
           availableDates={availableDates}
           clubId={club.id}
@@ -131,7 +36,7 @@ export default async function NuevaReservaModalPage({ searchParams }: Props) {
           defaultCourtId={defaultCourtId}
           defaultDate={selectedDate}
           defaultTime={defaultTime}
-          durationOptions={clubConfig?.allowedDurations ?? [60, 90, 120]}
+          durationOptions={durationOptions}
           dateHasSlots={dateHasSlots}
         />
       </div>

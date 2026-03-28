@@ -4,8 +4,9 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/features/auth/actions/auth'
 import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
-import { calcBookingPrice, timeToMinutes, VALID_DURATIONS } from '@/lib/availability'
-import { argToday } from '@/lib/date'
+import { calcAvailableSlots, calcBookingPrice, timeToMinutes, VALID_DURATIONS, MIN_ADVANCE_MINUTES } from '@/lib/availability'
+import { argToday, argTodayStr } from '@/lib/date'
+import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import type { ActionResult } from '@/types'
 
 export interface CreateManualBookingInput {
@@ -514,6 +515,78 @@ export async function convertBookingToOpenMatch(
     console.error('[convertBookingToOpenMatch]', err)
     return { success: false, error: 'Error al convertir la reserva.' }
   }
+}
+
+// ── MONTH AVAILABILITY HEAT-MAP ───────────────────────────────────────────
+// Lightweight query: counts available slots per day for a given month.
+// Underlying DAL calls (courts + bookings) are already cached, so this
+// won't hammer the DB even if the user navigates through months quickly.
+
+export async function getMonthAvailability(
+  year: number,
+  month: number, // 0-indexed (0 = January)
+  clubId: string
+): Promise<Record<string, number>> {
+  await requireRole(['OWNER', 'STAFF'])
+
+  const todayStr = argTodayStr()
+  const now = new Date()
+
+  // Smart range: start = max(today, first day of requested month)
+  // end = last day of the NEXT month (so grey overflow days have data too)
+  const firstOfMonth = `${year}-${String(month + 1).padStart(2, '0')}-01`
+  const rangeStart = todayStr > firstOfMonth ? todayStr : firstOfMonth
+  const endOfNextMonth = new Date(Date.UTC(year, month + 2, 0, 23, 59, 59))
+
+  const rangeStartDate = new Date(`${rangeStart}T00:00:00.000Z`)
+
+  const [courts, bookings] = await Promise.all([
+    getCourtsByClubId(clubId),
+    getAdminBookingsByDate(clubId, rangeStartDate, endOfNextMonth),
+  ])
+
+  // Group bookings by courtId:date for O(1) lookup
+  type BookingEntry = { startTime: string; durationMinutes: number; status: string }
+  const bookingsByKey = new Map<string, BookingEntry[]>()
+  for (const b of bookings) {
+    const key = `${b.courtId}:${b.date}`
+    const existing = bookingsByKey.get(key)
+    const entry: BookingEntry = { startTime: b.startTime, durationMinutes: b.durationMinutes, status: b.status }
+    if (existing) existing.push(entry)
+    else bookingsByKey.set(key, [entry])
+  }
+
+  const result: Record<string, number> = {}
+
+  // Iterate from rangeStart to end of next month
+  const cursor = new Date(rangeStartDate)
+  while (cursor <= endOfNextMonth) {
+    const y = cursor.getUTCFullYear()
+    const m = cursor.getUTCMonth() + 1
+    const d = cursor.getUTCDate()
+    const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const dow = cursor.getUTCDay()
+    let count = 0
+
+    for (const court of courts) {
+      const avail = court.availabilities.find((a) => a.dayOfWeek === dow)
+      if (!avail) continue
+      const courtBookings = bookingsByKey.get(`${court.id}:${dateStr}`) ?? []
+      const slots = calcAvailableSlots(
+        { openTime: avail.openTime, closeTime: avail.closeTime, pricePerHour: avail.pricePerHour },
+        courtBookings,
+        cursor,
+        now,
+        dateStr === todayStr ? MIN_ADVANCE_MINUTES : 0
+      )
+      count += slots.filter((s) => s.available).length
+    }
+
+    result[dateStr] = count
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+
+  return result
 }
 
 // ── FETCH BOOKINGS (client-callable wrapper) ─────────────────────────────

@@ -115,27 +115,26 @@ export function calcAvailableSlots(
     // Is slot too close to now? (1h advance rule, only for same-day)
     const isTooSoon = isSameDay && start < nowMinutes + minAdvanceMinutes
 
-    // Is slot blocked by an existing booking?
-    // A new booking of ANY valid duration overlaps if: start < bookingEnd AND slotEnd > bookingStart
-    // We use the largest valid duration for the most conservative overlap check.
-    const largestDuration = durationOptions[durationOptions.length - 1]
-    const slotEndMax = start + largestDuration
-
-    const isBooked = activeBookings.some((booking) => {
-      const bStart = timeToMinutes(booking.startTime)
-      const bEnd = bStart + booking.durationMinutes
-      // Overlap: ranges [start, slotEndMax) and [bStart, bEnd) intersect
-      return start < bEnd && slotEndMax > bStart
+    // For each duration, check independently whether it collides with an existing booking.
+    // A slot is visible if at least the shortest duration fits; the per-court pill buttons
+    // then show only the durations that actually fit.
+    const availableDurations = durationOptions.filter((d) => {
+      const slotEnd = start + d
+      return !activeBookings.some((booking) => {
+        const bStart = timeToMinutes(booking.startTime)
+        const bEnd = bStart + booking.durationMinutes
+        return start < bEnd && slotEnd > bStart
+      })
     })
 
-    const available = !isTooSoon && !isBooked
+    const available = !isTooSoon && availableDurations.length > 0
 
     slots.push({
       time: minutesToTime(start),
       endTime: minutesToTime(start + DEFAULT_DURATION),
       pricePerHour: config.pricePerHour,
       available,
-      durationOptions: available ? durationOptions : [],
+      durationOptions: available ? availableDurations : [],
     })
   }
 
