@@ -3,7 +3,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   cancelBooking,
-  confirmBooking,
   updatePaymentStatus,
   updateBooking,
   updateBookingPlayers,
@@ -13,6 +12,7 @@ import {
   type UpdateBookingInput,
   type ConvertToOpenMatchInput,
 } from '@/features/reservas/actions/bookings'
+import type { PaymentStatus } from '@/app/generated/prisma/enums'
 
 export function useBookingMutations(clubId: string) {
   const queryClient = useQueryClient()
@@ -51,20 +51,8 @@ export function useBookingMutations(clubId: string) {
     },
   })
 
-  const confirm = useMutation({
-    mutationFn: (id: string) => confirmBooking(id),
-    onSuccess: async (res, id) => {
-      if (res.success) {
-        patchBookingsCache((booking) =>
-          booking.id === id ? { ...booking, status: 'CONFIRMED' } : booking
-        )
-        await invalidateBookings()
-      }
-    },
-  })
-
   const updatePayment = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'PAID' | 'UNPAID' | 'MANUAL' }) =>
+    mutationFn: ({ id, status }: { id: string; status: PaymentStatus }) =>
       updatePaymentStatus(id, status),
     onSuccess: async (res, variables) => {
       if (res.success) {
@@ -146,7 +134,6 @@ export function useBookingMutations(clubId: string) {
   // 3. Devolvemos la "caja de herramientas"
   return {
     cancel,
-    confirm,
     updatePayment,
     createManual,
     updateTime,

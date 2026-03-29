@@ -38,51 +38,15 @@
   --radius: 0.75rem;
 
   /* ── Booking source colors — dark theme ── */
-  --booking-online-bg: rgba(56, 139, 253, 0.22);
-  --booking-online-border: rgba(56, 139, 253, 0.62);
-  --booking-online-bar: #388bfd;
-  --booking-online-text: #60a5ff;
-
-  --booking-manual-bg: rgba(249, 115, 22, 0.2);
-  --booking-manual-border: rgba(249, 115, 22, 0.6);
-  --booking-manual-bar: #f97316;
-  --booking-manual-text: #fb923c;
-
-  --booking-block-bg: rgba(90, 90, 90, 0.2);
-  --booking-block-border: rgba(120, 120, 120, 0.42);
-  --booking-block-bar: #6b7280;
-  --booking-block-text: #9ca3af;
-
-  --booking-recurring-bg: rgba(20, 184, 166, 0.18);
-  --booking-recurring-border: rgba(20, 184, 166, 0.55);
-  --booking-recurring-bar: #14b8a6;
-  --booking-recurring-text: #2dd4bf;
+  --booking-unified-bg: rgba(56, 139, 253, 0.15);
+  --booking-unified-border: rgba(56, 139, 253, 0.45);
+  --booking-unified-bar: #388bfd;
+  --booking-unified-text: #60a5ff;
 
   --booking-cancelled-bg: rgba(60, 60, 60, 0.1);
   --booking-cancelled-border: rgba(80, 80, 80, 0.25);
   --booking-cancelled-bar: #444444;
   --booking-cancelled-text: #555555;
-
-  /* Block subtypes — dark theme */
-  --booking-entrenamiento-bg: rgba(34, 197, 94, 0.15);
-  --booking-entrenamiento-border: rgba(34, 197, 94, 0.4);
-  --booking-entrenamiento-bar: #22c55e;
-  --booking-entrenamiento-text: #4ade80;
-
-  --booking-torneo-bg: rgba(234, 179, 8, 0.15);
-  --booking-torneo-border: rgba(234, 179, 8, 0.4);
-  --booking-torneo-bar: #eab308;
-  --booking-torneo-text: #facc15;
-
-  --booking-evento-bg: rgba(168, 85, 247, 0.15);
-  --booking-evento-border: rgba(168, 85, 247, 0.4);
-  --booking-evento-bar: #a855f7;
-  --booking-evento-text: #c084fc;
-
-  --booking-mantenimiento-bg: rgba(251, 146, 60, 0.15);
-  --booking-mantenimiento-border: rgba(251, 146, 60, 0.4);
-  --booking-mantenimiento-bar: #fb923c;
-  --booking-mantenimiento-text: #fdba74;
 
   /* Grid chrome */
   --grid-row-alt: rgba(255, 255, 255, 0.008);
@@ -135,51 +99,15 @@
   --radius: 0.75rem;
 
   /* ── Booking source colors — light theme ── */
-  --booking-online-bg: #dbeafe;
-  --booking-online-border: #93c5fd;
-  --booking-online-bar: #2563eb;
-  --booking-online-text: #1e40af;
-
-  --booking-manual-bg: #ffedd5;
-  --booking-manual-border: #fdba74;
-  --booking-manual-bar: #ea580c;
-  --booking-manual-text: #9a3412;
-
-  --booking-block-bg: #f3f4f6;
-  --booking-block-border: #d1d5db;
-  --booking-block-bar: #6b7280;
-  --booking-block-text: #374151;
-
-  --booking-recurring-bg: #ccfbf1;
-  --booking-recurring-border: #5eead4;
-  --booking-recurring-bar: #0f766e;
-  --booking-recurring-text: #115e59;
+  --booking-unified-bg: #dbeafe;
+  --booking-unified-border: #93c5fd;
+  --booking-unified-bar: #2563eb;
+  --booking-unified-text: #1d4ed8;
 
   --booking-cancelled-bg: #f9fafb;
   --booking-cancelled-border: #e5e7eb;
   --booking-cancelled-bar: #d1d5db;
   --booking-cancelled-text: #9ca3af;
-
-  /* Block subtypes — light theme */
-  --booking-entrenamiento-bg: #dcfce7;
-  --booking-entrenamiento-border: #86efac;
-  --booking-entrenamiento-bar: #16a34a;
-  --booking-entrenamiento-text: #14532d;
-
-  --booking-torneo-bg: #fef9c3;
-  --booking-torneo-border: #fde047;
-  --booking-torneo-bar: #ca8a04;
-  --booking-torneo-text: #713f12;
-
-  --booking-evento-bg: #f3e8ff;
-  --booking-evento-border: #d8b4fe;
-  --booking-evento-bar: #9333ea;
-  --booking-evento-text: #581c87;
-
-  --booking-mantenimiento-bg: #fff7ed;
-  --booking-mantenimiento-border: #fdba74;
-  --booking-mantenimiento-bar: #ea580c;
-  --booking-mantenimiento-text: #7c2d12;
 
   /* Grid chrome */
   --grid-row-alt: rgba(0, 0, 0, 0.018);
@@ -307,71 +235,66 @@ body {
   transform: scaleX(0.985);
 }
 
-/* Source variants */
-.booking-block-online {
-  background-color: var(--booking-online-bg);
-  border-color: var(--booking-online-border);
-  border-left-color: var(--booking-online-bar);
-  color: var(--booking-online-text);
+/* Source variants — all unified to blue */
+.booking-block-online,
+.booking-block-manual,
+.booking-block-block,
+.booking-block-recurring,
+.booking-block-entrenamiento,
+.booking-block-torneo,
+.booking-block-evento {
+  background-color: var(--booking-unified-bg);
+  border-color: var(--booking-unified-border);
+  border-left-color: var(--booking-unified-bar);
+  color: var(--booking-unified-text);
 }
 
-.booking-block-manual {
-  background-color: var(--booking-manual-bg);
-  border-color: var(--booking-manual-border);
-  border-left-color: var(--booking-manual-bar);
-  color: var(--booking-manual-text);
-}
-
-.booking-block-block {
-  background-color: var(--booking-block-bg);
+/* Mantenimiento — gray diagonal stripe */
+.booking-block-mantenimiento {
+  background-color: rgba(90, 90, 90, 0.1);
   background-image: repeating-linear-gradient(
     -45deg,
     transparent,
-    transparent 5px,
-    rgba(128, 128, 128, 0.07) 5px,
-    rgba(128, 128, 128, 0.07) 10px
+    transparent 6px,
+    rgba(150, 150, 150, 0.1) 6px,
+    rgba(150, 150, 150, 0.1) 12px
   );
   border-style: dashed !important;
-  border-color: var(--booking-block-border);
-  border-left-color: var(--booking-block-bar);
   border-left-style: solid !important;
-  color: var(--booking-block-text);
+  border-color: rgba(120, 120, 120, 0.35);
+  border-left-color: #6b7280 !important;
+  color: #9ca3af;
 }
 
-/* Block subtypes */
-.booking-block-entrenamiento {
-  background-color: var(--booking-entrenamiento-bg);
-  border-color: var(--booking-entrenamiento-border);
-  border-left-color: var(--booking-entrenamiento-bar);
-  color: var(--booking-entrenamiento-text);
-}
-
-.booking-block-torneo {
-  background-color: var(--booking-torneo-bg);
-  border-color: var(--booking-torneo-border);
-  border-left-color: var(--booking-torneo-bar);
-  color: var(--booking-torneo-text);
-}
-
-.booking-block-evento {
-  background-color: var(--booking-evento-bg);
-  border-color: var(--booking-evento-border);
-  border-left-color: var(--booking-evento-bar);
-  color: var(--booking-evento-text);
-}
-
-.booking-block-mantenimiento {
-  background-color: var(--booking-mantenimiento-bg);
-  border-color: var(--booking-mantenimiento-border);
-  border-left-color: var(--booking-mantenimiento-bar);
-  color: var(--booking-mantenimiento-text);
+[data-theme='light'] .booking-block-mantenimiento {
+  background-color: rgba(200, 200, 200, 0.18);
   background-image: repeating-linear-gradient(
     -45deg,
     transparent,
-    transparent 5px,
-    rgba(128, 128, 128, 0.07) 5px,
-    rgba(128, 128, 128, 0.07) 10px
+    transparent 6px,
+    rgba(0, 0, 0, 0.055) 6px,
+    rgba(0, 0, 0, 0.055) 12px
   );
+  border-color: #d1d5db;
+  border-left-color: #6b7280 !important;
+  color: #374151;
+}
+
+/* Drag-to-create ghost */
+.booking-block-create-preview {
+  background-color: color-mix(in srgb, var(--booking-unified-bg) 70%, transparent);
+  border: 2px dashed var(--booking-unified-border);
+  border-left: 4px solid var(--booking-unified-bar);
+  color: var(--booking-unified-text);
+  border-radius: 8px;
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 45;
+}
+
+.booking-block-create-preview.is-pending {
+  border-style: solid;
+  opacity: 0.9;
 }
 
 /* Payment status — left border accent overrides source color */
@@ -383,24 +306,12 @@ body {
   border-left-color: #4ade80 !important; /* green-400 */
 }
 
-.booking-block-unconfirmed {
-  border-style: dashed !important;
-  opacity: 0.75;
-}
-
 .booking-block-cancelled {
   background-color: var(--booking-cancelled-bg);
   border-color: var(--booking-cancelled-border);
   border-left-color: var(--booking-cancelled-bar);
   color: var(--booking-cancelled-text);
   opacity: 0.55;
-}
-
-.booking-block-recurring {
-  background-color: var(--booking-recurring-bg);
-  border-color: var(--booking-recurring-border);
-  border-left-color: var(--booking-recurring-bar);
-  color: var(--booking-recurring-text);
 }
 
 /* ── Light theme overrides for booking block internals ── */

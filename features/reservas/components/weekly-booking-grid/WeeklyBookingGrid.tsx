@@ -4,13 +4,11 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { BookingBlock } from '../booking-grid/BookingGrid'
 import BookingDetailModal from '../booking-grid/BookingDetailModal/BookingDetailModal'
+import { timeToMinutes, minutesToTime, formatPrice } from '@/lib/availability'
 import {
   SLOT_HEIGHT,
   TIME_COL_WIDTH,
   TOOLTIP_DELAY_MS,
-  timeToMinutes,
-  minutesToTime,
-  formatPrice,
   getLocalDateStr,
   clampTooltipPosition,
   getBlockClass,

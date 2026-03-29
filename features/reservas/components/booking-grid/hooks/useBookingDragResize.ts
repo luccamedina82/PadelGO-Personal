@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, type RefObject, type PointerEvent as ReactPointerEvent } from 'react'
 import { toast } from 'sonner'
-import { minutesToTime, timeToMinutes, SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
+import { minutesToTime, timeToMinutes } from '@/lib/availability'
+import { SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
 import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
 import type { BookingBlock, CourtColumn } from '../types/bookingGrid.types'
 

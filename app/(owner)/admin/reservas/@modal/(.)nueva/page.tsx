@@ -12,7 +12,6 @@ interface Props {
 export default async function NuevaReservaModalPage({ searchParams }: Props) {
   const { courtId: defaultCourtId, date: dateParam, time: defaultTime } = await searchParams
   const { club } = await getAdminContext(['OWNER', 'STAFF'])
-  console.log({dateParam})
   if (!club) return null
 
   const { courts, courtSlotsByDate, availableDates, dateHasSlots, durationOptions } =

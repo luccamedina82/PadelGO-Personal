@@ -5,14 +5,14 @@ import { COURT_COLORS, SOURCE_FILTERS, type SourceFilterKey } from '../helpers/b
 import type { CourtColumn } from '../types/bookingGrid.types'
 
 const SOURCE_COLOR_VAR: Record<string, string> = {
-  ONLINE:         'var(--booking-online-bar)',
-  MANUAL:         'var(--booking-manual-bar)',
-  BLOCK:          'var(--booking-block-bar)',
-  RECURRING:      'var(--booking-recurring-bar)',
-  ENTRENAMIENTO:  'var(--booking-entrenamiento-bar)',
-  TORNEO:         'var(--booking-torneo-bar)',
-  EVENTO:         'var(--booking-evento-bar)',
-  MANTENIMIENTO:  'var(--booking-mantenimiento-bar)',
+  ONLINE:         'var(--booking-unified-bar)',
+  MANUAL:         'var(--booking-unified-bar)',
+  BLOCK:          'var(--booking-unified-bar)',
+  RECURRING:      'var(--booking-unified-bar)',
+  ENTRENAMIENTO:  'var(--booking-unified-bar)',
+  TORNEO:         'var(--booking-unified-bar)',
+  EVENTO:         'var(--booking-unified-bar)',
+  MANTENIMIENTO:  '#6b7280',
 }
 
 const FILTER_CATEGORIES: { label: string; keys: Array<SourceFilterKey> }[] = [
@@ -26,14 +26,11 @@ interface BookingGridFilterBarProps {
   focusCourtIds: string[]
   typeFilter: SourceFilterKey
   paymentFilter: 'PAID' | 'UNPAID' | null
-  statusFilter: 'PENDING' | null
   unpaidCount: number
-  pendingCount: number
   onCourtToggle: (id: string) => void
   onClearCourts: () => void
   onTypeFilterChange: (key: SourceFilterKey) => void
   onPaymentFilterChange: (key: 'PAID' | 'UNPAID' | null) => void
-  onStatusFilterChange: (key: 'PENDING' | null) => void
 }
 
 function courtLabel(name: string): string {
@@ -47,14 +44,11 @@ export default function BookingGridFilterBar({
   focusCourtIds,
   typeFilter,
   paymentFilter,
-  statusFilter,
   unpaidCount,
-  pendingCount,
   onCourtToggle,
   onClearCourts,
   onTypeFilterChange,
   onPaymentFilterChange,
-  onStatusFilterChange,
 }: BookingGridFilterBarProps) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -203,20 +197,6 @@ export default function BookingGridFilterBar({
         Cobradas
       </button>
 
-      <div className="w-px h-4 bg-border shrink-0" />
-
-      <button
-        onClick={() => onStatusFilterChange(statusFilter === 'PENDING' ? null : 'PENDING')}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
-          ${statusFilter === 'PENDING'
-            ? 'bg-amber-500/12 border-amber-500/40 text-amber-400'
-            : 'bg-card border-border text-muted hover:text-text hover:border-border-hover'
-          }`}
-      >
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusFilter === 'PENDING' ? 'bg-amber-400' : 'bg-muted/40'}`} />
-        Sin confirmar
-      </button>
-
       {/* ── Divisor ─────────────────────────────────────── */}
       {courts.length > 1 && <div className="w-px h-4 bg-border shrink-0" />}
 
@@ -270,13 +250,7 @@ export default function BookingGridFilterBar({
             {unpaidCount} sin cobrar
           </span>
         )}
-        {pendingCount > 0 && (
-          <span className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-            {pendingCount} por confirmar
-          </span>
-        )}
-        {unpaidCount === 0 && pendingCount === 0 && (
+        {unpaidCount === 0 && (
           <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
             Todo al día

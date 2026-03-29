@@ -1,5 +1,6 @@
 import type { BookingBlock } from '../../types/bookingGrid.types'
-import { formatPrice, isBlockSource } from '../../helpers/bookingGrid.helpers'
+import { formatPrice } from '@/lib/availability'
+import { isBlockSource } from '../../helpers/bookingGrid.helpers'
 
 interface BookingDetailInfoSectionProps {
   booking: BookingBlock

@@ -11,24 +11,26 @@ import BookingBlockCell from './BookingBlockCell/BookingBlockCell'
 import BookingGridTooltips from './BookingGridTooltips/BookingGridTooltips'
 import BookingGridSkeleton from './BookingGridSkeleton/BookingGridSkeleton'
 import { useBookingDragResize } from './hooks/useBookingDragResize'
+import { useBookingDragCreate } from './hooks/useBookingDragCreate'
+import DragCreatePopover from './DragCreatePopover/DragCreatePopover'
 import type {
   BookingBlock,
   BookingGridProps,
   CourtColumn,
   UpdateBookingData,
 } from './types/bookingGrid.types'
+import { minutesToTime, timeToMinutes } from '@/lib/availability'
+import { createManualBooking } from '@/features/reservas/actions/bookings'
+import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import {
   SLOT_HEIGHT,
   TIME_COL_WIDTH,
   TOOLTIP_DELAY_MS,
-  BLOCK_SOURCES,
   clampTooltipPosition,
   getBlockClass,
   getLocalDateStr,
   isBlockSource,
-  minutesToTime,
   shouldUpdateTooltipPosition,
-  timeToMinutes,
   type SourceFilterKey,
 } from './helpers/bookingGrid.helpers'
 
@@ -70,7 +72,6 @@ export default function BookingGrid({
   const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<SourceFilterKey>(null)
   const [paymentFilter, setPaymentFilter] = useState<'PAID' | 'UNPAID' | null>(null)
-  const [statusFilter, setStatusFilter] = useState<'PENDING' | null>(null)
   const [openInEditMode, setOpenInEditMode] = useState(false)
 
   const [tooltip, setTooltip] = useState<{
@@ -136,10 +137,9 @@ export default function BookingGrid({
           if (paymentFilter === 'PAID' && b.paymentStatus !== 'PAID') return false
           if (paymentFilter === 'UNPAID' && (b.paymentStatus === 'PAID' || b.paymentStatus === 'MANUAL')) return false
         }
-        if (statusFilter === 'PENDING' && b.status !== 'PENDING') return false
         return true
       }),
-    [bookings, typeFilter, paymentFilter, statusFilter]
+    [bookings, typeFilter, paymentFilter]
   )
 
 
@@ -156,14 +156,11 @@ export default function BookingGrid({
     [bookings]
   )
 
-  const pendingCount = useMemo(
-    () => bookings.filter((b) => b.status === 'PENDING').length,
-    [bookings]
-  )
-
   const visibleCourtCount = visibleCourts.length
 
   // ── Drag / resize ────────────────────────────────────────────────────
+
+  const resolvedClubId = clubId ?? bookings[0]?.clubId ?? ''
 
   const {
     draggingId,
@@ -174,7 +171,7 @@ export default function BookingGrid({
     handleDragStart,
     handleResizeStart,
   } = useBookingDragResize({
-    clubId: clubId ?? bookings[0]?.clubId ?? '',
+    clubId: resolvedClubId,
     gridStart,
     gridEnd,
     visibleCourts,
@@ -182,6 +179,28 @@ export default function BookingGrid({
     containerRef,
     gridBodyRef,
   })
+
+  // ── Drag-to-create ───────────────────────────────────────────────────
+
+  const {
+    createGhost,
+    pendingCreate,
+    handleCreateStart,
+    handleCancelCreate,
+  } = useBookingDragCreate({
+    gridStart,
+    gridEnd,
+    visibleCourts,
+    colWidth,
+    containerRef,
+    gridBodyRef,
+    onEmptyClick: handleEmptyClick,
+  })
+
+  function handleDragCreated(bookingId: string | undefined) {
+    handleCancelCreate()
+    window.dispatchEvent(new CustomEvent('reservas:refresh', { detail: { bookingId } }))
+  }
 
   // Apply local overrides for optimistic drag/resize rendering
   const effectiveBookings = useMemo(() => {
@@ -351,14 +370,11 @@ export default function BookingGrid({
         focusCourtIds={focusCourtIds}
         typeFilter={typeFilter}
         paymentFilter={paymentFilter}
-        statusFilter={statusFilter}
         unpaidCount={unpaidCount}
-        pendingCount={pendingCount}
         onCourtToggle={toggleCourtFilter}
         onClearCourts={() => setFocusCourtIds([])}
         onTypeFilterChange={setTypeFilter}
         onPaymentFilterChange={setPaymentFilter}
-        onStatusFilterChange={setStatusFilter}
       />
 
       <div className="grow min-h-0 relative overflow-hidden">
@@ -420,7 +436,7 @@ export default function BookingGrid({
                         }
                         onMouseMove={(e) => !isPast && handleSlotMouseMove(e.clientX, e.clientY)}
                         onMouseLeave={handleSlotMouseLeave}
-                        onClick={() => !isPast && handleEmptyClick(court.id, slotMin)}
+                        onPointerDown={(e) => !isPast && !draggingId && handleCreateStart(court.id, courtIndex, slotMin, e)}
                       >
                         {!isPast && (
                           <span className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-150 bg-(--grid-slot-hover) group-hover:opacity-100" />
@@ -501,6 +517,28 @@ export default function BookingGrid({
                 </div>
               )
             })()}
+
+            {/* Drag-create ghost */}
+            {createGhost && (
+              <div
+                className={`booking-block-create-preview absolute${pendingCreate ? ' is-pending' : ''}`}
+                style={{
+                  top: ((createGhost.startMin - gridStart) / 30) * SLOT_HEIGHT + 2,
+                  left: TIME_COL_WIDTH + createGhost.courtIndex * colWidth + 5,
+                  width: colWidth - 10,
+                  height: Math.max((createGhost.durationMinutes / 30) * SLOT_HEIGHT - 3, 22),
+                  padding: '8px 10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+              >
+                <p className="text-[11px] font-bold leading-tight">Nueva reserva</p>
+                <p className="text-[10px] font-mono leading-tight opacity-70">
+                  {minutesToTime(createGhost.startMin)} – {minutesToTime(createGhost.startMin + createGhost.durationMinutes)}
+                </p>
+              </div>
+            )}
 
             {currentLineTop !== null && currentMinutes !== null && (
               <div
@@ -591,7 +629,18 @@ export default function BookingGrid({
           tooltip={tooltip}
           slotTooltip={slotTooltip}
           selectedBooking={selectedBooking}
-          highlightedBooking={highlightedBooking}
+        />
+      )}
+
+      {pendingCreate && (
+        <DragCreatePopover
+          pendingCreate={pendingCreate}
+          clubId={resolvedClubId}
+          date={date}
+          courts={courts}
+          createManualBookingAction={createManualBooking}
+          onCancel={handleCancelCreate}
+          onCreated={handleDragCreated}
         />
       )}
     </>

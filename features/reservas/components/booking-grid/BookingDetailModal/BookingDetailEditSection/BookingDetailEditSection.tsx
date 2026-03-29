@@ -1,4 +1,4 @@
-import { minutesToTime, timeToMinutes } from '../../helpers/bookingGrid.helpers'
+import { minutesToTime, timeToMinutes } from '@/lib/availability'
 
 const ALL_DURATIONS: number[] = [60, 90, 120]
 

@@ -3,44 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
-import { formatPrice, getSourceLabel, isBlockSource, minutesToTime, timeToMinutes } from '../helpers/bookingGrid.helpers'
+import { formatPrice, minutesToTime, timeToMinutes } from '@/lib/availability'
+import { getSourceLabel, isBlockSource } from '../helpers/bookingGrid.helpers'
 import type { BookingBlock } from '../types/bookingGrid.types'
 
 const POPOVER_WIDTH = 264
 const POPOVER_MARGIN = 10
 
-function typeColorVars(cssVar: string) {
-  return {
-    bar: `var(${cssVar}-bar)`,
-    bg: `color-mix(in srgb, var(${cssVar}-bar) 10%, transparent)`,
-    text: `var(${cssVar}-bar)`,
-    subtext: `color-mix(in srgb, var(${cssVar}-bar) 65%, transparent)`,
-  }
-}
-
-const TYPE_COLORS: Record<string, { bar: string; bg: string; text: string; subtext: string }> = {
-  'booking-block-online':        typeColorVars('--booking-online'),
-  'booking-block-manual':        typeColorVars('--booking-manual'),
-  'booking-block-block':         typeColorVars('--booking-block'),
-  'booking-block-recurring':     typeColorVars('--booking-recurring'),
-  'booking-block-entrenamiento': typeColorVars('--booking-entrenamiento'),
-  'booking-block-torneo':        typeColorVars('--booking-torneo'),
-  'booking-block-evento':        typeColorVars('--booking-evento'),
-  'booking-block-mantenimiento': typeColorVars('--booking-mantenimiento'),
-  'booking-block-cancelled':     { bar: '#6b7280', bg: 'rgba(107,114,128,0.08)', text: '#6b7280', subtext: '#4b5563' },
-}
-
-function getTypeColor(source: string, status: string, recurringBookingId?: string | null) {
-  if (status === 'CANCELLED') return TYPE_COLORS['booking-block-cancelled']!
-  if (source === 'BLOCK' && recurringBookingId) return TYPE_COLORS['booking-block-recurring']!
-  if (source === 'BLOCK') return TYPE_COLORS['booking-block-block']!
-  if (source === 'ENTRENAMIENTO') return TYPE_COLORS['booking-block-entrenamiento']!
-  if (source === 'TORNEO') return TYPE_COLORS['booking-block-torneo']!
-  if (source === 'EVENTO') return TYPE_COLORS['booking-block-evento']!
-  if (source === 'MANTENIMIENTO') return TYPE_COLORS['booking-block-mantenimiento']!
-  if (source === 'ONLINE') return TYPE_COLORS['booking-block-online']!
-  return TYPE_COLORS['booking-block-manual']!
-}
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -74,8 +43,8 @@ export default function BookingQuickPopover({
   const popoverRef = useRef<HTMLDivElement>(null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
 
-  const { cancel, confirm, updatePayment } = useBookingMutations(b.clubId ?? '')
-  const loading = cancel.isPending || confirm.isPending || updatePayment.isPending
+  const { cancel, updatePayment } = useBookingMutations(b.clubId ?? '')
+  const loading = cancel.isPending || updatePayment.isPending
 
   // ── Positioning ───────────────────────────────────────────────────────
   const pos = (() => {
@@ -116,7 +85,6 @@ export default function BookingQuickPopover({
   }, [onClose])
 
   // ── Derived data ─────────────────────────────────────────────────────
-  const color = getTypeColor(b.source, b.status, b.recurringBookingId)
   const endTime = minutesToTime(timeToMinutes(b.startTime) + b.durationMinutes)
   const durationHours = b.durationMinutes / 60
   const durationLabel = durationHours === Math.floor(durationHours)
@@ -127,7 +95,6 @@ export default function BookingQuickPopover({
   const isCancelled = b.status === 'CANCELLED'
   const isPaid = b.paymentStatus === 'PAID'
   const isUnpaid = !isPaid && !isCancelled
-  const isPending = b.status === 'PENDING'
   const primaryPlayer = b.playerDetails?.[0]
   const phone = b.manualPhone ?? null
   const typeLabel = getSourceLabel(b.source, b.status, b.recurringBookingId)
@@ -139,12 +106,6 @@ export default function BookingQuickPopover({
     const res = await updatePayment.mutateAsync({ id: b.id, status: newStatus })
     if (!res.success) { toast.error(res.error ?? 'Error al actualizar.'); return }
     toast.success(newStatus === 'PAID' ? 'Reserva cobrada.' : 'Marcada como sin cobrar.')
-    onClose()
-  }
-
-  async function handleConfirmBooking() {
-    const res = await confirm.mutateAsync(b.id)
-    if (!res.success) { toast.error(res.error ?? 'Error al confirmar.'); return }
     onClose()
   }
 
@@ -163,36 +124,29 @@ export default function BookingQuickPopover({
         left: pos.left,
         top: pos.top,
         width: POPOVER_WIDTH,
-        borderColor: `color-mix(in srgb, ${color.bar} 30%, var(--border))`,
+        borderColor: 'var(--border-hover)',
         background: 'var(--card)',
       }}
     >
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div
         className="px-3.5 pt-3 pb-2.5"
-        style={{ background: color.bg, borderBottom: `1px solid color-mix(in srgb, ${color.bar} 20%, var(--border))` }}
+        style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[13px] font-bold leading-snug truncate" style={{ color: color.text }}>
+            <p className="text-[13px] font-bold leading-snug truncate text-text">
               {b.displayName}
             </p>
-            <p className="text-[11px] mt-0.5" style={{ color: color.subtext }}>
+            <p className="text-[11px] mt-0.5 text-muted">
               {b.startTime} – {endTime} &nbsp;·&nbsp; {durationLabel}
             </p>
-            <p className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>
+            <p className="text-[11px] mt-0.5 text-muted">
               {courtName}
             </p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <span
-              className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
-              style={{
-                background: `color-mix(in srgb, ${color.bar} 15%, transparent)`,
-                color: color.text,
-                border: `1px solid color-mix(in srgb, ${color.bar} 30%, transparent)`,
-              }}
-            >
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-surface border border-border text-muted">
               {typeLabel}
             </span>
             <button
@@ -213,14 +167,7 @@ export default function BookingQuickPopover({
           className="flex items-center gap-2.5 px-3.5 py-2.5"
           style={{ borderBottom: '1px solid var(--border)' }}
         >
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-            style={{
-              background: color.bg,
-              border: `1px solid color-mix(in srgb, ${color.bar} 30%, transparent)`,
-              color: color.text,
-            }}
-          >
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 bg-surface border border-border text-muted">
             {initials(primaryPlayer?.name ?? b.displayName)}
           </div>
           <div className="min-w-0">
@@ -316,22 +263,6 @@ export default function BookingQuickPopover({
       {/* ── Acciones ────────────────────────────────────────────────── */}
       {!confirmingCancel && (
         <div className="flex flex-col">
-          {/* Confirmar — solo si pendiente */}
-          {!isBlock && !isCancelled && isPending && (
-            <button
-              onClick={handleConfirmBooking}
-              disabled={loading}
-              className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-semibold transition-colors disabled:opacity-40"
-              style={{
-                borderBottom: '1px solid var(--border)',
-                background: 'rgba(217,249,36,0.08)',
-                color: 'var(--accent)',
-              }}
-            >
-              {loading ? 'Confirmando...' : 'Confirmar reserva'}
-            </button>
-          )}
-
           {/* Ver detalle + Editar */}
           <div className="grid grid-cols-2" style={{ borderBottom: '1px solid var(--border)' }}>
             <button

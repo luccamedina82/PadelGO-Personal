@@ -1,4 +1,5 @@
-import { SLOT_HEIGHT, TIME_COL_WIDTH, minutesToTime } from '../helpers/bookingGrid.helpers'
+import { minutesToTime } from '@/lib/availability'
+import { SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
 
 interface BookingGridTimeColumnProps {
   gridStart: number

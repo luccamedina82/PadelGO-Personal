@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
 import type { BookingBlock } from '../types/bookingGrid.types'
+import { minutesToTime, timeToMinutes } from '@/lib/availability'
 import {
   getBlockClass,
   isBlockSource,
-  minutesToTime,
-  timeToMinutes,
 } from '../helpers/bookingGrid.helpers'
+import type { BookingSource } from '@/app/generated/prisma/enums'
 import BookingDetailInfoSection from './BookingDetailInfoSection/BookingDetailInfoSection'
 import BookingDetailEditSection from './BookingDetailEditSection/BookingDetailEditSection'
 import BookingDetailPaymentSection from './BookingDetailPaymentSection/BookingDetailPaymentSection'
@@ -34,12 +34,11 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
   const [localPlayers, setLocalPlayers] = useState<{ id: string; name: string }[]>([])
   const [localPaidIds, setLocalPaidIds] = useState<string[]>([])
   const [playersDirty, setPlayersDirty] = useState(false)
-  const { cancel, confirm, updatePayment, updateTime, updatePlayers } = useBookingMutations(
+  const { cancel, updatePayment, updateTime, updatePlayers } = useBookingMutations(
     booking?.clubId ?? ''
   )
   const loading =
     cancel.isPending ||
-    confirm.isPending ||
     updatePayment.isPending ||
     updateTime.isPending ||
     updatePlayers.isPending
@@ -110,17 +109,6 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
     }
   }
 
-  async function handleConfirm() {
-    setError(null)
-    try {
-      const res = await confirm.mutateAsync(activeBooking.id)
-      if (!res.success) { setError(res.error ?? 'Error al confirmar. Intentá de nuevo.'); return }
-      onClose()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al confirmar. Intentá de nuevo.')
-    }
-  }
-
   async function handlePayment(status: 'PAID' | 'UNPAID') {
     setError(null)
     try {
@@ -170,7 +158,7 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
     timeToMinutes(activeBooking.startTime) + activeBooking.durationMinutes
   )
 
-  const SOURCE_LABELS: Record<string, string> = {
+  const SOURCE_LABELS: Partial<Record<BookingSource, string>> = {
     ENTRENAMIENTO: 'Entrenamiento',
     TORNEO: 'Torneo',
     EVENTO: 'Evento',
@@ -191,14 +179,14 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
       ? 'Confirmada'
       : activeBooking.status === 'CANCELLED'
         ? 'Cancelada'
-        : 'Pendiente'
+        : 'Sin confirmar'
 
   const statusColor =
     activeBooking.status === 'CONFIRMED'
       ? 'text-accent'
       : activeBooking.status === 'CANCELLED'
         ? 'text-red-400'
-        : 'text-orange-400'
+        : 'text-muted'
 
   const payLabel =
     activeBooking.paymentStatus === 'PAID'
@@ -302,7 +290,6 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
           onCancelEdit={defaultEditing ? onClose : () => { setIsEditing(false); setError(null) }}
           onSaveEdit={handleSaveEdit}
           onCancel={handleCancel}
-          onConfirm={handleConfirm}
           onPayment={handlePayment}
           onEdit={openEdit}
         />

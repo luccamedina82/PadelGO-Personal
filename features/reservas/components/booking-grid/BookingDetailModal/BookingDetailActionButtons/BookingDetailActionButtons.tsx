@@ -9,7 +9,6 @@ interface BookingDetailActionButtonsProps {
   onCancelEdit: () => void
   onSaveEdit: () => void
   onCancel: () => void
-  onConfirm: () => void
   onPayment: (status: 'PAID' | 'UNPAID') => void
   onEdit: () => void
 }
@@ -21,7 +20,6 @@ export default function BookingDetailActionButtons({
   onCancelEdit,
   onSaveEdit,
   onCancel,
-  onConfirm,
   onPayment,
   onEdit,
 }: BookingDetailActionButtonsProps) {
@@ -110,16 +108,6 @@ export default function BookingDetailActionButtons({
                          hover:text-text hover:border-border-hover transition-colors disabled:opacity-40"
             >
               Editar
-            </button>
-          )}
-          {booking.status === 'PENDING' && (
-            <button
-              onClick={onConfirm}
-              disabled={loading}
-              className="flex-1 py-2.5 rounded-xl bg-accent text-accent-text text-sm font-semibold
-                         hover:bg-accent-dark transition-colors disabled:opacity-40"
-            >
-              {loading ? 'Confirmando...' : 'Confirmar'}
             </button>
           )}
           <button

@@ -1,9 +1,7 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
+import { timeToMinutes, minutesToTime, formatPrice } from '@/lib/availability'
 import {
   SLOT_HEIGHT,
-  timeToMinutes,
-  minutesToTime,
-  formatPrice,
   getBlockClass,
   isBlockSource,
 } from '../helpers/bookingGrid.helpers'
@@ -39,14 +37,6 @@ function IconCheck({ className }: { className?: string }) {
   )
 }
 
-function IconClock({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 12 12" fill="none">
-      <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M6 3.5V6l1.5 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
 
 export default function BookingBlockCell({
   booking: b,
@@ -75,7 +65,6 @@ export default function BookingBlockCell({
 
   const isPaid = b.paymentStatus === 'PAID'
   const isUnpaid = !isPaid
-  const isUnconfirmed = b.status === 'PENDING'
   const isCancelled = b.status === 'CANCELLED'
   const isBlock = isBlockSource(b.source)
   const showPaymentRow = height > 52 && !isBlock && !isCancelled
@@ -95,7 +84,6 @@ export default function BookingBlockCell({
         'booking-block group',
         blockCls,
         !isBlock && !isCancelled ? (isPaid ? 'booking-block-paid' : 'booking-block-unpaid') : '',
-        isUnconfirmed ? 'booking-block-unconfirmed' : '',
         isHighlighted ? 'booking-block-highlighted' : '',
         isPast && !isDragging ? 'opacity-40 grayscale-[0.4]' : '',
         isDragging
@@ -118,10 +106,9 @@ export default function BookingBlockCell({
       onMouseMove={(e) => !isDragging && onTooltipMove(e.clientX, e.clientY)}
       onMouseLeave={onTooltipLeave}
     >
-      {/* Name + unconfirmed clock */}
+      {/* Name */}
       <div className="flex items-start gap-1 min-w-0">
         <p className="text-[13px] font-bold leading-tight line-clamp-2 flex-1">{b.displayName}</p>
-        {isUnconfirmed && <IconClock className="w-3.5 h-3.5 shrink-0 opacity-80 mt-px" />}
       </div>
 
       {/* Time range + compact payment dot */}

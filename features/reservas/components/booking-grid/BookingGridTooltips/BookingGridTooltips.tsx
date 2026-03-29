@@ -1,38 +1,30 @@
 import type { BookingBlock } from '../types/bookingGrid.types'
-import { formatPrice, isBlockSource, minutesToTime, timeToMinutes } from '../helpers/bookingGrid.helpers'
+import { formatPrice, minutesToTime, timeToMinutes } from '@/lib/availability'
+import { isBlockSource, getSourceLabel } from '../helpers/bookingGrid.helpers'
 
 interface BookingGridTooltipsProps {
   tooltip: { booking: BookingBlock; x: number; y: number } | null
   slotTooltip: { courtName: string; time: string; x: number; y: number } | null
   selectedBooking: BookingBlock | null
-  highlightedBooking: BookingBlock | undefined
 }
 
 export default function BookingGridTooltips({
   tooltip,
   slotTooltip,
   selectedBooking,
-  highlightedBooking,
 }: BookingGridTooltipsProps) {
   return (
     <>
-      { highlightedBooking && !selectedBooking && (
-        <div className="booking-new-toast" role="status" aria-live="polite">
-          <p className="booking-new-toast-title">Reserva nueva detectada</p>
-          <p className="booking-new-toast-sub">
-            {highlightedBooking.displayName} · {highlightedBooking.startTime}
-          </p>
-        </div>
-      )}
 
       {tooltip && !selectedBooking && (
         <div
           className="fixed z-50 pointer-events-none bg-surface/95 backdrop-blur-md border border-border-hover/70 rounded-xl shadow-2xl px-3 py-2.5 min-w-42.5 max-w-55"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
-          <p className="text-sm font-semibold text-text truncate mb-1">
-            {tooltip.booking.displayName}
-          </p>
+          <p className="text-sm font-semibold text-text truncate">{tooltip.booking.displayName}</p>
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-surface border border-border text-muted mb-1 inline-block">
+            {getSourceLabel(tooltip.booking.source, tooltip.booking.status, tooltip.booking.recurringBookingId)}
+          </span>
           <p className="text-xs font-mono text-muted">
             {tooltip.booking.startTime} –{' '}
             {minutesToTime(

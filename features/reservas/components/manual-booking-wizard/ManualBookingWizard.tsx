@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { ManualBookingWizardProps, BookingType } from './types/manualBookingWizard.types'
@@ -39,6 +39,31 @@ export default function ManualBookingWizard({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const calendarBtnRef = useRef<HTMLButtonElement>(null)
+  const wizardRef = useRef<HTMLDivElement>(null)
+
+  // Focus trap
+  useEffect(() => {
+    const el = wizardRef.current
+    if (!el) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Tab') return
+      const focusable = Array.from(
+        el!.querySelectorAll<HTMLElement>(
+          'button:not([disabled]):not([tabindex="-1"]), input:not([disabled]):not([tabindex="-1"]), select:not([disabled]):not([tabindex="-1"]), a[href]'
+        )
+      ).filter((n) => !n.closest('[aria-hidden="true"]'))
+      if (focusable.length === 0) return
+      const first = focusable[0]!
+      const last = focusable[focusable.length - 1]!
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus() }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus() }
+      }
+    }
+    el.addEventListener('keydown', handleKeyDown)
+    return () => el.removeEventListener('keydown', handleKeyDown)
+  }, [])
   const [error, setError] = useState<string | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
 
@@ -155,7 +180,7 @@ export default function ManualBookingWizard({
                     focus:border-accent font-[inherit] focus-visible:ring-2 focus-visible:ring-accent/50`
 
   return (
-    <div className="relative flex flex-col h-full bg-bg overflow-hidden">
+    <div ref={wizardRef} className="relative flex flex-col h-full bg-bg overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
         <h2 className="font-display text-[20px] tracking-[3px] leading-none text-text">NUEVA RESERVA</h2>
@@ -221,9 +246,10 @@ export default function ManualBookingWizard({
                         <button
                           key={t}
                           type="button"
+                          tabIndex={-1}
                           onClick={() => handleSelectTime(t)}
                           className={`py-[8px] px-[10px] rounded-[10px] border text-[11px] font-mono font-semibold
-                                      cursor-pointer transition-all duration-[120ms] active:scale-95 ${ring}
+                                      cursor-pointer transition-all duration-[120ms] active:scale-95
                                       ${isActive
                                         ? 'bg-accent border-accent text-accent-text font-bold'
                                         : 'border-border bg-card text-muted hover:border-border-hover hover:text-text'
@@ -268,9 +294,10 @@ export default function ManualBookingWizard({
                               <button
                                 key={d}
                                 type="button"
+                                tabIndex={-1}
                                 onClick={() => handleSelectCourtDuration(c.id, d)}
                                 className={`px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer
-                                            transition-all duration-[120ms] active:scale-95 ${ring}
+                                            transition-all duration-[120ms] active:scale-95
                                             ${isActive
                                               ? 'bg-accent text-accent-text'
                                               : 'bg-surface border border-border text-muted hover:border-accent/60 hover:text-text'

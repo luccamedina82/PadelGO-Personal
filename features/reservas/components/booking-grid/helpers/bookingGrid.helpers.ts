@@ -1,3 +1,6 @@
+import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
+export { BLOCK_SOURCES }
+
 export const SLOT_HEIGHT = 64 // px per 30-min row
 export const TIME_COL_WIDTH = 52 // px
 
@@ -38,25 +41,6 @@ export const SOURCE_FILTERS: ReadonlyArray<{ key: SourceFilterKey; label: string
   { key: 'BLOCK',        label: 'Bloqueo' },
 ]
 
-export function timeToMinutes(time: string): number {
-  const [h, m] = time.split(':').map(Number)
-  return (h ?? 0) * 60 + (m ?? 0)
-}
-
-export function minutesToTime(mins: number): string {
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
-export function formatPrice(centavos: number): string {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    minimumFractionDigits: 0,
-  }).format(centavos / 100)
-}
-
 export function getLocalDateStr(): string {
   // Usar timezone ARG para consistencia con el servidor (America/Argentina/Buenos_Aires = UTC-3)
   const d = new Date()
@@ -96,15 +80,6 @@ export function clampTooltipPosition(
     y: Math.max(margin, nextY),
   }
 }
-
-/** All sources that represent a "block" (no player, no payment) */
-export const BLOCK_SOURCES = new Set([
-  'BLOCK',
-  'ENTRENAMIENTO',
-  'TORNEO',
-  'EVENTO',
-  'MANTENIMIENTO',
-])
 
 export function isBlockSource(source: string): boolean {
   return BLOCK_SOURCES.has(source)

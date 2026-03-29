@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma'
 import { requireRole } from '@/features/auth/actions/auth'
 import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
 import { calcAvailableSlots, calcBookingPrice, timeToMinutes, VALID_DURATIONS, MIN_ADVANCE_MINUTES } from '@/lib/availability'
+import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
+import type { PaymentStatus } from '@/app/generated/prisma/enums'
 import { argToday, argTodayStr } from '@/lib/date'
 import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import type { ActionResult } from '@/types'
@@ -210,7 +212,7 @@ export async function confirmBooking(bookingId: string): Promise<ActionResult> {
 
 export async function updatePaymentStatus(
   bookingId: string,
-  paymentStatus: 'PAID' | 'UNPAID' | 'MANUAL'
+  paymentStatus: PaymentStatus
 ): Promise<ActionResult> {
   const session = await requireRole(['OWNER', 'STAFF'])
 
@@ -486,7 +488,7 @@ export async function convertBookingToOpenMatch(
       return { success: false, error: 'Solo podés abrir reservas pendientes o confirmadas.' }
     }
 
-    if (['BLOCK', 'ENTRENAMIENTO', 'TORNEO', 'EVENTO', 'MANTENIMIENTO'].includes(booking.source)) {
+    if (BLOCK_SOURCES.has(booking.source)) {
       return { success: false, error: 'No se puede convertir un bloqueo a partido abierto.' }
     }
 
@@ -598,7 +600,9 @@ export async function fetchBookingsAction(
   startDateStr: string,
   endDateStr: string
 ) {
+  if (!startDateStr || !endDateStr) return []
   const startDate = new Date(`${startDateStr}T00:00:00.000Z`)
   const endDate = new Date(`${endDateStr}T23:59:59.999Z`)
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return []
   return getAdminBookingsByDate(clubId, startDate, endDate)
 }
