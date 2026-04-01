@@ -3,7 +3,7 @@ export type Role = 'SUPERADMIN' | 'OWNER' | 'STAFF' | 'PLAYER'
 export type CourtType = 'CRISTAL' | 'MURO' | 'PANORAMICA'
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED'
 export type PaymentStatus = 'UNPAID' | 'PAID' | 'REFUNDED' | 'MANUAL'
-export type BookingSource = 'ONLINE' | 'MANUAL_OWNER' | 'MANUAL_SUPPORT' | 'BLOCK' | 'ENTRENAMIENTO' | 'TORNEO' | 'EVENTO' | 'MANTENIMIENTO'
+export type BookingSource = 'ONLINE' | 'MANUAL_STAFF' | 'MANUAL_SUPPORT' | 'BLOCK'
 export type AchievementCat =
   | 'INICIO'
   | 'CONSTANCIA'
@@ -146,6 +146,7 @@ export interface TimeSlot {
   pricePerHour: number // centavos
   available: boolean
   durationOptions: number[] // e.g. [60, 90, 120] — filtered by close time
+  appliedRuleName?: string // nombre de la regla ganadora (para transparencia en wizard admin)
 }
 
 /** Standard return type for ALL Server Actions — never throw to the client */

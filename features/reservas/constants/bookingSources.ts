@@ -1,7 +1,1 @@
-export const BLOCK_SOURCES = new Set([
-  'BLOCK',
-  'ENTRENAMIENTO',
-  'TORNEO',
-  'EVENTO',
-  'MANTENIMIENTO',
-])
+export const BLOCK_SOURCES = new Set(['BLOCK'])

@@ -37,19 +37,22 @@ export function getAvailableDurationsForCourt(
 }
 
 /**
- * Returns only the times where at least one court can fit the minimum allowed duration.
+ * Returns only the times where at least one court has an available slot with
+ * at least one duration in common with the global durationOptions.
  * Strips fully-booked slots so the time grid only shows actionable options.
  */
 export function getVisibleTimeSlotsForDate(
   allCourtSlots: CourtSlots[],
   durationOptions: number[]
 ): string[] {
-  if (durationOptions.length === 0) return []
-  const minDuration = Math.min(...durationOptions)
   const timeSet = new Set<string>()
   for (const cs of allCourtSlots) {
     for (const slot of cs.slots) {
-      if (slot.available && slot.durationOptions.includes(minDuration)) {
+      if (
+        slot.available &&
+        (durationOptions.length === 0 ||
+          slot.durationOptions.some((d) => durationOptions.includes(d)))
+      ) {
         timeSet.add(slot.time)
       }
     }

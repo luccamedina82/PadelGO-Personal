@@ -35,7 +35,6 @@ export default async function ConfigPage() {
         tags: selectedClub.tags,
         cancelHoursBeforeStart: selectedClub.cancelHoursBeforeStart,
         cancellationFeePercent: selectedClub.cancellationFeePercent,
-        allowedDurations: selectedClub.allowedDurations,
         specialHours: selectedClub.specialHours.map((sh) => ({
           id: sh.id,
           date: sh.date.toISOString().split('T')[0], // ISO date format

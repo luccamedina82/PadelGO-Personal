@@ -17,6 +17,9 @@ export const DEFAULT_DURATION: DurationMinutes = 90
 /** Minimum minutes ahead of now to allow a booking */
 export const MIN_ADVANCE_MINUTES = 60
 
+/** Base grid increment for admin mode (never changes — grid UI depends on this) */
+const ADMIN_SLOT_INCREMENT = 30
+
 // ── TIME HELPERS ──────────────────────────────────────────────────────────
 
 /** "HH:MM" → minutes from midnight */
@@ -42,10 +45,77 @@ export interface ExistingBooking {
   status: string // "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED"
 }
 
+/** A single booking rule as received from the DAL */
+export interface BookingRuleInput {
+  name: string
+  priority: number
+  daysOfWeek: number[] // [0..6]
+  startTime: string // "HH:MM" — block start
+  endTime: string // "HH:MM" — block end (exclusive)
+  price: number | null // centavos; null = inherit from CourtAvailability.pricePerHour
+  intervalMinutes: number // slot granularity for player UI
+  allowedDurations: number[] // e.g. [60, 90]
+}
+
+/** The resolved rule for a specific slot after cascade evaluation */
+export interface ResolvedRule {
+  ruleName: string
+  price: number
+  intervalMinutes: number
+  allowedDurations: number[]
+}
+
 export interface AvailabilityConfig {
   openTime: string // "08:00"
   closeTime: string // "22:00"
-  pricePerHour: number // centavos ARS (Int)
+  pricePerHour: number // centavos ARS (fallback when no rule defines a price)
+  rules?: BookingRuleInput[] // combined club-wide + court-specific rules
+  isUnderMaintenance?: boolean
+}
+
+// ── RULES ENGINE ──────────────────────────────────────────────────────────
+
+/**
+ * Resolve the winning BookingRule for a specific slot via priority cascade.
+ *
+ * Cascade logic:
+ *   1. Filter rules that cover dayOfWeek AND the slot's start minute falls within
+ *      [rule.startTime, rule.endTime).
+ *   2. Sort by priority DESC — highest priority wins.
+ *   3. The highest-priority matching rule supplies intervalMinutes and allowedDurations.
+ *   4. price: taken from the highest-priority rule that has price !== null.
+ *      If no rule supplies a price, fallbackPricePerHour is used.
+ *
+ * Returns null when no rules match (caller uses raw CourtAvailability values).
+ */
+export function resolveBookingRule(
+  rules: BookingRuleInput[],
+  dayOfWeek: number,
+  slotStartMinutes: number,
+  fallbackPricePerHour: number
+): ResolvedRule | null {
+  const matching = rules
+    .filter(
+      (r) =>
+        r.daysOfWeek.includes(dayOfWeek) &&
+        slotStartMinutes >= timeToMinutes(r.startTime) &&
+        slotStartMinutes < timeToMinutes(r.endTime)
+    )
+    .sort((a, b) => b.priority - a.priority)
+
+  if (matching.length === 0) return null
+
+  const top = matching[0]!
+
+  const priceRule = matching.find((r) => r.price !== null)
+  const price = priceRule?.price ?? fallbackPricePerHour
+
+  return {
+    ruleName: top.name,
+    price,
+    intervalMinutes: top.intervalMinutes,
+    allowedDurations: top.allowedDurations,
+  }
 }
 
 // ── MAIN FUNCTION ─────────────────────────────────────────────────────────
@@ -53,35 +123,39 @@ export interface AvailabilityConfig {
 /**
  * Calculate bookable time slots for a given court, date, and existing bookings.
  *
- * Rules (C-12):
- * - Slots generated from openTime to closeTime in 30-minute increments
- * - Only slot+duration combos that finish by closeTime are included
- * - Slots with zero valid durations are excluded entirely
- * - Active bookings (PENDING/CONFIRMED) block their time range
- * - Slots within MIN_ADVANCE_MINUTES of `now` are marked unavailable
+ * Rules:
+ * - Admin mode: 30-min grid increments always (grid UI depends on ADMIN_SLOT_INCREMENT).
+ *   Rules supply price and allowedDurations but NOT interval filtering.
+ * - Player mode: slot increment = resolved.intervalMinutes (e.g. 60 min hides :30 slots).
+ * - Active bookings (PENDING/CONFIRMED) block their time range.
+ * - Slots within minAdvanceMinutes of `now` are marked unavailable (same-day only).
  *
- * @param config         Availability config for the court + day
- * @param existingBookings  Bookings already created for that court + date
- * @param selectedDate   The date being queried (used for advance-time check)
- * @param now            Reference "now" — defaults to new Date() (injectable for tests)
+ * @param config           Availability config + optional rules array
+ * @param existingBookings Bookings already created for that court + date
+ * @param selectedDate     The date being queried (UTC midnight)
+ * @param now              Reference "now" — defaults to new Date() (injectable for tests)
+ * @param minAdvanceMinutes Minimum minutes ahead of now required (0 for admin)
+ * @param mode             'admin' keeps 30-min grid; 'player' respects rule intervalMinutes
  */
 export function calcAvailableSlots(
   config: AvailabilityConfig,
   existingBookings: ExistingBooking[],
   selectedDate: Date,
   now: Date = new Date(),
-  minAdvanceMinutes: number = MIN_ADVANCE_MINUTES
+  minAdvanceMinutes: number = MIN_ADVANCE_MINUTES,
+  mode: 'admin' | 'player' = 'player'
 ): TimeSlot[] {
+  if (config.isUnderMaintenance) return []
+
   const openMinutes = timeToMinutes(config.openTime)
   const closeMinutes = timeToMinutes(config.closeTime)
+  const rules = config.rules ?? []
 
-  // Active bookings block slots
   const activeBookings = existingBookings.filter(
     (b) => b.status === 'PENDING' || b.status === 'CONFIRMED'
   )
 
-  // For same-day advance check: selectedDate is UTC midnight (Argentina calendar date).
-  // Compare both dates in Argentina timezone for correctness regardless of server timezone.
+  // Same-day advance check: compare dates in Argentina timezone
   const bookingDateStr = [
     selectedDate.getUTCFullYear(),
     String(selectedDate.getUTCMonth() + 1).padStart(2, '0'),
@@ -101,23 +175,37 @@ export function calcAvailableSlots(
   const [nh, nm] = nowTimeStr.split(':').map(Number)
   const nowMinutes = (nh ?? 0) * 60 + (nm ?? 0)
 
+  const dayOfWeek = selectedDate.getUTCDay()
   const slots: TimeSlot[] = []
 
-  // 30-minute increments from openTime up to (closeTime - smallest duration)
-  for (let start = openMinutes; start <= closeMinutes - 60; start += 30) {
-    // Which durations fit before closeTime? (C-12)
-    const durationOptions = (VALID_DURATIONS as readonly number[]).filter(
+  for (let start = openMinutes; start <= closeMinutes - 60; start += ADMIN_SLOT_INCREMENT) {
+    // Resolve the winning rule for this slot position
+    const resolved = resolveBookingRule(rules, dayOfWeek, start, config.pricePerHour)
+
+    const effectivePrice = resolved?.price ?? config.pricePerHour
+    const effectiveDurations =
+      mode === 'admin'
+        ? (VALID_DURATIONS as readonly number[])
+        : resolved && resolved.allowedDurations.length > 0
+          ? resolved.allowedDurations
+          : (VALID_DURATIONS as readonly number[])
+    const effectiveInterval = resolved?.intervalMinutes ?? ADMIN_SLOT_INCREMENT
+    const appliedRuleName = resolved?.ruleName
+
+    // Player mode: skip slots not aligned with the rule's intervalMinutes
+    if (mode === 'player' && start !== openMinutes && start % effectiveInterval !== 0) {
+      continue
+    }
+
+    // Which durations fit before closeTime?
+    const durationOptions = (effectiveDurations as readonly number[]).filter(
       (d) => start + d <= closeMinutes
     ) as number[]
 
     if (durationOptions.length === 0) continue
 
-    // Is slot too close to now? (1h advance rule, only for same-day)
     const isTooSoon = isSameDay && start < nowMinutes + minAdvanceMinutes
 
-    // For each duration, check independently whether it collides with an existing booking.
-    // A slot is visible if at least the shortest duration fits; the per-court pill buttons
-    // then show only the durations that actually fit.
     const availableDurations = durationOptions.filter((d) => {
       const slotEnd = start + d
       return !activeBookings.some((booking) => {
@@ -132,9 +220,10 @@ export function calcAvailableSlots(
     slots.push({
       time: minutesToTime(start),
       endTime: minutesToTime(start + DEFAULT_DURATION),
-      pricePerHour: config.pricePerHour,
+      pricePerHour: effectivePrice,
       available,
       durationOptions: available ? availableDurations : [],
+      appliedRuleName,
     })
   }
 

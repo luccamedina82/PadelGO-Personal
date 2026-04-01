@@ -56,19 +56,19 @@ function initials(name: string): string {
 function SourceBadge({ source }: { source: string }) {
   const map: Record<string, string> = {
     ONLINE: 'Online',
-    MANUAL_OWNER: 'Manual',
+    MANUAL_STAFF: 'Manual',
     BLOCK: 'Bloqueo',
     MANUAL_SUPPORT: 'Soporte',
   }
   const colorMap: Record<string, string> = {
     ONLINE: 'text-accent bg-accent/10 border-accent/20',
-    MANUAL_OWNER: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
+    MANUAL_STAFF: 'text-blue-400 bg-blue-400/10 border-blue-400/20',
     BLOCK: 'text-muted bg-muted/10 border-muted/20',
     MANUAL_SUPPORT: 'text-purple-400 bg-purple-400/10 border-purple-400/20',
   }
   return (
     <span
-      className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${colorMap[source] ?? colorMap.MANUAL_OWNER}`}
+      className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${colorMap[source] ?? colorMap.MANUAL_STAFF}`}
     >
       {map[source] ?? source}
     </span>

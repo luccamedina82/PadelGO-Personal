@@ -24,7 +24,6 @@ interface ClubData {
   tags: string[]
   cancelHoursBeforeStart: number
   cancellationFeePercent: number
-  allowedDurations: number[]
   specialHours: SpecialHours[]
 }
 
@@ -42,7 +41,6 @@ interface ConfigClientProps {
     tags?: string[]
     cancelHoursBeforeStart?: number
     cancellationFeePercent?: number
-    allowedDurations?: number[]
   }) => Promise<ActionResult>
   createSpecialHoursAction: (input: {
     clubId: string
@@ -95,7 +93,6 @@ export default function ConfigClient({
     tags: club.tags,
     cancelHoursBeforeStart: club.cancelHoursBeforeStart,
     cancellationFeePercent: club.cancellationFeePercent,
-    allowedDurations: club.allowedDurations,
   })
 
   const [specialHourForm, setSpecialHourForm] = useState({
@@ -129,23 +126,10 @@ export default function ConfigClient({
     }))
   }
 
-  function toggleDuration(duration: number) {
-    setForm((prev) => ({
-      ...prev,
-      allowedDurations: prev.allowedDurations.includes(duration)
-        ? prev.allowedDurations.filter((d) => d !== duration)
-        : [...prev.allowedDurations, duration],
-    }))
-  }
-
   function handleSave() {
     setError(null)
     if (!form.name.trim()) {
       setError('El nombre del club es obligatorio.')
-      return
-    }
-    if (form.allowedDurations.length === 0) {
-      setError('Debe seleccionar al menos una duración permitida.')
       return
     }
     startTransition(async () => {
@@ -376,26 +360,6 @@ export default function ConfigClient({
           </div>
         </div>
 
-        {/* Duraciones permitidas */}
-        <div className="bg-card border border-border rounded-xl p-4">
-          <h2 className="font-semibold text-sm text-text mb-3">Duraciones de turnos permitidas</h2>
-          <div className="space-y-2">
-            {[60, 90, 120].map((duration) => (
-              <label key={duration} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.allowedDurations.includes(duration)}
-                  onChange={() => toggleDuration(duration)}
-                  className="w-4 h-4 rounded accent"
-                />
-                <span className="text-sm text-text">{duration} minutos</span>
-              </label>
-            ))}
-          </div>
-          <p className="text-xs text-muted mt-3">
-            Selecciona al menos una duración. Los jugadores solo podrán reservar con estas opciones.
-          </p>
-        </div>
 
         {/* Horarios especiales */}
         <div className="bg-card border border-border rounded-xl p-4 space-y-3">

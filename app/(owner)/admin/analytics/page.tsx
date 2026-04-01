@@ -58,7 +58,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const prevPeriodEnd = new Date(period.start)
   prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1)
 
-  const [courts, bookings, barSales, prevBookings, prevBarSales] = await Promise.all([
+  const [{ courts }, bookings, barSales, prevBookings, prevBarSales] = await Promise.all([
     getCourtsByClubId(club.id), // ¡Trae las canchas Y sus disponibilidades!
     getFinancialBookings(club.id, period.start, period.end),
     getBarSalesPeriod(club.id, period.start, period.end),
@@ -134,7 +134,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const maxCourtRev = Math.max(...courtRevenue.map((c) => c.revenue), 1)
 
   // Source breakdown
-  const sourceCount = { ONLINE: 0, MANUAL_OWNER: 0, BLOCK: 0, MANUAL_SUPPORT: 0 }
+  const sourceCount = { ONLINE: 0, MANUAL_STAFF: 0, BLOCK: 0, MANUAL_SUPPORT: 0 }
   for (const b of confirmedBookingRecords) {
     const key = b.source as keyof typeof sourceCount
     sourceCount[key] = (sourceCount[key] ?? 0) + 1
@@ -335,7 +335,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
             <div className="space-y-2">
               {[
                 { key: 'ONLINE', label: 'Web / App', color: 'bg-blue-400' },
-                { key: 'MANUAL_OWNER', label: 'Manual (staff)', color: 'bg-orange-400' },
+                { key: 'MANUAL_STAFF', label: 'Manual (staff)', color: 'bg-orange-400' },
                 { key: 'BLOCK', label: 'Bloqueos', color: 'bg-sub' },
               ].map(({ key, label, color }) => {
                 const count = sourceCount[key as keyof typeof sourceCount] ?? 0

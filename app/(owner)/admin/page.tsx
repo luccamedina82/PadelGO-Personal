@@ -23,7 +23,7 @@ export default async function AdminDashboardPage() {
   const tomorrow = argTomorrow()
   const todayStr = argTodayStr()
 
-  const [courts, todayBookings] = await Promise.all([
+  const [{ courts }, todayBookings] = await Promise.all([
     getCourtsByClubId(club.id),
     getAdminBookingsByDate(club.id, today, tomorrow),
   ])

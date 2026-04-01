@@ -86,7 +86,7 @@ function SourceBadge({ source }: { source: string }) {
         App
       </span>
     )
-  if (source === 'MANUAL_OWNER' || source === 'MANUAL_SUPPORT')
+  if (source === 'MANUAL_STAFF' || source === 'MANUAL_SUPPORT')
     return (
       <span className="flex items-center gap-1 text-[10px] text-orange-400">
         <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block shrink-0" />

@@ -363,7 +363,6 @@ async function main() {
       colorR: 168,
       colorG: 85,
       colorB: 247,
-      allowedDurations: [60, 90, 120],
       cancelHoursBeforeStart: 2,
     },
   })
@@ -519,7 +518,6 @@ async function main() {
         colorR: cfg.colorR,
         colorG: cfg.colorG,
         colorB: cfg.colorB,
-        allowedDurations: [60, 90, 120],
       },
     })
 

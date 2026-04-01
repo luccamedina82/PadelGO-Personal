@@ -85,7 +85,6 @@ model Club {
   isActive             Boolean   @default(true)
   cancelHoursBeforeStart Int     @default(2) // horas minimas para cancelar sin cargo
   cancellationFeePercent Int     @default(0) // porcentaje de cargo por cancelacion tardia (0-100)
-  allowedDurations     Int[]     @default([60, 90, 120]) // duraciones permitidas en minutos
   minAdvanceMinutes    Int       @default(60)            // minutos mínimos de antelación para reservar
   bookingWindowDays    Int       @default(14)            // días disponibles para reservar hacia adelante
   ownerId              String
@@ -103,6 +102,7 @@ model Club {
   barStockEntries BarStockEntry[] @relation("BarStockEntries")
   recurringBookings RecurringBooking[]
   specialHours SpecialHours[]
+  bookingRule BookingRule[] @relation("ClubBookingRules")
 }
 
 model SpecialHours {
@@ -121,22 +121,42 @@ model SpecialHours {
 }
 
 model Court {
-  id        String    @id @default(cuid())
-  clubId    String
-  club      Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  name      String    // "Cancha 1"
-  type      CourtType
-  covered   Boolean   @default(false)
-  svgX      Float     // posicion en diagrama SVG del club
-  svgY      Float
-  svgW      Float
-  svgH      Float
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
+  id                  String    @id @default(cuid())
+  clubId              String
+  club                Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name                String    // "Cancha 1"
+  type                CourtType
+  covered             Boolean   @default(false)
+  svgX                Float     // posicion en diagrama SVG del club
+  svgY                Float
+  svgW                Float
+  svgH                Float
+  isActive            Boolean   @default(true)
+  isUnderMaintenance  Boolean   @default(false)
+  createdAt           DateTime  @default(now())
 
   availabilities CourtAvailability[]
   bookings       Booking[]
   recurringBookings RecurringBooking[]
+}
+
+model BookingRule {
+  id               String   @id @default(cuid())
+  clubId           String
+  club             Club     @relation("ClubBookingRules", fields: [clubId], references: [id], onDelete: Cascade)
+  courtIds         String[] @default([]) // empty = aplica a todas las canchas del club
+  name             String   // "Default Club", "Horario Noche", "Cancha B Especial"
+  priority         Int      @default(0) // 0=default club, 1=por cancha, 2+=bloque horario
+  daysOfWeek       Int[]    // [0..6], 0=Domingo
+  startTime        String   // "08:00"
+  endTime          String   // "22:00"
+  price            Int?     // centavos ARS; null = hereda pricePerHour de CourtAvailability
+  intervalMinutes  Int      @default(30) // granularidad de slots para jugadores: 30 o 60
+  allowedDurations Int[]    @default([60, 90, 120])
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  @@index([clubId])
 }
 
 model CourtAvailability {
@@ -412,13 +432,9 @@ enum PaymentStatus {
 
 enum BookingSource {
   ONLINE
-  MANUAL_OWNER
+  MANUAL_STAFF
   MANUAL_SUPPORT
   BLOCK
-  ENTRENAMIENTO
-  TORNEO
-  EVENTO
-  MANTENIMIENTO
 }
 
 enum AchievementCat {

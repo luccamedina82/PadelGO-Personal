@@ -23,7 +23,7 @@ export default async function ReservasPage({ searchParams }: Props) {
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
   }
-  const allCourts = await getCourtsByClubId(club.id)
+  const { courts: allCourts } = await getCourtsByClubId(club.id)
 
   const selectedDate = (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) ? dateParam : todayStr()
   const dateObj = new Date(`${selectedDate}T00:00:00.000Z`)
@@ -77,6 +77,7 @@ export default async function ReservasPage({ searchParams }: Props) {
       id: c.id,
       name: c.name,
       isActive: c.availabilities.length > 0,
+      isUnderMaintenance: c.isUnderMaintenance,
       closeTimeMinutes,
       openTimeMinutes,
     }

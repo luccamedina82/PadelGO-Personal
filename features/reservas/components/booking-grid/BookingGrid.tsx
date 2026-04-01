@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Wrench } from 'lucide-react'
 import BookingDetailModal from './BookingDetailModal/BookingDetailModal'
 import BookingQuickPopover from './BookingQuickPopover/BookingQuickPopover'
 import BookingGridFilterBar from './BookingGridFilterBar/BookingGridFilterBar'
@@ -128,7 +129,7 @@ export default function BookingGrid({
     () =>
       bookings.filter((b) => {
         if (typeFilter !== null) {
-          if (typeFilter === 'MANUAL' && b.source !== 'MANUAL_OWNER' && b.source !== 'MANUAL_SUPPORT') return false
+          if (typeFilter === 'MANUAL' && b.source !== 'MANUAL_STAFF' && b.source !== 'MANUAL_SUPPORT') return false
           else if (typeFilter === 'RECURRING' && !b.recurringBookingId) return false
           else if (typeFilter !== 'MANUAL' && typeFilter !== 'RECURRING' && b.source !== typeFilter) return false
         }
@@ -410,6 +411,16 @@ export default function BookingGrid({
                 >
                   {!court.isActive && <div className="court-reform-overlay" />}
 
+                  {court.isUnderMaintenance ? (
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center gap-2
+                                    bg-red-950/40 border-x border-red-900/40">
+                      <Wrench className="w-7 h-7 text-red-500/50" strokeWidth={1.5} />
+                      <span className="text-[9px] font-bold uppercase tracking-[2px] text-red-500/60">
+                        Fuera de Servicio
+                      </span>
+                    </div>
+                  ) : (
+                  <>
                   {Array.from({ length: totalSlots }, (_, i) => {
                     const slotMin = gridStart + i * 30
                     const isHour = slotMin % 60 === 0
@@ -479,6 +490,8 @@ export default function BookingGrid({
                     />
                   )
                   })}
+                  </>
+                  )}
                 </div>
               )
             })}

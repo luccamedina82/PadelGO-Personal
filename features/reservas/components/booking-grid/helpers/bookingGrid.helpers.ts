@@ -24,21 +24,13 @@ export type SourceFilterKey =
   | 'MANUAL'
   | 'BLOCK'
   | 'RECURRING'
-  | 'ENTRENAMIENTO'
-  | 'TORNEO'
-  | 'EVENTO'
-  | 'MANTENIMIENTO'
 
 export const SOURCE_FILTERS: ReadonlyArray<{ key: SourceFilterKey; label: string }> = [
-  { key: null,           label: 'Todos' },
-  { key: 'ONLINE',       label: 'Online' },
-  { key: 'MANUAL',       label: 'Manual' },
-  { key: 'RECURRING',    label: 'Turno fijo' },
-  { key: 'ENTRENAMIENTO', label: 'Entrenamiento' },
-  { key: 'TORNEO',       label: 'Torneo' },
-  { key: 'EVENTO',       label: 'Evento' },
-  { key: 'MANTENIMIENTO', label: 'Mantenimiento' },
-  { key: 'BLOCK',        label: 'Bloqueo' },
+  { key: null,        label: 'Todos' },
+  { key: 'ONLINE',    label: 'Online' },
+  { key: 'MANUAL',    label: 'Manual' },
+  { key: 'RECURRING', label: 'Turno fijo' },
+  { key: 'BLOCK',     label: 'Bloqueo' },
 ]
 
 export function getLocalDateStr(): string {
@@ -93,10 +85,6 @@ export function getBlockClass(
   if (status === 'CANCELLED') return 'booking-block-cancelled'
   if (source === 'BLOCK' && recurringBookingId) return 'booking-block-recurring'
   if (source === 'BLOCK') return 'booking-block-block'
-  if (source === 'ENTRENAMIENTO') return 'booking-block-entrenamiento'
-  if (source === 'TORNEO') return 'booking-block-torneo'
-  if (source === 'EVENTO') return 'booking-block-evento'
-  if (source === 'MANTENIMIENTO') return 'booking-block-mantenimiento'
   if (source === 'ONLINE') return 'booking-block-online'
   return 'booking-block-manual'
 }
@@ -109,10 +97,6 @@ export function getSourceLabel(
   if (status === 'CANCELLED') return 'CANCEL'
   if (source === 'BLOCK' && recurringBookingId) return 'TURNO FIJO'
   if (source === 'BLOCK') return 'BLOQUEO'
-  if (source === 'ENTRENAMIENTO') return 'ENTRENAMIENTO'
-  if (source === 'TORNEO') return 'TORNEO'
-  if (source === 'EVENTO') return 'EVENTO'
-  if (source === 'MANTENIMIENTO') return 'MANTENIMIENTO'
   if (source === 'ONLINE') return 'ONLINE'
   return 'MANUAL'
 }

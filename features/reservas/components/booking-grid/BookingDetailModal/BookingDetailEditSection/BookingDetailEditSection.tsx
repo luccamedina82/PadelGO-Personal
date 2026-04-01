@@ -83,7 +83,7 @@ export default function BookingDetailEditSection({
           ))}
         </select>
       </div>
-      {source === 'MANUAL_OWNER' && (
+      {source === 'MANUAL_STAFF' && (
         <>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-muted">Nombre del cliente</label>

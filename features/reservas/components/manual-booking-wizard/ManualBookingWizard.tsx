@@ -7,20 +7,24 @@ import type { ManualBookingWizardProps, BookingType } from './types/manualBookin
 import { todayLocalStr, computeEndTime, formatDateFull } from './helpers/manualBookingWizard.helpers'
 import { CalendarPopover } from '@/features/reservas/components/ui/CalendarPopover'
 import { getAvailableDurationsForCourt, getVisibleTimeSlotsForDate } from './helpers/bookingCalcUtils'
-
-// ─── Especial category → DB mapping ─────────────────────────────────────────
-const ESPECIAL_CATEGORIES = [
-  { id: 'ENTRENAMIENTO' as const, label: 'Entrenamiento', source: 'ENTRENAMIENTO' },
-  { id: 'TORNEO'        as const, label: 'Torneo',        source: 'TORNEO' },
-  { id: 'EVENTO'        as const, label: 'Evento',        source: 'EVENTO' },
-  { id: 'MANTENIMIENTO' as const, label: 'Mantenimiento', source: 'MANTENIMIENTO' },
-  { id: 'OTRO'          as const, label: 'Otro',          source: 'BLOCK' },
-] as const
-
-type EspecialCategoryId = (typeof ESPECIAL_CATEGORIES)[number]['id']
+import { PriceRuleDisplay } from './PriceRuleDisplay'
+import { calcBookingPrice } from '@/lib/availability'
 
 function fmtDur(d: number) {
   return d === 60 ? '1h' : d === 90 ? '1h 30' : d === 120 ? '2h' : `${d} min`
+}
+
+function getBlockEndTimeOptions(startTime: string): string[] {
+  const [h = '0', m = '0'] = startTime.split(':')
+  const startMin = parseInt(h) * 60 + parseInt(m)
+  const options: string[] = []
+  for (let t = startMin + 30; t <= 23 * 60 + 30; t += 30) {
+    const hh = Math.floor(t / 60)
+    if (hh >= 24) break
+    const mm = t % 60
+    options.push(`${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`)
+  }
+  return options
 }
 
 export default function ManualBookingWizard({
@@ -83,49 +87,93 @@ export default function ManualBookingWizard({
     defaultCourtId && defaultTime && courts.some((c) => c.id === defaultCourtId) ? defaultCourtId : ''
   )
 
-  const [reservationType, setReservationType] = useState<'REGULAR' | 'ESPECIAL'>('REGULAR')
-  const [especialCategory, setEspecialCategory] = useState<EspecialCategoryId | null>(null)
+  const [bookingMode, setBookingMode] = useState<'RESERVA' | 'BLOQUEO'>('RESERVA')
   const [clientName, setClientName] = useState('')
   const [clientPhone, setClientPhone] = useState('')
-  const [blockReason, setBlockReason] = useState('')
+  const [motivo, setMotivo] = useState('')
+  const [blockEndTime, setBlockEndTime] = useState('')
+  const [priceOverrideEnabled, setPriceOverrideEnabled] = useState(false)
+  const [priceOverrideInput, setPriceOverrideInput] = useState('')
 
   // ─── Derived slot data ───────────────────────────────────────────────────
   const allCourtSlots = courtSlotsByDate[date] ?? []
   const visibleTimes = getVisibleTimeSlotsForDate(allCourtSlots, durationOptions)
 
+  // BLOQUEO can use any court; RESERVA only shows courts with available slots
   const courtsForTime = startTime
-    ? courts.filter((c) => getAvailableDurationsForCourt(startTime, c.id, allCourtSlots, durationOptions).length > 0)
+    ? bookingMode === 'BLOQUEO'
+      ? courts
+      : courts.filter((c) => getAvailableDurationsForCourt(startTime, c.id, allCourtSlots, durationOptions).length > 0)
     : []
+
+  const blockEndTimeOptions = bookingMode === 'BLOQUEO' && startTime ? getBlockEndTimeOptions(startTime) : []
 
   const endTime = startTime && duration > 0 ? computeEndTime(startTime, duration) : null
   const courtName = courts.find((c) => c.id === courtId)?.name ?? ''
 
+  const selectedSlot = courtId && startTime
+    ? allCourtSlots.find((cs) => cs.courtId === courtId)?.slots.find((s) => s.time === startTime)
+    : undefined
+  const basePrice = selectedSlot && duration > 0 ? calcBookingPrice(selectedSlot.pricePerHour, duration) : 0
+
   // ─── Handlers ───────────────────────────────────────────────────────────
+  function resetOverride() {
+    setPriceOverrideEnabled(false)
+    setPriceOverrideInput('')
+  }
+
   function handleDateChange(d: string) {
     setDate(d)
     setStartTime('')
     setCourtId('')
     setDuration(0)
+    setBlockEndTime('')
     setCalendarOpen(false)
+    resetOverride()
   }
 
   function handleSelectTime(t: string) {
     setStartTime(t)
     setCourtId('')
-    setDuration(0)
+    setBlockEndTime('')
+    resetOverride()
+    if (bookingMode === 'RESERVA') {
+      const allDursAtTime = allCourtSlots.flatMap((cs) => {
+        const slot = cs.slots.find((s) => s.time === t)
+        return slot?.available ? slot.durationOptions : []
+      })
+      const validDurs = [...new Set(allDursAtTime)]
+      setDuration((prev) => (validDurs.includes(prev) ? prev : (validDurs[0] ?? 0)))
+    } else {
+      setDuration(0)
+    }
+  }
+
+  function handleBlockEndTimeChange(endT: string) {
+    setBlockEndTime(endT)
+    if (startTime && endT) {
+      const [sh = '0', sm = '0'] = startTime.split(':')
+      const [eh = '0', em = '0'] = endT.split(':')
+      const dur = (parseInt(eh) * 60 + parseInt(em)) - (parseInt(sh) * 60 + parseInt(sm))
+      setDuration(dur > 0 ? dur : 0)
+    }
   }
 
   function handleSelectCourtDuration(cId: string, dur: number) {
     setCourtId(cId)
     setDuration(dur)
+    resetOverride()
   }
 
-  function handleTypeChange(t: 'REGULAR' | 'ESPECIAL') {
-    setReservationType(t)
+  function handleModeChange(m: 'RESERVA' | 'BLOQUEO') {
+    setBookingMode(m)
     setClientName('')
     setClientPhone('')
-    setEspecialCategory(null)
-    setBlockReason('')
+    setMotivo('')
+    setBlockEndTime('')
+    setDuration(0)
+    setCourtId('')
+    resetOverride()
   }
 
   // ─── Validation ─────────────────────────────────────────────────────────
@@ -133,32 +181,30 @@ export default function ManualBookingWizard({
     courtId &&
     startTime &&
     duration > 0 &&
-    (
-      (reservationType === 'REGULAR' && clientName.trim().length > 0) ||
-      (reservationType === 'ESPECIAL' &&
-        especialCategory !== null &&
-        (especialCategory !== 'OTRO' || blockReason.trim().length > 0))
-    )
+    (bookingMode === 'BLOQUEO' || clientName.trim().length > 0)
   )
 
   // ─── Submit ──────────────────────────────────────────────────────────────
   function handleConfirm() {
     if (!canConfirm) return
     setError(null)
-    const catData = especialCategory ? ESPECIAL_CATEGORIES.find((c) => c.id === especialCategory) : null
+    const priceOverride =
+      bookingMode === 'RESERVA' && priceOverrideEnabled && priceOverrideInput.trim() !== ''
+        ? parseInt(priceOverrideInput, 10) * 100
+        : undefined
     const payload =
-      reservationType === 'REGULAR'
+      bookingMode === 'RESERVA'
         ? {
             clubId, courtId, date, startTime, durationMinutes: duration,
             bookingType: 'PRESENCIAL' as BookingType,
             manualName: clientName.trim() || undefined,
             manualPhone: clientPhone.trim() || undefined,
+            priceOverride,
           }
         : {
             clubId, courtId, date, startTime, durationMinutes: duration,
             bookingType: 'BLOQUEO' as BookingType,
-            blockSource: catData?.source,
-            blockReason: especialCategory === 'OTRO' ? blockReason.trim() || undefined : catData?.label,
+            blockReason: motivo.trim() || undefined,
           }
 
     startTransition(async () => {
@@ -266,13 +312,33 @@ export default function ManualBookingWizard({
 
             {/* Court + Duration cards */}
             <div className="flex flex-col gap-2">
-              <p className={labelCls}>Cancha y duración</p>
-              <div className="h-[300px] overflow-y-auto pr-2 flex flex-col gap-2 [scrollbar-width:thin] [scrollbar-color:var(--sub)_transparent]">
+              <p className={labelCls}>{bookingMode === 'BLOQUEO' ? 'Cancha' : 'Cancha y duración'}</p>
+              <div className="h-[220px] overflow-y-auto pr-2 flex flex-col gap-2 [scrollbar-width:thin] [scrollbar-color:var(--sub)_transparent]">
                 {!startTime ? (
                   <p className="text-xs text-muted/50 text-center py-10">Selecciona un horario para ver las canchas</p>
                 ) : courtsForTime.length === 0 ? (
                   <p className="text-xs text-muted text-center py-10">Sin canchas disponibles.</p>
+                ) : bookingMode === 'BLOQUEO' ? (
+                  // BLOQUEO: simple court selector, no duration pills
+                  courtsForTime.map((c) => {
+                    const isSelected = courtId === c.id
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => setCourtId(c.id)}
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-colors duration-[130ms] w-full text-left
+                                    ${isSelected ? 'border-accent bg-accent/8' : 'border-border bg-card hover:border-border-hover'}`}
+                      >
+                        <span className={`size-2 rounded-full shrink-0 ${isSelected ? 'bg-accent' : 'bg-muted/40'}`} />
+                        <span className={`text-sm font-semibold truncate ${isSelected ? 'text-accent' : 'text-text'}`}>{c.name}</span>
+                        <span className="text-[10px] text-muted shrink-0 opacity-60">{c.type}</span>
+                      </button>
+                    )
+                  })
                 ) : (
+                  // RESERVA: court cards with duration pills
                   courtsForTime.map((c) => {
                     const durations = getAvailableDurationsForCourt(startTime, c.id, allCourtSlots, durationOptions)
                     const isSelected = courtId === c.id
@@ -314,37 +380,61 @@ export default function ManualBookingWizard({
                 )}
               </div>
 
+              {/* End time selector — only for BLOQUEO */}
+              {bookingMode === 'BLOQUEO' && startTime && (
+                <div className="flex flex-col gap-[6px] mt-1">
+                  <label className="text-[10px] font-bold uppercase tracking-[1px] text-muted">
+                    Hora de fin
+                  </label>
+                  <select
+                    value={blockEndTime}
+                    onChange={(e) => handleBlockEndTimeChange(e.target.value)}
+                    className={`bg-surface border border-border rounded-[10px] px-3 py-[10px] text-[13px]
+                                text-text outline-none transition-colors w-full
+                                focus:border-accent font-mono font-[inherit] focus-visible:ring-2 focus-visible:ring-accent/50
+                                ${!blockEndTime ? 'text-muted' : ''}`}
+                  >
+                    <option value="">Seleccionar hora de fin…</option>
+                    {blockEndTimeOptions.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
           {/* ── RIGHT: Quién y Qué ───────────────────────────────── */}
           <div className="flex flex-col gap-5">
 
-            {/* Booking type — pill tabs */}
+            {/* Booking mode — pill tabs */}
             <div>
-              <p className={labelCls}>Tipo de reserva</p>
+              <p className={labelCls}>Tipo</p>
               <div className="flex gap-2">
-                {(['REGULAR', 'ESPECIAL'] as const).map((t) => (
+                {([
+                  { id: 'RESERVA', icon: '👤', label: 'Reserva' },
+                  { id: 'BLOQUEO', icon: '🔒', label: 'Bloqueo' },
+                ] as const).map((m) => (
                   <button
-                    key={t}
+                    key={m.id}
                     type="button"
-                    onClick={() => handleTypeChange(t)}
+                    onClick={() => handleModeChange(m.id)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[12px] font-semibold
                                 cursor-pointer transition-all duration-[130ms] ${ring}
-                                ${reservationType === t
+                                ${bookingMode === m.id
                                   ? 'border-accent bg-accent/10 text-accent'
                                   : 'border-border bg-card text-muted hover:border-border-hover hover:text-text'
                                 }`}
                   >
-                    <span className="text-sm leading-none">{t === 'REGULAR' ? '👤' : '⭐'}</span>
-                    {t === 'REGULAR' ? 'Regular' : 'Especial'}
+                    <span className="text-sm leading-none">{m.icon}</span>
+                    {m.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Regular: name + phone */}
-            {reservationType === 'REGULAR' && (
+            {/* Reserva: name + phone */}
+            {bookingMode === 'RESERVA' && (
               <div className="animate-wz-fade-in flex flex-col gap-3">
                 <div className="flex flex-col gap-[6px]">
                   <label className="text-[10px] font-bold uppercase tracking-[1px] text-muted">
@@ -374,44 +464,20 @@ export default function ManualBookingWizard({
               </div>
             )}
 
-            {/* Especial: category dropdown + freetext for OTRO */}
-            {reservationType === 'ESPECIAL' && (
-              <div className="animate-wz-fade-in flex flex-col gap-3">
-                <div className="flex flex-col gap-[6px]">
-                  <label className="text-[10px] font-bold uppercase tracking-[1px] text-muted">
-                    Categoría <span className="text-red-400 font-normal normal-case">*</span>
-                  </label>
-                  <select
-                    value={especialCategory ?? ''}
-                    onChange={(e) => {
-                      const v = e.target.value as EspecialCategoryId | ''
-                      setEspecialCategory(v || null)
-                      setBlockReason('')
-                    }}
-                    autoFocus
-                    className={`${inputCls} cursor-pointer`}
-                  >
-                    <option value="" disabled>Seleccionar tipo…</option>
-                    {ESPECIAL_CATEGORIES.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.label}</option>
-                    ))}
-                  </select>
-                </div>
-                {especialCategory === 'OTRO' && (
-                  <div className="flex flex-col gap-[6px] animate-wz-fade-in">
-                    <label className="text-[10px] font-bold uppercase tracking-[1px] text-muted">
-                      Descripción <span className="text-red-400 font-normal normal-case">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Describir motivo…"
-                      value={blockReason}
-                      onChange={(e) => setBlockReason(e.target.value)}
-                      autoFocus
-                      className={inputCls}
-                    />
-                  </div>
-                )}
+            {/* Bloqueo: optional motivo */}
+            {bookingMode === 'BLOQUEO' && (
+              <div className="animate-wz-fade-in flex flex-col gap-[6px]">
+                <label className="text-[10px] font-bold uppercase tracking-[1px] text-muted">
+                  Motivo <span className="text-muted font-normal normal-case">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Mantenimiento, Torneo…"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  autoFocus
+                  className={inputCls}
+                />
               </div>
             )}
 
@@ -436,7 +502,23 @@ export default function ManualBookingWizard({
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center justify-between px-[14px] py-[11px] rounded-xl bg-accent/15 border border-accent/40">
+                {bookingMode === 'RESERVA' && (
+                  <PriceRuleDisplay
+                    appliedRuleName={selectedSlot?.appliedRuleName}
+                    basePrice={basePrice}
+                    overrideEnabled={priceOverrideEnabled}
+                    overrideInput={priceOverrideInput}
+                    onToggleOverride={() => { setPriceOverrideEnabled((v) => !v); setPriceOverrideInput('') }}
+                    onChangeOverride={setPriceOverrideInput}
+                  />
+                )}
+                {bookingMode === 'BLOQUEO' && (
+                  <div className="flex items-center justify-between px-[14px] py-[11px] rounded-xl bg-surface border border-border mb-3">
+                    <span className="text-xs text-muted">Precio</span>
+                    <span className="text-sm font-semibold text-muted">Sin costo</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between px-[14px] py-[11px] rounded-xl bg-accent/15 border border-accent/40 mt-3">
                   <span className="text-xs font-medium text-text">Estado al crear</span>
                   <span className="text-[11px] font-bold px-[10px] py-[3px] rounded-full bg-accent/20 text-accent border border-accent/40">
                     ● Confirmada
@@ -473,7 +555,7 @@ export default function ManualBookingWizard({
                   </svg>
                   Creando…
                 </span>
-              ) : reservationType === 'ESPECIAL' ? 'Confirmar bloqueo' : 'Confirmar reserva'}
+              ) : bookingMode === 'BLOQUEO' ? 'Confirmar bloqueo' : 'Confirmar reserva'}
             </button>
           </div>
 

@@ -4,7 +4,8 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/features/auth/actions/auth'
 import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
-import { calcAvailableSlots, calcBookingPrice, timeToMinutes, VALID_DURATIONS, MIN_ADVANCE_MINUTES } from '@/lib/availability'
+import { calcAvailableSlots, calcBookingPrice, resolveBookingRule, timeToMinutes, VALID_DURATIONS, MIN_ADVANCE_MINUTES } from '@/lib/availability'
+import type { BookingRuleInput } from '@/lib/availability'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import type { PaymentStatus } from '@/app/generated/prisma/enums'
 import { argToday, argTodayStr } from '@/lib/date'
@@ -21,8 +22,8 @@ export interface CreateManualBookingInput {
   manualName?: string
   manualPhone?: string
   blockReason?: string
-  blockSource?: string  // e.g. 'ENTRENAMIENTO' | 'TORNEO' | 'EVENTO' | 'MANTENIMIENTO' | 'BLOCK'
   userId?: string
+  priceOverride?: number // centavos — admin manual override, skips rule resolution
 }
 
 export async function createManualBooking(
@@ -40,16 +41,20 @@ export async function createManualBooking(
     manualName,
     manualPhone,
     blockReason,
-    blockSource,
     userId,
+    priceOverride,
   } = input
 
   if (!clubId || !courtId || !date || !startTime) {
     return { success: false, error: 'Datos incompletos.' }
   }
 
-  if (!(VALID_DURATIONS as readonly number[]).includes(durationMinutes)) {
+  if (bookingType !== 'BLOQUEO' && !(VALID_DURATIONS as readonly number[]).includes(durationMinutes)) {
     return { success: false, error: 'Duración no válida. Opciones: 60, 90 o 120 minutos.' }
+  }
+
+  if (durationMinutes <= 0 || durationMinutes > 1440) {
+    return { success: false, error: 'Duración inválida.' }
   }
 
   if (bookingType !== 'BLOQUEO' && !manualName?.trim() && !userId) {
@@ -70,11 +75,6 @@ export async function createManualBooking(
 
   try {
     const booking = await prisma.$transaction(async (tx) => {
-      const clubData = await tx.club.findUnique({ where: { id: clubId }, select: { allowedDurations: true } })
-      if (clubData && !clubData.allowedDurations.includes(durationMinutes)) {
-        throw new Error('DURATION_NOT_ALLOWED')
-      }
-
       const dayOfWeek = dateObj.getUTCDay()
       const availability = await tx.courtAvailability.findFirst({
         where: { courtId, dayOfWeek, isActive: true },
@@ -107,11 +107,31 @@ export async function createManualBooking(
 
       let totalPrice = 0
       if (bookingType !== 'BLOQUEO' && availability) {
-        totalPrice = calcBookingPrice(availability.pricePerHour, durationMinutes)
+        if (priceOverride !== undefined) {
+          totalPrice = priceOverride
+        } else {
+          const [courtRules, clubRules] = await Promise.all([
+            tx.bookingRule.findMany({
+              where: { courtIds: { has: courtId }, isActive: true },
+              select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
+            }),
+            tx.bookingRule.findMany({
+              where: { clubId, courtIds: { isEmpty: true }, isActive: true },
+              select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
+            }),
+          ])
+          const resolved = resolveBookingRule(
+            [...clubRules, ...courtRules] as BookingRuleInput[],
+            dayOfWeek,
+            newStartMin,
+            availability.pricePerHour
+          )
+          totalPrice = calcBookingPrice(resolved?.price ?? availability.pricePerHour, durationMinutes)
+        }
       }
 
       const bookingUserId = userId ?? session.userId
-      const source = (bookingType === 'BLOQUEO' ? (blockSource ?? 'BLOCK') : 'MANUAL_OWNER') as import('@/app/generated/prisma/client').BookingSource
+      const source = (bookingType === 'BLOQUEO' ? 'BLOCK' : 'MANUAL_STAFF') as import('@/app/generated/prisma/client').BookingSource
 
       return tx.booking.create({
         data: {
@@ -279,11 +299,6 @@ export async function updateBooking(
       }
       if (booking.status === 'CANCELLED') throw new Error('CANCELLED')
 
-      const clubData = await tx.club.findUnique({ where: { id: booking.clubId }, select: { allowedDurations: true } })
-      if (clubData && !clubData.allowedDurations.includes(durationMinutes)) {
-        throw new Error('DURATION_NOT_ALLOWED')
-      }
-
       const targetCourtId = newCourtId ?? booking.courtId
 
       // Verify new court belongs to same club
@@ -299,7 +314,7 @@ export async function updateBooking(
       const dayOfWeek = (booking.date as Date).getUTCDay()
       const avail = await tx.courtAvailability.findFirst({
         where: { courtId: targetCourtId, dayOfWeek, isActive: true },
-        select: { closeTime: true },
+        select: { closeTime: true, pricePerHour: true },
       })
       if (avail) {
         const closeMin = timeToMinutes(avail.closeTime)
@@ -326,9 +341,30 @@ export async function updateBooking(
 
       const updateData: Record<string, unknown> = { startTime, durationMinutes }
       if (newCourtId && newCourtId !== booking.courtId) updateData.courtId = newCourtId
-      if (booking.source === 'MANUAL_OWNER') {
+      if (booking.source === 'MANUAL_STAFF') {
         if (manualName !== undefined) updateData.manualName = manualName || null
         if (manualPhone !== undefined) updateData.manualPhone = manualPhone || null
+      }
+
+      // Recalculate price when time or court changes
+      if (avail) {
+        const [courtRules, clubRulesForUpdate] = await Promise.all([
+          tx.bookingRule.findMany({
+            where: { courtIds: { has: targetCourtId }, isActive: true },
+            select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
+          }),
+          tx.bookingRule.findMany({
+            where: { clubId: booking.clubId, courtIds: { isEmpty: true }, isActive: true },
+            select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
+          }),
+        ])
+        const resolved = resolveBookingRule(
+          [...clubRulesForUpdate, ...courtRules] as BookingRuleInput[],
+          dayOfWeek,
+          newStartMin,
+          avail.pricePerHour
+        )
+        updateData.totalPrice = calcBookingPrice(resolved?.price ?? avail.pricePerHour, durationMinutes)
       }
 
       await tx.booking.update({ where: { id: bookingId }, data: updateData })
@@ -542,7 +578,7 @@ export async function getMonthAvailability(
 
   const rangeStartDate = new Date(`${rangeStart}T00:00:00.000Z`)
 
-  const [courts, bookings] = await Promise.all([
+  const [{ courts }, bookings] = await Promise.all([
     getCourtsByClubId(clubId),
     getAdminBookingsByDate(clubId, rangeStartDate, endOfNextMonth),
   ])

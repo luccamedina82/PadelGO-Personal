@@ -1,12 +1,19 @@
 import { argToday } from '@/lib/date'
 import { calcAvailableSlots } from '@/lib/availability'
+import type { BookingRuleInput } from '@/lib/availability'
 import { getCourtsByClubId } from './courts'
 import { getAdminBookingsByDate } from './bookings'
 import { prisma } from '@/lib/prisma'
 
 export type CourtSlotsEntry = {
   courtId: string
-  slots: { time: string; available: boolean; durationOptions: number[]; pricePerHour: number }[]
+  slots: {
+    time: string
+    available: boolean
+    durationOptions: number[]
+    pricePerHour: number
+    appliedRuleName?: string
+  }[]
 }
 
 export type WizardPageData = {
@@ -20,12 +27,10 @@ export type WizardPageData = {
 export async function getWizardPageData(clubId: string, dateParam?: string): Promise<WizardPageData> {
   const clubConfig = await prisma.club.findUnique({
     where: { id: clubId },
-    select: { allowedDurations: true, bookingWindowDays: true },
+    select: { bookingWindowDays: true },
   })
 
   const bookingWindowDays = clubConfig?.bookingWindowDays ?? 14
-  // Admins can book beyond the player-facing window; ensure dateParam is always covered.
-  // Cap at 180 days to keep the query reasonable.
   const defaultDateOffset = dateParam
     ? Math.ceil(
         (new Date(`${dateParam}T00:00:00.000Z`).getTime() - argToday().getTime()) /
@@ -43,12 +48,11 @@ export async function getWizardPageData(clubId: string, dateParam?: string): Pro
   const from = new Date(`${availableDates[0]}T00:00:00.000Z`)
   const to = new Date(`${availableDates[availableDates.length - 1]}T23:59:59.000Z`)
 
-  const [courts, allBookings] = await Promise.all([
+  const [{ courts, clubRules }, allBookings] = await Promise.all([
     getCourtsByClubId(clubId),
     getAdminBookingsByDate(clubId, from, to),
   ])
 
-  // O(1) lookup map: "courtId:dateStr" -> bookings
   const bookingsByKey = new Map<string, typeof allBookings>()
   for (const b of allBookings) {
     const key = `${b.courtId}:${b.date}`
@@ -71,14 +75,26 @@ export async function getWizardPageData(clubId: string, dateParam?: string): Pro
         continue
       }
 
+      const combinedRules: BookingRuleInput[] = [
+        ...clubRules,
+        ...(court.bookingRule as BookingRuleInput[]),
+      ]
+
       const courtBookings = bookingsByKey.get(`${court.id}:${dateStr}`) ?? []
 
       const slots = calcAvailableSlots(
-        { openTime: avail.openTime, closeTime: avail.closeTime, pricePerHour: avail.pricePerHour },
+        {
+          openTime: avail.openTime,
+          closeTime: avail.closeTime,
+          pricePerHour: avail.pricePerHour,
+          rules: combinedRules,
+          isUnderMaintenance: court.isUnderMaintenance,
+        },
         courtBookings,
         dObj,
         new Date(),
-        0 // admin bypass: no advance time restriction
+        0, // admin bypass: no advance time restriction
+        'admin'
       )
 
       dateSlots.push({
@@ -88,6 +104,7 @@ export async function getWizardPageData(clubId: string, dateParam?: string): Pro
           available: s.available,
           durationOptions: s.durationOptions,
           pricePerHour: s.pricePerHour,
+          appliedRuleName: s.appliedRuleName,
         })),
       })
     }
@@ -104,6 +121,6 @@ export async function getWizardPageData(clubId: string, dateParam?: string): Pro
     courtSlotsByDate,
     availableDates,
     dateHasSlots,
-    durationOptions: clubConfig?.allowedDurations ?? [60, 90, 120],
+    durationOptions: [60, 90, 120],
   }
 }

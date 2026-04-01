@@ -5,20 +5,15 @@ import { COURT_COLORS, SOURCE_FILTERS, type SourceFilterKey } from '../helpers/b
 import type { CourtColumn } from '../types/bookingGrid.types'
 
 const SOURCE_COLOR_VAR: Record<string, string> = {
-  ONLINE:         'var(--booking-unified-bar)',
-  MANUAL:         'var(--booking-unified-bar)',
-  BLOCK:          'var(--booking-unified-bar)',
-  RECURRING:      'var(--booking-unified-bar)',
-  ENTRENAMIENTO:  'var(--booking-unified-bar)',
-  TORNEO:         'var(--booking-unified-bar)',
-  EVENTO:         'var(--booking-unified-bar)',
-  MANTENIMIENTO:  '#6b7280',
+  ONLINE:    'var(--booking-unified-bar)',
+  MANUAL:    'var(--booking-unified-bar)',
+  BLOCK:     'var(--booking-unified-bar)',
+  RECURRING: 'var(--booking-unified-bar)',
 }
 
 const FILTER_CATEGORIES: { label: string; keys: Array<SourceFilterKey> }[] = [
-  { label: 'Reservas',    keys: ['ONLINE', 'MANUAL', 'RECURRING'] },
-  { label: 'Actividades', keys: ['ENTRENAMIENTO', 'TORNEO', 'EVENTO', 'MANTENIMIENTO'] },
-  { label: 'Otros',       keys: ['BLOCK'] },
+  { label: 'Reservas', keys: ['ONLINE', 'MANUAL', 'RECURRING'] },
+  { label: 'Otros',    keys: ['BLOCK'] },
 ]
 
 interface BookingGridFilterBarProps {

@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
           : 'Sin cobrar',
       b.source === 'ONLINE'
         ? 'Online'
-        : b.source === 'MANUAL_OWNER'
+        : b.source === 'MANUAL_STAFF'
           ? 'Manual'
           : b.source === 'MANUAL_SUPPORT'
             ? 'Soporte'

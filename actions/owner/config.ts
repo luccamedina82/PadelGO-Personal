@@ -17,7 +17,6 @@ export interface UpdateClubConfigInput {
   tags?: string[]
   cancelHoursBeforeStart?: number
   cancellationFeePercent?: number
-  allowedDurations?: number[]
 }
 
 export async function updateClubConfig(input: UpdateClubConfigInput): Promise<ActionResult> {
@@ -35,7 +34,6 @@ export async function updateClubConfig(input: UpdateClubConfigInput): Promise<Ac
     tags,
     cancelHoursBeforeStart,
     cancellationFeePercent,
-    allowedDurations,
   } = input
 
   if (!clubId) return { success: false, error: 'Club no especificado.' }
@@ -54,13 +52,6 @@ export async function updateClubConfig(input: UpdateClubConfigInput): Promise<Ac
   ) {
     return { success: false, error: 'El cargo de cancelación debe estar entre 0% y 100%.' }
   }
-  if (
-    allowedDurations !== undefined &&
-    (allowedDurations.length === 0 || !allowedDurations.every((d) => [60, 90, 120].includes(d)))
-  ) {
-    return { success: false, error: 'Duraciones inválidas. Solo se permiten: 60, 90, 120 minutos.' }
-  }
-
   try {
     await prisma.club.update({
       where: { id: clubId },
@@ -75,7 +66,6 @@ export async function updateClubConfig(input: UpdateClubConfigInput): Promise<Ac
         ...(tags !== undefined && { tags }),
         ...(cancelHoursBeforeStart !== undefined && { cancelHoursBeforeStart }),
         ...(cancellationFeePercent !== undefined && { cancellationFeePercent }),
-        ...(allowedDurations !== undefined && { allowedDurations }),
       },
     })
     revalidatePath('/admin/config')

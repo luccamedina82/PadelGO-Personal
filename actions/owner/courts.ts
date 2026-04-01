@@ -18,6 +18,9 @@ export interface UpdateCourtInput {
   covered?: boolean
 }
 
+const DEFAULT_OPEN  = '08:00'
+const DEFAULT_CLOSE = '23:00'
+
 export async function createCourt(
   input: CreateCourtInput
 ): Promise<ActionResult<{ courtId: string }>> {
@@ -39,6 +42,19 @@ export async function createCourt(
         svgW: 100,
         svgH: 180,
         isActive: true,
+        isUnderMaintenance: false,
+        // Create default availability for all 7 days so the court appears in the calendar immediately
+        availabilities: {
+          createMany: {
+            data: Array.from({ length: 7 }, (_, dow) => ({
+              dayOfWeek: dow,
+              openTime: DEFAULT_OPEN,
+              closeTime: DEFAULT_CLOSE,
+              pricePerHour: 0, // price is driven by BookingRules
+              isActive: true,
+            })),
+          },
+        },
       },
       select: { id: true },
     })
@@ -77,6 +93,51 @@ export async function updateCourt(
   } catch (err) {
     console.error('[updateCourt]', err)
     return { success: false, error: 'Error al actualizar la cancha.' }
+  }
+}
+
+export async function setCourtMaintenance(
+  courtId: string,
+  clubId: string,
+  isUnderMaintenance: boolean
+): Promise<ActionResult> {
+  await requireRole(['OWNER', 'STAFF'])
+
+  try {
+    await prisma.court.update({
+      where: { id: courtId, clubId },
+      data: { isUnderMaintenance },
+    })
+    revalidateTag(`courts-${clubId}`, 'default')
+    revalidatePath('/admin/canchas')
+    revalidatePath('/admin/reservas')
+    revalidatePath('/admin')
+    return { success: true }
+  } catch (err) {
+    console.error('[setCourtMaintenance]', err)
+    return { success: false, error: 'Error al cambiar estado de la cancha.' }
+  }
+}
+
+export async function getCourtPendingCount(
+  courtId: string
+): Promise<ActionResult<{ count: number }>> {
+  await requireRole(['OWNER', 'STAFF'])
+
+  try {
+    const todayUTC = new Date()
+    todayUTC.setUTCHours(0, 0, 0, 0)
+    const count = await prisma.booking.count({
+      where: {
+        courtId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        date: { gte: todayUTC },
+      },
+    })
+    return { success: true, data: { count } }
+  } catch (err) {
+    console.error('[getCourtPendingCount]', err)
+    return { success: false, error: 'Error al contar reservas.' }
   }
 }
 

@@ -12,6 +12,7 @@ export interface AvailabilitySlot {
   available: boolean
   durationOptions: number[]
   pricePerHour: number
+  appliedRuleName?: string
 }
 
 export interface CourtSlots {
@@ -36,7 +37,7 @@ export interface ManualBookingWizardProps {
     manualName?: string
     manualPhone?: string
     blockReason?: string
-    blockSource?: string
+    priceOverride?: number
   }) => Promise<ActionResult<{ bookingId: string }>>
   defaultCourtId?: string
   defaultDate?: string
