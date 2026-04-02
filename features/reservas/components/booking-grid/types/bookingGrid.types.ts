@@ -42,6 +42,8 @@ export interface BookingGridProps {
   clubId?: string // needed for drag/resize mutations
   gridStart: number // minutes from midnight, e.g. 7*60 = 420
   gridEnd: number // minutes from midnight, e.g. 23*60 = 1380
+  baseStart?: number // original rule start before elastic expansion — used for danger zone overlay
+  baseEnd?: number   // original rule end before elastic expansion — used for danger zone overlay
   onCancelBooking?: (bookingId: string) => Promise<void>
   onUpdatePayment?: (bookingId: string, status: PaymentStatus) => Promise<void>
   onUpdateBooking?: (bookingId: string, data: UpdateBookingData) => Promise<void>

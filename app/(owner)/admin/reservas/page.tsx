@@ -4,12 +4,14 @@ import type { CourtColumn } from '@/features/reservas/components/booking-grid/Bo
 import { getAdminContext } from '@/lib/dal/admin'
 import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
+import { getConflictBookings } from '@/features/reservas/dal/conflicts'
 import DateHeader from './ui/DateHeader/DateHeader'
 import BookingsClient from './BookingsClient'
 import { Suspense } from 'react'
+import prisma from '@/lib/prisma'
 
 interface Props {
-  searchParams: Promise<{ date?: string; new?: string }>
+  searchParams: Promise<{ date?: string; new?: string; highlight?: string }>
 }
 
 function todayStr() {
@@ -17,17 +19,35 @@ function todayStr() {
 }
 
 export default async function ReservasPage({ searchParams }: Props) {
-  const { date: dateParam } = await searchParams
+  const { date: dateParam, highlight: highlightParam } = await searchParams
   const { club } = await getAdminContext(['OWNER', 'STAFF'])
 
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
   }
-  const { courts: allCourts } = await getCourtsByClubId(club.id)
-
   const selectedDate = (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) ? dateParam : todayStr()
   const dateObj = new Date(`${selectedDate}T00:00:00.000Z`)
   const dayOfWeek = dateObj.getUTCDay()
+
+  const [{ courts: allCourts }, conflicts, baseBookingRule] = await Promise.all([
+    getCourtsByClubId(club.id),
+    getConflictBookings(club.id),
+    prisma.bookingRule.findFirst({
+      where: {
+        clubId: club.id,
+        priority: 0,
+        isActive: true,
+        courtIds: { isEmpty: true },
+        AND: [
+          // Compare against the full day range to avoid UTC offset false misses
+          { OR: [{ activeFrom: null }, { activeFrom: { lte: new Date(`${selectedDate}T23:59:59.999Z`) } }] },
+          { OR: [{ activeUntil: null }, { activeUntil: { gte: new Date(`${selectedDate}T00:00:00.000Z`) } }] },
+        ],
+      },
+      orderBy: { activeFrom: 'desc' },
+      select: { startTime: true, endTime: true },
+    }),
+  ])
 
   const periodStart = new Date(`${selectedDate}T00:00:00.000Z`)
   const periodEnd = new Date(`${selectedDate}T23:59:59.999Z`)
@@ -39,24 +59,15 @@ export default async function ReservasPage({ searchParams }: Props) {
     availabilities: court.availabilities.filter((a) => a.dayOfWeek === dayOfWeek),
   }))
 
-  let gridStart = 8 * 60
-  let gridEnd = 23 * 60
-  const openTimes: number[] = []
-  const closeTimes: number[] = []
+  let baseStart = 8 * 60
+  let baseEnd = 23 * 60
 
-  activeCourtsToday.forEach((court) => {
-    court.availabilities.forEach((avail) => {
-      const [oh, om] = avail.openTime.split(':').map(Number)
-      const [ch, cm] = avail.closeTime.split(':').map(Number)
-      openTimes.push((oh ?? 8) * 60 + (om ?? 0))
-      closeTimes.push((ch ?? 23) * 60 + (cm ?? 0))
-    })
-  })
-  if (openTimes.length > 0) gridStart = Math.min(...openTimes)
-  if (closeTimes.length > 0) gridEnd = Math.max(...closeTimes)
-
-  gridStart = Math.floor(gridStart / 30) * 30
-  gridEnd = Math.ceil(gridEnd / 30) * 30
+  if (baseBookingRule) {
+    const [sh, sm] = baseBookingRule.startTime.split(':').map(Number)
+    const [eh, em] = baseBookingRule.endTime.split(':').map(Number)
+    baseStart = (sh ?? 8) * 60 + (sm ?? 0)
+    baseEnd = (eh ?? 23) * 60 + (em ?? 0)
+  }
 
   const courtColumns: CourtColumn[] = activeCourtsToday.map((c) => {
     let closeTimeMinutes: number | undefined
@@ -83,8 +94,7 @@ export default async function ReservasPage({ searchParams }: Props) {
     }
   })
 
-  const selectedDateObj = new Date(`${selectedDate}T00:00:00.000Z`)
-  const dateLabel = selectedDateObj.toLocaleDateString('es-AR', {
+  const dateLabel = dateObj.toLocaleDateString('es-AR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -129,8 +139,10 @@ export default async function ReservasPage({ searchParams }: Props) {
             clubId={club.id}
             date={selectedDate}
             courts={courtColumns}
-            gridStart={gridStart}
-            gridEnd={gridEnd}
+            baseStart={baseStart}
+            baseEnd={baseEnd}
+            conflictCount={conflicts.length}
+            highlightBookingId={highlightParam}
           />
         </Suspense>
       </div>

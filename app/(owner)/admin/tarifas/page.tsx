@@ -7,6 +7,7 @@ import {
   updateRule,
   deleteRule,
   toggleRuleStatus,
+  activateRuleNow,
 } from '@/features/tarifas/actions/rules'
 
 export default async function TarifasPage() {
@@ -30,6 +31,7 @@ export default async function TarifasPage() {
       updateRuleAction={updateRule}
       deleteRuleAction={deleteRule}
       toggleRuleStatusAction={toggleRuleStatus}
+      activateRuleNowAction={activateRuleNow}
     />
   )
 }

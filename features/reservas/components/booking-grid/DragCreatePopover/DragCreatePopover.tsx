@@ -17,6 +17,7 @@ interface DragCreatePopoverProps {
   createManualBookingAction: CreateAction
   onCancel: () => void
   onCreated: (bookingId: string | undefined) => void
+  isOutOfBounds?: boolean
 }
 
 function fmtDur(d: number) {
@@ -34,6 +35,7 @@ export default function DragCreatePopover({
   createManualBookingAction,
   onCancel,
   onCreated,
+  isOutOfBounds,
 }: DragCreatePopoverProps) {
   const { ghost, courtId, popoverPos } = pendingCreate
   const [isPending, startTransition] = useTransition()
@@ -118,6 +120,15 @@ export default function DragCreatePopover({
         </div>
         <p className="text-[12px] font-semibold text-text truncate">{court?.name}</p>
         <p className="text-[11px] font-mono text-muted">{startTime} – {endTime} · {fmtDur(ghost.durationMinutes)}</p>
+        {isOutOfBounds && (
+          <p className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-amber-400">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            Fuera del horario operativo
+          </p>
+        )}
       </div>
 
       {/* Form */}

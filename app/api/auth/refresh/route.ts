@@ -44,14 +44,36 @@ export async function GET(request: NextRequest) {
   const stored = await prisma.refreshToken.findFirst({
     where: {
       token: tokenHash,
-      revokedAt: null,
-      expiresAt: { gt: new Date() },
+      // revokedAt: null,
+      // expiresAt: { gt: new Date() },
     },
     include: { user: true },
   })
 
-  if (!stored) {
-    console.error('[auth/refresh] Token not found or expired (hash not in DB / already revoked)')
+  if (!stored || stored.expiresAt < new Date()) {
+    console.error('[auth/refresh] Token not found or hard-expired (hash not in DB / already revoked)')
+    const response = redirectToLogin(request, safeReturn)
+    response.cookies.delete(COOKIE_ACCESS_TOKEN)
+    response.cookies.delete(COOKIE_REFRESH_TOKEN)
+    return response
+  }
+
+  if (stored.revokedAt) {
+    const secondsSinceRevocation = (new Date().getTime() - stored.revokedAt.getTime()) / 1000
+
+    if (secondsSinceRevocation < 15) {
+      // Es una petición concurrente. Otra petición acaba de rotar el token.
+      // Redirigimos SIN borrar las cookies, para que las de la Petición A sobrevivan.
+      console.info(`[auth/refresh] Race condition detectada para userId=${stored.userId}. Ignorando...`)
+      return NextResponse.redirect(new URL(safeReturn, request.url))
+    }
+
+    // Si se revocó hace mucho tiempo, alguien está intentando usar un token viejo (posible robo).
+    console.warn(`[auth/refresh] Intento de uso de token revocado (Replay Attack) userId=${stored.userId}`)
+    
+    // Opcional pero recomendado: Revocar TODOS los tokens activos de ese usuario por seguridad
+    await prisma.refreshToken.updateMany({ where: { userId: stored.userId }, data: { revokedAt: new Date() } })
+
     const response = redirectToLogin(request, safeReturn)
     response.cookies.delete(COOKIE_ACCESS_TOKEN)
     response.cookies.delete(COOKIE_REFRESH_TOKEN)
@@ -117,3 +139,7 @@ function redirectToLogin(request: NextRequest, returnPath: string): NextResponse
   }
   return NextResponse.redirect(url)
 }
+
+export async function POST(request: NextRequest) { return GET(request) }
+export async function PUT(request: NextRequest) { return GET(request) }
+export async function DELETE(request: NextRequest) { return GET(request) }

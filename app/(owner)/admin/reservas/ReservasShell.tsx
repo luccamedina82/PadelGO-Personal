@@ -10,6 +10,8 @@ interface ReservasShellProps {
   clubId?: string
   gridStart: number
   gridEnd: number
+  baseStart?: number
+  baseEnd?: number
   highlightBookingId?: string
   isNavigating?: boolean
 }
@@ -21,6 +23,8 @@ export default function ReservasShell({
   clubId,
   gridStart,
   gridEnd,
+  baseStart,
+  baseEnd,
   highlightBookingId,
   isNavigating,
 }: ReservasShellProps) {
@@ -33,6 +37,8 @@ export default function ReservasShell({
         clubId={clubId}
         gridStart={gridStart}
         gridEnd={gridEnd}
+        baseStart={baseStart}
+        baseEnd={baseEnd}
         highlightBookingId={highlightBookingId}
         isNavigating={isNavigating}
       />

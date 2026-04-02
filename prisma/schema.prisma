@@ -153,8 +153,10 @@ model BookingRule {
   price            Int?     // centavos ARS; null = hereda pricePerHour de CourtAvailability
   intervalMinutes  Int      @default(30) // granularidad de slots para jugadores: 30 o 60
   allowedDurations Int[]    @default([60, 90, 120])
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
+  isActive         Boolean   @default(true)
+  activeFrom       DateTime? // null = válida desde siempre
+  activeUntil      DateTime? // null = sin vencimiento
+  createdAt        DateTime  @default(now())
 
   @@index([clubId])
 }

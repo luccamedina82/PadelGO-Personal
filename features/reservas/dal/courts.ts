@@ -12,6 +12,8 @@ const RULE_SELECT = {
   intervalMinutes: true,
   allowedDurations: true,
   courtIds: true,
+  activeFrom: true,
+  activeUntil: true,
 } as const
 
 export async function getCourtsByClubId(clubId: string) {

@@ -46,6 +46,8 @@ export default function BookingGrid({
   clubId,
   gridStart,
   gridEnd,
+  baseStart,
+  baseEnd,
   highlightBookingId,
   isNavigating,
 }: BookingGridProps) {
@@ -202,6 +204,12 @@ export default function BookingGrid({
     handleCancelCreate()
     window.dispatchEvent(new CustomEvent('reservas:refresh', { detail: { bookingId } }))
   }
+
+  const isPendingOOB =
+    pendingCreate !== null &&
+    baseStart !== undefined && baseEnd !== undefined &&
+    (pendingCreate.ghost.startMin < baseStart ||
+     (pendingCreate.ghost.startMin + pendingCreate.ghost.durationMinutes) > baseEnd)
 
   // Apply local overrides for optimistic drag/resize rendering
   const effectiveBookings = useMemo(() => {
@@ -412,12 +420,13 @@ export default function BookingGrid({
                   {!court.isActive && <div className="court-reform-overlay" />}
 
                   {court.isUnderMaintenance ? (
-                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center gap-2
-                                    bg-red-950/40 border-x border-red-900/40">
-                      <Wrench className="w-7 h-7 text-red-500/50" strokeWidth={1.5} />
-                      <span className="text-[9px] font-bold uppercase tracking-[2px] text-red-500/60">
-                        Fuera de Servicio
-                      </span>
+                    <div className="absolute inset-0 pointer-events-none bg-red-950/40 border-x border-red-900/40">
+                      <div className="sticky top-[45vh] -translate-y-1/2 flex flex-col items-center gap-2 py-3">
+                        <Wrench className="w-7 h-7 text-red-500/50" strokeWidth={1.5} />
+                        <span className="text-[9px] font-bold uppercase tracking-[2px] text-red-500/60">
+                          Fuera de Servicio
+                        </span>
+                      </div>
                     </div>
                   ) : (
                   <>
@@ -425,15 +434,14 @@ export default function BookingGrid({
                     const slotMin = gridStart + i * 30
                     const isHour = slotMin % 60 === 0
                     const hasBookingAtSlot = occupiedSlots?.has(slotMin) ?? false
-                    const courtCloseMin = court.closeTimeMinutes ?? gridEnd
-                    const courtOpenMin = court.openTimeMinutes ?? gridStart
                     const isPast =
                       !court.isActive ||
                       isViewingPast ||
                       (currentMinutes !== null && slotMin < currentMinutes) ||
-                      hasBookingAtSlot ||
-                      slotMin < courtOpenMin ||
-                      slotMin + 60 > courtCloseMin
+                      hasBookingAtSlot
+                    const isOutOfBounds =
+                      baseStart !== undefined && baseEnd !== undefined &&
+                      (slotMin < baseStart || slotMin >= baseEnd)
                     return (
                       <div
                         key={i}
@@ -449,6 +457,9 @@ export default function BookingGrid({
                         onMouseLeave={handleSlotMouseLeave}
                         onPointerDown={(e) => !isPast && !draggingId && handleCreateStart(court.id, courtIndex, slotMin, e)}
                       >
+                        {isOutOfBounds && (
+                          <span className="absolute inset-0 pointer-events-none bg-zinc-500/[0.11] z-0" />
+                        )}
                         {!isPast && (
                           <span className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-150 bg-(--grid-slot-hover) group-hover:opacity-100" />
                         )}
@@ -457,7 +468,19 @@ export default function BookingGrid({
                   })}
 
                   {courtBookings.map((b) => {
-                    const bookingEndMin = timeToMinutes(b.startTime) + b.durationMinutes
+                    const bookingStartMin = timeToMinutes(b.startTime)
+                    const bookingEndMin = bookingStartMin + b.durationMinutes
+
+                    // Skip bookings fully outside the visible grid
+                    if (bookingStartMin >= gridEnd || bookingEndMin <= gridStart) return null
+
+                    // Clamp visual height when booking overflows past gridEnd
+                    const visibleEnd = Math.min(bookingEndMin, gridEnd)
+                    const visibleDuration = visibleEnd - Math.max(bookingStartMin, gridStart)
+                    const clampedHeight = bookingEndMin > gridEnd
+                      ? Math.max((visibleDuration / 30) * SLOT_HEIGHT - 3, 22)
+                      : undefined
+
                     const isBookingPast = isViewingPast || (isViewingToday && currentMinutes !== null && bookingEndMin <= currentMinutes)
                     return (
                     <BookingBlockCell
@@ -468,7 +491,7 @@ export default function BookingGrid({
                       isHighlighted={highlightId === b.id}
                       isDragging={draggingId === b.id}
                       isResizing={resizingId === b.id}
-                      heightOverride={resizingId === b.id ? (resizeHeightPx ?? undefined) : undefined}
+                      heightOverride={resizingId === b.id ? (resizeHeightPx ?? undefined) : clampedHeight}
                       isPast={isBookingPast}
                       onDragStart={handleDragStart}
                       onResizeStart={handleResizeStart}
@@ -654,6 +677,7 @@ export default function BookingGrid({
           createManualBookingAction={createManualBooking}
           onCancel={handleCancelCreate}
           onCreated={handleDragCreated}
+          isOutOfBounds={isPendingOOB}
         />
       )}
     </>

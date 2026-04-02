@@ -264,6 +264,7 @@ export async function updatePaymentStatus(
 export interface UpdateBookingInput {
   startTime: string
   durationMinutes: number
+  date?: string // YYYY-MM-DD — allows relocation to a different date
   manualName?: string
   manualPhone?: string
   courtId?: string // cross-court drag support
@@ -275,7 +276,7 @@ export async function updateBooking(
 ): Promise<ActionResult> {
   const session = await requireRole(['OWNER', 'STAFF'])
 
-  const { startTime, durationMinutes, manualName, manualPhone, courtId: newCourtId } = data
+  const { startTime, durationMinutes, manualName, manualPhone, courtId: newCourtId, date: newDateStr } = data
 
   if (!(VALID_DURATIONS as readonly number[]).includes(durationMinutes)) {
     return { success: false, error: 'Duración no válida. Opciones: 60, 90 o 120 minutos.' }
@@ -307,11 +308,15 @@ export async function updateBooking(
         if (!court || court.clubId !== booking.clubId) throw new Error('INVALID_COURT')
       }
 
+      const targetDate = newDateStr
+        ? new Date(`${newDateStr}T00:00:00.000Z`)
+        : (booking.date as Date)
+
       const newStartMin = timeToMinutes(startTime)
       const newEndMin = newStartMin + durationMinutes
 
       // CloseTime check on the target court
-      const dayOfWeek = (booking.date as Date).getUTCDay()
+      const dayOfWeek = targetDate.getUTCDay()
       const avail = await tx.courtAvailability.findFirst({
         where: { courtId: targetCourtId, dayOfWeek, isActive: true },
         select: { closeTime: true, pricePerHour: true },
@@ -320,12 +325,12 @@ export async function updateBooking(
         const closeMin = timeToMinutes(avail.closeTime)
         if (newEndMin > closeMin) throw new Error('EXCEEDS_CLOSE_TIME')
       }
-    
+
       // Conflict check on the target court (excluding self)
       const existing = await tx.booking.findMany({
         where: {
           courtId: targetCourtId,
-          date: booking.date,
+          date: targetDate,
           status: { in: ['PENDING', 'CONFIRMED'] },
           id: { not: bookingId },
         },
@@ -340,6 +345,7 @@ export async function updateBooking(
       if (conflict) throw new Error('SLOT_TAKEN')
 
       const updateData: Record<string, unknown> = { startTime, durationMinutes }
+      if (newDateStr) updateData.date = targetDate
       if (newCourtId && newCourtId !== booking.courtId) updateData.courtId = newCourtId
       if (booking.source === 'MANUAL_STAFF') {
         if (manualName !== undefined) updateData.manualName = manualName || null

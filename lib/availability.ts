@@ -55,6 +55,8 @@ export interface BookingRuleInput {
   price: number | null // centavos; null = inherit from CourtAvailability.pricePerHour
   intervalMinutes: number // slot granularity for player UI
   allowedDurations: number[] // e.g. [60, 90]
+  activeFrom?: Date | null // null = always valid from the start
+  activeUntil?: Date | null // null = no expiry
 }
 
 /** The resolved rule for a specific slot after cascade evaluation */
@@ -151,6 +153,14 @@ export function calcAvailableSlots(
   const closeMinutes = timeToMinutes(config.closeTime)
   const rules = config.rules ?? []
 
+  // Pre-filter rules by temporal validity for the queried date
+  const dateRules = rules.filter((r) => {
+    if (!r.activeFrom && !r.activeUntil) return true
+    if (r.activeFrom && selectedDate < r.activeFrom) return false
+    if (r.activeUntil && selectedDate > r.activeUntil) return false
+    return true
+  })
+
   const activeBookings = existingBookings.filter(
     (b) => b.status === 'PENDING' || b.status === 'CONFIRMED'
   )
@@ -180,7 +190,7 @@ export function calcAvailableSlots(
 
   for (let start = openMinutes; start <= closeMinutes - 60; start += ADMIN_SLOT_INCREMENT) {
     // Resolve the winning rule for this slot position
-    const resolved = resolveBookingRule(rules, dayOfWeek, start, config.pricePerHour)
+    const resolved = resolveBookingRule(dateRules, dayOfWeek, start, config.pricePerHour)
 
     const effectivePrice = resolved?.price ?? config.pricePerHour
     const effectiveDurations =
