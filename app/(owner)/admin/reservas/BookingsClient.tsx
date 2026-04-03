@@ -119,7 +119,11 @@ export default function BookingsClient({
     const court = courts.find((c) => c.id === courtId)
     const defaultDuration = court?.allowedDurations[0] ?? 60
     // Abort if not even the minimum duration fits
-    if (availableMinutes !== undefined && availableMinutes < defaultDuration) return
+
+    if (availableMinutes !== undefined && availableMinutes < defaultDuration) {
+      toast.warning(`No hay suficiente tiempo disponible. El mínimo para esta cancha es de ${defaultDuration} minutos.`)
+      return
+    }
     // Use the full cell rect as anchor — floating-ui flip works correctly with real column bounds
     const coords = cellRect
       ? {

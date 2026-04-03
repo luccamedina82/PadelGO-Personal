@@ -31,6 +31,7 @@ import {
   shouldUpdateTooltipPosition,
   type SourceFilterKey,
 } from './helpers/bookingGrid.helpers'
+import { toast } from 'sonner'
 
 export type { BookingBlock, CourtColumn, UpdateBookingData }
 
@@ -378,7 +379,11 @@ export default function BookingGrid({
         if (occupied.has(m)) { availableMinutes = m - slotMinutes; break }
       }
     }
-    if (availableMinutes < courtMinDuration) { clickedCellRectRef.current = null; return }
+    if (availableMinutes < courtMinDuration) {
+      toast.warning(`Espacio insuficiente. El mínimo para esta cancha es de ${courtMinDuration} minutos.`)
+      clickedCellRectRef.current = null 
+      return 
+    }
     onCellClick?.(courtId, slotMinutes, clickedCellRectRef.current ?? undefined, availableMinutes)
     clickedCellRectRef.current = null
   }

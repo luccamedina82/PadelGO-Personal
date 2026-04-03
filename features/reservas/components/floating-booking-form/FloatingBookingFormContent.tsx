@@ -273,7 +273,7 @@ export default function FloatingBookingFormContent({
   const ring = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50'
 
   return (
-    <div className="flex flex-col max-h-[80vh] overflow-hidden">
+    <div className="flex flex-col max-h-[85vh] overflow-hidden">
       {/* Header */}
       <div className="px-4 pt-3.5 pb-2.5 border-b border-border shrink-0">
         <div className="flex items-center justify-between mb-2.5">
@@ -354,7 +354,7 @@ export default function FloatingBookingFormContent({
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1.5">
                   {bookingMode === 'BLOQUEO' ? 'Cancha' : 'Cancha y duración'}
                 </p>
-                <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto [scrollbar-width:thin]">
+                <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto [scrollbar-width:thin]">
                   {courtsForTime.length === 0 ? (
                     <p className="text-xs text-muted text-center py-3">Sin canchas disponibles</p>
                   ) : courtsForTime.map((c) => {
@@ -437,14 +437,16 @@ export default function FloatingBookingFormContent({
 
         {/* Price */}
         {bookingMode === 'RESERVA' && courtId && duration > 0 && (
-          <PriceRuleDisplay
-            appliedRuleName={isOOB ? 'Regla Base (fuera de horario)' : selectedSlot?.appliedRuleName}
-            basePrice={basePrice}
-            overrideEnabled={priceOverrideEnabled}
-            overrideInput={priceOverrideInput}
-            onToggleOverride={() => { setPriceOverrideEnabled((v) => !v); setPriceOverrideInput('') }}
-            onChangeOverride={setPriceOverrideInput}
-          />
+          <div className="shrink-0 pt-2 border-t border-border/40">
+            <PriceRuleDisplay
+              appliedRuleName={isOOB ? 'Regla Base (fuera de horario)' : selectedSlot?.appliedRuleName}
+              basePrice={basePrice}
+              overrideEnabled={priceOverrideEnabled}
+              overrideInput={priceOverrideInput}
+              onToggleOverride={() => { setPriceOverrideEnabled((v) => !v); setPriceOverrideInput('') }}
+              onChangeOverride={setPriceOverrideInput}
+            />
+          </div>
         )}
 
         {/* Error */}

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, type RefObject, type PointerEvent as ReactPointerEvent } from 'react'
 import { SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
 import type { CourtColumn } from '../types/bookingGrid.types'
+import { toast } from 'sonner'
 
 export interface CreateGhost {
   courtIndex: number
@@ -140,7 +141,10 @@ export function useBookingDragCreate({
         if (!ghost) return null
         // Don't open form if capped duration is below this court's minimum
         const courtMinDuration = courtMinDurations.get(info.courtId) ?? 60
-        if (ghost.durationMinutes < courtMinDuration) return null
+        if (ghost.durationMinutes < courtMinDuration) {
+          toast.warning(`Espacio insuficiente. El mínimo para esta cancha es de ${courtMinDuration} minutos.`)
+          return null
+        }
         // Compute ghost bounding rect in viewport coordinates
         // floating-ui will handle left/right flip automatically
         const containerEl = containerRef.current
