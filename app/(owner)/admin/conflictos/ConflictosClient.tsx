@@ -4,11 +4,12 @@ import { useState, useMemo, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import type { ConflictBooking, CancelledBooking } from '@/features/reservas/dal/conflicts'
 import { cancelBooking, updateBooking } from '@/features/reservas/actions/bookings'
-import { fetchSlotsForRelocAction } from '@/features/reservas/actions/conflicts'
+import { fetchSlotsForRelocAction, approveExceptionAction } from '@/features/reservas/actions/conflicts'
 
 const CONFLICT_META: Record<ConflictBooking['conflictType'], { label: string; cls: string }> = {
-  MAINTENANCE: { label: 'Mantenimiento',    cls: 'bg-orange-500/10 border-orange-500/30 text-orange-500' },
-  ARCHIVED:    { label: 'Cancha eliminada', cls: 'bg-red-500/10 border-red-500/30 text-red-500' },
+  MAINTENANCE:  { label: 'Mantenimiento',    cls: 'bg-orange-500/10 border-orange-500/30 text-orange-500' },
+  ARCHIVED:     { label: 'Cancha eliminada', cls: 'bg-red-500/10 border-red-500/30 text-red-500' },
+  OUT_OF_HOURS: { label: 'Fuera de horario', cls: 'bg-amber-500/10 border-amber-500/30 text-amber-500' },
 }
 
 function tmToMin(t: string) { const [h, m] = t.split(':').map(Number); return h * 60 + (m ?? 0) }
@@ -29,6 +30,7 @@ export default function ConflictosClient({ conflicts: initial, cancellations, co
   const [fDate, setFDate] = useState('')
   const [selected, setSelected] = useState<ConflictBooking | null>(null)
   const [cancelId, setCancelId] = useState<string | null>(null)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
   const [, startT] = useTransition()
 
   // Reloc wizard
@@ -93,6 +95,21 @@ export default function ConflictosClient({ conflicts: initial, cancellations, co
     })
   }
 
+  function handleApproveException(id: string) {
+    setApprovingId(id)
+    startT(async () => {
+      const res = await approveExceptionAction(id)
+      setApprovingId(null)
+      if (res.success) {
+        setItems(p => p.filter(c => c.id !== id))
+        if (selected?.id === id) setSelected(null)
+        toast.success('Excepción aprobada', { position: 'bottom-right' })
+      } else {
+        toast.error(res.error ?? 'Error al aprobar', { position: 'bottom-right' })
+      }
+    })
+  }
+
   async function handleRelocConfirm() {
     if (!selected || !rTime) return
     setRConfirming(true)
@@ -145,6 +162,7 @@ export default function ConflictosClient({ conflicts: initial, cancellations, co
               <option value="">Todos los tipos</option>
               <option value="MAINTENANCE">Mantenimiento</option>
               <option value="ARCHIVED">Cancha eliminada</option>
+              <option value="OUT_OF_HOURS">Fuera de horario</option>
             </select>
             <div className="flex items-center gap-1.5">
               <input type="date" value={fDate} onChange={e => setFDate(e.target.value)}
@@ -252,18 +270,33 @@ export default function ConflictosClient({ conflicts: initial, cancellations, co
 
               {/* Action buttons */}
               {!reloc && (
-                <div className="flex gap-3 mb-6">
-                  <button type="button" disabled={!!cancelId} onClick={() => handleCancel(selected.id)}
-                    className="flex-1 py-2.5 rounded-xl border border-red-400/30 text-red-400 text-[12px] font-bold
-                               hover:bg-red-400/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                    {cancelId === selected.id ? 'Cancelando…' : 'Cancelar Turno'}
-                  </button>
-                  <button type="button"
-                    onClick={() => { setReloc(true); setRDate(selected.dateStr); setRCourt(selected.courtId) }}
-                    className="flex-1 py-2.5 rounded-xl border border-accent/30 text-accent text-[12px] font-bold
-                               hover:bg-accent/10 transition-colors cursor-pointer">
-                    Reubicar
-                  </button>
+                <div className="flex flex-col gap-2 mb-6">
+                  {selected.conflictType === 'OUT_OF_HOURS' && (
+                    <button
+                      type="button"
+                      disabled={approvingId === selected.id}
+                      onClick={() => handleApproveException(selected.id)}
+                      className="w-full py-2.5 rounded-xl border border-amber-400/30 text-amber-400 text-[12px] font-bold
+                                 hover:bg-amber-400/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {approvingId === selected.id ? 'Aprobando…' : 'Aprobar excepción'}
+                    </button>
+                  )}
+                  <div className="flex gap-3">
+                    <button type="button" disabled={!!cancelId} onClick={() => handleCancel(selected.id)}
+                      className="flex-1 py-2.5 rounded-xl border border-red-400/30 text-red-400 text-[12px] font-bold
+                                 hover:bg-red-400/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                      {cancelId === selected.id ? 'Cancelando…' : 'Cancelar Turno'}
+                    </button>
+                    {selected.conflictType !== 'OUT_OF_HOURS' && (
+                      <button type="button"
+                        onClick={() => { setReloc(true); setRDate(selected.dateStr); setRCourt(selected.courtId) }}
+                        className="flex-1 py-2.5 rounded-xl border border-accent/30 text-accent text-[12px] font-bold
+                                   hover:bg-accent/10 transition-colors cursor-pointer">
+                        Reubicar
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 

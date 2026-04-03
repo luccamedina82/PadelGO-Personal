@@ -118,6 +118,7 @@ export default async function SuperadminClubReservasPage({ params, searchParams 
     id: c.id,
     name: c.name,
     isActive: true,
+    allowedDurations: [60, 90, 120],
   }))
 
   const selectedDateObj = new Date(`${selectedDate}T00:00:00.000Z`)

@@ -23,16 +23,22 @@ export default async function AdminDashboardPage() {
   const tomorrow = argTomorrow()
   const todayStr = argTodayStr()
 
-  const [{ courts }, todayBookings] = await Promise.all([
+  const [{ courts, clubRules }, todayBookings] = await Promise.all([
     getCourtsByClubId(club.id),
     getAdminBookingsByDate(club.id, today, tomorrow),
   ])
 
-  const courtColumns: CourtColumn[] = courts.map((c) => ({
-    id: c.id,
-    name: c.name,
-    isActive: true,
-  }))
+  const clubAllowedDurations = [...new Set(clubRules.flatMap((r) => r.allowedDurations))].sort((a, b) => a - b)
+
+  const courtColumns: CourtColumn[] = courts.map((c) => {
+    const courtRuleDurations = [...new Set(c.bookingRule.flatMap((r) => r.allowedDurations))].sort((a, b) => a - b)
+    const allowedDurations = courtRuleDurations.length > 0
+      ? courtRuleDurations
+      : clubAllowedDurations.length > 0
+        ? clubAllowedDurations
+        : [60, 90, 120]
+    return { id: c.id, name: c.name, isActive: true, allowedDurations }
+  })
 
   const todayDateObj = new Date(`${todayStr}T00:00:00.000Z`)
   const dateLabel = todayDateObj.toLocaleDateString('es-AR', {
@@ -56,8 +62,7 @@ export default async function AdminDashboardPage() {
             </h1>
           </div>
           <Link
-            href={`/admin/reservas/nueva?date=${todayStr}&view=day`}
-            prefetch
+            href={`/admin/reservas?date=${todayStr}`}
             className="flex items-center gap-1.5 px-4 py-2 bg-accent text-accent-text text-sm font-bold rounded-xl hover:bg-accent-dark transition-colors shadow-sm shrink-0"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">

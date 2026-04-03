@@ -12,8 +12,9 @@ const CONFLICT_META: Record<
   ConflictBooking['conflictType'],
   { label: string; cls: string }
 > = {
-  MAINTENANCE: { label: '🟠 Mantenimiento', cls: 'bg-orange-500/10 border-orange-500/30 text-orange-500' },
-  ARCHIVED:    { label: '🔴 Eliminada',      cls: 'bg-red-500/10 border-red-500/30 text-red-500' },
+  MAINTENANCE:  { label: '🟠 Mantenimiento', cls: 'bg-orange-500/10 border-orange-500/30 text-orange-500' },
+  ARCHIVED:     { label: '🔴 Eliminada',      cls: 'bg-red-500/10 border-red-500/30 text-red-500' },
+  OUT_OF_HOURS: { label: '🟡 Fuera de horario', cls: 'bg-amber-500/10 border-amber-500/30 text-amber-500' },
 }
 
 interface Props {

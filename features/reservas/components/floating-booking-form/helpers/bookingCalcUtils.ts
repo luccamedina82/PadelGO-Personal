@@ -1,4 +1,13 @@
-import type { CourtSlots } from '../types/manualBookingWizard.types'
+interface CourtSlots {
+  courtId: string
+  slots: {
+    time: string
+    available: boolean
+    durationOptions: number[]
+    pricePerHour: number
+    appliedRuleName?: string
+  }[]
+}
 
 /**
  * Counts the total available slots per date across all courts.

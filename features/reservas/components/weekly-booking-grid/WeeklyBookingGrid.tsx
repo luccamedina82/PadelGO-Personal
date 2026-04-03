@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { BookingBlock } from '../booking-grid/BookingGrid'
 import BookingDetailModal from '../booking-grid/BookingDetailModal/BookingDetailModal'
 import { timeToMinutes, minutesToTime, formatPrice } from '@/lib/availability'
@@ -70,7 +69,6 @@ export default function WeeklyBookingGrid({
   gridStart,
   gridEnd,
 }: WeeklyBookingGridProps) {
-  const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
   const slotHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const slotHoverPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -118,8 +116,10 @@ export default function WeeklyBookingGrid({
     if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
     setSlotTooltip(null)
     const timeStr = minutesToTime(slotMinutes)
-    router.push(
-      `/admin/reservas/nueva?courtId=${selectedCourt}&date=${encodeURIComponent(date)}&time=${timeStr}&view=week`
+    window.dispatchEvent(
+      new CustomEvent('reservas:nueva-reserva', {
+        detail: { date, courtId: selectedCourt, startTime: timeStr },
+      })
     )
   }
 

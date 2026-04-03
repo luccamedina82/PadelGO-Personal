@@ -12,6 +12,7 @@ interface BookingBlockCellProps {
   gridStart: number
   gridHeight: number
   isHighlighted: boolean
+  isConflict?: boolean
   isDragging?: boolean
   isResizing?: boolean
   heightOverride?: number
@@ -27,6 +28,7 @@ interface BookingBlockCellProps {
   onTooltipEnter: (x: number, y: number) => void
   onTooltipMove: (x: number, y: number) => void
   onTooltipLeave: () => void
+  isFormOpen?: boolean
 }
 
 function IconCheck({ className }: { className?: string }) {
@@ -43,6 +45,7 @@ export default function BookingBlockCell({
   gridStart,
   gridHeight,
   isHighlighted,
+  isConflict,
   isDragging,
   isResizing,
   heightOverride,
@@ -53,6 +56,7 @@ export default function BookingBlockCell({
   onTooltipEnter,
   onTooltipMove,
   onTooltipLeave,
+  isFormOpen,
 }: BookingBlockCellProps) {
   const startMin = timeToMinutes(b.startTime)
   const endTime = minutesToTime(startMin + b.durationMinutes)
@@ -89,7 +93,7 @@ export default function BookingBlockCell({
         isDragging
           ? 'opacity-80 !scale-[1.02] shadow-xl cursor-grabbing z-50'
           : isActive
-            ? 'cursor-grab hover:shadow-md transition-shadow'
+            ? `cursor-grab transition-shadow${isFormOpen ? '' : ' hover:shadow-md'}`
             : '',
         isResizing ? 'select-none' : '',
       ]
@@ -102,10 +106,23 @@ export default function BookingBlockCell({
         height: Math.max(height, 22),
       }}
       onPointerDown={handlePointerDown}
-      onMouseEnter={(e) => !isDragging && onTooltipEnter(e.clientX, e.clientY)}
-      onMouseMove={(e) => !isDragging && onTooltipMove(e.clientX, e.clientY)}
+      onMouseEnter={(e) => !isDragging && !isFormOpen && onTooltipEnter(e.clientX, e.clientY)}
+      onMouseMove={(e) => !isDragging && !isFormOpen && onTooltipMove(e.clientX, e.clientY)}
       onMouseLeave={onTooltipLeave}
     >
+      {/* Conflict badge */}
+      {isConflict && (
+        <div
+          className="absolute top-2 right-2 z-10 flex items-center justify-center w-4 h-4 rounded-full bg-amber-500/20 border border-amber-500/50"
+          title="Reserva con conflicto activo"
+        >
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-amber-400">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </div>
+      )}
+
       {/* Name */}
       <div className="flex items-start gap-1 min-w-0">
         <p className="text-[13px] font-bold leading-tight line-clamp-2 flex-1">{b.displayName}</p>

@@ -26,6 +26,12 @@ interface BookingGridFilterBarProps {
   onClearCourts: () => void
   onTypeFilterChange: (key: SourceFilterKey) => void
   onPaymentFilterChange: (key: 'PAID' | 'UNPAID' | null) => void
+  // Right-side controls (owned by BookingsClient, threaded down)
+  show24Hours: boolean
+  onToggle24Hours: () => void
+  hasHiddenBookings: boolean
+  todayConflictCount: number
+  totalConflictCount: number
 }
 
 function courtLabel(name: string): string {
@@ -44,6 +50,11 @@ export default function BookingGridFilterBar({
   onClearCourts,
   onTypeFilterChange,
   onPaymentFilterChange,
+  show24Hours,
+  onToggle24Hours,
+  hasHiddenBookings,
+  todayConflictCount,
+  totalConflictCount,
 }: BookingGridFilterBarProps) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -237,20 +248,75 @@ export default function BookingGridFilterBar({
 
       <div className="flex-1" />
 
-      {/* ── KPIs ────────────────────────────────────────── */}
+      {/* ── Right-side controls ──────────────────────────── */}
       <div className="flex items-center gap-2">
-        {unpaidCount > 0 && (
+
+        {/* KPI: unpaid count */}
+        {unpaidCount > 0 ? (
           <span className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
             {unpaidCount} sin cobrar
           </span>
-        )}
-        {unpaidCount === 0 && (
+        ) : (
           <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-            Todo al día
+            Al día
           </span>
         )}
+
+        <div className="w-px h-4 bg-border shrink-0" />
+
+        {/* OOB indicator */}
+        {hasHiddenBookings && (
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-400 select-none">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+            </span>
+            OOB
+          </span>
+        )}
+
+        {/* Conflicts badge */}
+        {totalConflictCount > 0 && (
+          <a
+            href="/admin/conflictos"
+            title={todayConflictCount > 0 ? `${todayConflictCount} conflictos hoy` : `${totalConflictCount} conflictos en total`}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-bold transition-colors
+              ${todayConflictCount > 0
+                ? 'bg-amber-500/15 border-amber-500/40 text-amber-400 hover:bg-amber-500/25'
+                : 'bg-surface border-border text-muted hover:border-border-hover hover:text-text'
+              }`}
+          >
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="shrink-0">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            {todayConflictCount > 0 ? todayConflictCount : totalConflictCount}
+          </a>
+        )}
+
+        {/* Segmented 24h control */}
+        <div className="flex items-center h-[26px] rounded-lg border border-border overflow-hidden bg-bg">
+
+          <button
+            type="button"
+            onClick={() => { if (show24Hours) onToggle24Hours() }}
+            className={`h-full px-2.5 text-[10px] font-semibold transition-colors select-none
+              ${!show24Hours ? 'bg-card text-text' : 'text-muted hover:text-text'}`}
+          >
+            Grilla operativa
+          </button>
+          <div className="w-px h-full bg-border shrink-0" />
+          <button
+            type="button"
+            onClick={() => { if (!show24Hours) onToggle24Hours() }}
+            className={`h-full px-2.5 text-[10px] font-semibold transition-colors select-none
+              ${show24Hours ? 'bg-card text-text' : 'text-muted hover:text-text'}`}
+          >
+            Grilla 24 hrs
+          </button>
+        </div>
       </div>
     </div>
   )

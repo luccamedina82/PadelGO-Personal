@@ -1,7 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Wrench } from 'lucide-react'
 import BookingDetailModal from './BookingDetailModal/BookingDetailModal'
 import BookingQuickPopover from './BookingQuickPopover/BookingQuickPopover'
@@ -13,7 +12,6 @@ import BookingGridTooltips from './BookingGridTooltips/BookingGridTooltips'
 import BookingGridSkeleton from './BookingGridSkeleton/BookingGridSkeleton'
 import { useBookingDragResize } from './hooks/useBookingDragResize'
 import { useBookingDragCreate } from './hooks/useBookingDragCreate'
-import DragCreatePopover from './DragCreatePopover/DragCreatePopover'
 import type {
   BookingBlock,
   BookingGridProps,
@@ -21,7 +19,6 @@ import type {
   UpdateBookingData,
 } from './types/bookingGrid.types'
 import { minutesToTime, timeToMinutes } from '@/lib/availability'
-import { createManualBooking } from '@/features/reservas/actions/bookings'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import {
   SLOT_HEIGHT,
@@ -48,17 +45,36 @@ export default function BookingGrid({
   gridEnd,
   baseStart,
   baseEnd,
+  conflictIds,
+  show24Hours = false,
+  onToggle24Hours,
+  hasHiddenBookings = false,
+  todayConflictCount = 0,
+  totalConflictCount = 0,
   highlightBookingId,
   isNavigating,
+  onCellClick,
+  onDragCreateReady,
+  isFormOpen = false,
+  activeDraft,
 }: BookingGridProps) {
-  const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
   const gridBodyRef = useRef<HTMLDivElement>(null)
   const scrolledHighlightRef = useRef<string | null>(null)
   const scrolledNowRef = useRef(false)
-  const slotOpenNonceRef = useRef(0)
+  // Scroll preservation across gridStart/gridEnd changes (24h toggle)
+  const prevGridStartRef = useRef(gridStart)
+  const scrollAnchorRef = useRef<{ topMinutes: number } | null>(null)
+  if (prevGridStartRef.current !== gridStart) {
+    if (containerRef.current && scrollAnchorRef.current === null) {
+      const minutesFromStart = (containerRef.current.scrollTop / SLOT_HEIGHT) * 30
+      scrollAnchorRef.current = { topMinutes: prevGridStartRef.current + minutesFromStart }
+    }
+    prevGridStartRef.current = gridStart
+  }
   const slotHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const slotHoverPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const clickedCellRectRef = useRef<DOMRect | null>(null)
   const [colWidth, setColWidth] = useState(140)
   const [gridReady, setGridReady] = useState(false)
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
@@ -163,6 +179,14 @@ export default function BookingGrid({
 
   // ── Drag / resize ────────────────────────────────────────────────────
 
+  const courtMinDurations = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const court of visibleCourts) {
+      map.set(court.id, court.allowedDurations[0] ?? 60)
+    }
+    return map
+  }, [visibleCourts])
+
   const resolvedClubId = clubId ?? bookings[0]?.clubId ?? ''
 
   const {
@@ -184,35 +208,7 @@ export default function BookingGrid({
   })
 
   // ── Drag-to-create ───────────────────────────────────────────────────
-
-  const {
-    createGhost,
-    pendingCreate,
-    handleCreateStart,
-    handleCancelCreate,
-  } = useBookingDragCreate({
-    gridStart,
-    gridEnd,
-    visibleCourts,
-    colWidth,
-    containerRef,
-    gridBodyRef,
-    onEmptyClick: handleEmptyClick,
-  })
-
-  function handleDragCreated(bookingId: string | undefined) {
-    handleCancelCreate()
-    window.dispatchEvent(new CustomEvent('reservas:refresh', { detail: { bookingId } }))
-  }
-
-  const isPendingOOB =
-    pendingCreate !== null &&
-    baseStart !== undefined && baseEnd !== undefined &&
-    (pendingCreate.ghost.startMin < baseStart ||
-     (pendingCreate.ghost.startMin + pendingCreate.ghost.durationMinutes) > baseEnd)
-
-  // Apply local overrides for optimistic drag/resize rendering
-  const effectiveBookings = useMemo(() => {
+    const effectiveBookings = useMemo(() => {
     const keys = Object.keys(localOverrides)
     if (keys.length === 0) return visibleBookings
     return visibleBookings.map((b) => {
@@ -220,17 +216,6 @@ export default function BookingGrid({
       return ov ? { ...b, startTime: ov.startTime, durationMinutes: ov.durationMinutes, courtId: ov.courtId } : b
     })
   }, [visibleBookings, localOverrides])
-
-  const bookingsByCourt = useMemo(() => {
-    const map = new Map<string, BookingBlock[]>()
-    for (const booking of effectiveBookings) {
-      const current = map.get(booking.courtId)
-      if (current) current.push(booking)
-      else map.set(booking.courtId, [booking])
-    }
-    return map
-  }, [effectiveBookings])
-
   const occupiedSlotsByCourt = useMemo(() => {
     const map = new Map<string, Set<number>>()
     for (const booking of effectiveBookings) {
@@ -258,6 +243,51 @@ export default function BookingGrid({
     observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [visibleCourtCount])
+  const {
+    createGhost,
+    pendingCreate,
+    handleCreateStart,
+    handleCancelCreate,
+  } = useBookingDragCreate({
+    gridStart,
+    gridEnd,
+    visibleCourts,
+    colWidth,
+    containerRef,
+    gridBodyRef,
+    onEmptyClick: handleEmptyClick,
+    occupiedSlots: occupiedSlotsByCourt,
+    courtMinDurations,
+  })
+
+  // Notify parent when a drag-create finishes so FloatingBookingForm can open
+  useEffect(() => {
+    if (!pendingCreate || !onDragCreateReady) return
+    onDragCreateReady(
+      pendingCreate,
+      handleCancelCreate,
+      (bookingId) => {
+        handleCancelCreate()
+        window.dispatchEvent(new CustomEvent('reservas:refresh', { detail: { bookingId } }))
+      }
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCreate])
+
+  // Apply local overrides for optimistic drag/resize rendering
+
+
+  const bookingsByCourt = useMemo(() => {
+    const map = new Map<string, BookingBlock[]>()
+    for (const booking of effectiveBookings) {
+      const current = map.get(booking.courtId)
+      if (current) current.push(booking)
+      else map.set(booking.courtId, [booking])
+    }
+    return map
+  }, [effectiveBookings])
+
+
 
   useEffect(() => {
     if (!isViewingToday) { setCurrentMinutes(null); return }
@@ -281,6 +311,16 @@ export default function BookingGrid({
   }, [highlightId, highlightedBooking, gridStart, gridEnd])
 
   useEffect(() => { scrolledNowRef.current = false }, [date])
+
+  // Restore scroll position after 24h toggle (E1.1)
+  useLayoutEffect(() => {
+    const anchor = scrollAnchorRef.current
+    const container = containerRef.current
+    if (!anchor || !container) return
+    scrollAnchorRef.current = null
+    const newScrollTop = ((anchor.topMinutes - gridStart) / 30) * SLOT_HEIGHT
+    container.scrollTop = Math.max(0, newScrollTop)
+  }, [gridStart])
 
   const scrollToNow = useCallback(() => {
     if (!containerRef.current) return
@@ -328,13 +368,19 @@ export default function BookingGrid({
   function handleEmptyClick(courtId: string, slotMinutes: number) {
     if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
     setSlotTooltip(null)
-    const timeStr = minutesToTime(slotMinutes)
-    const dateParam = encodeURIComponent(date)
-    slotOpenNonceRef.current += 1
-    const nonce = slotOpenNonceRef.current
-    router.push(
-      `/admin/reservas/nueva?courtId=${courtId}&date=${dateParam}&time=${timeStr}&view=day&n=${nonce}`
-    )
+    const court = visibleCourts.find((c) => c.id === courtId)
+    const courtMinDuration = court?.allowedDurations[0] ?? 60
+    const courtClose = court?.closeTimeMinutes ?? gridEnd
+    const occupied = occupiedSlotsByCourt.get(courtId)
+    let availableMinutes = courtClose - slotMinutes
+    if (occupied) {
+      for (let m = slotMinutes + 30; m < courtClose; m += 30) {
+        if (occupied.has(m)) { availableMinutes = m - slotMinutes; break }
+      }
+    }
+    if (availableMinutes < courtMinDuration) { clickedCellRectRef.current = null; return }
+    onCellClick?.(courtId, slotMinutes, clickedCellRectRef.current ?? undefined, availableMinutes)
+    clickedCellRectRef.current = null
   }
 
   function handleSlotMouseEnter(courtName: string, slotMinutes: number, x: number, y: number) {
@@ -384,6 +430,11 @@ export default function BookingGrid({
         onClearCourts={() => setFocusCourtIds([])}
         onTypeFilterChange={setTypeFilter}
         onPaymentFilterChange={setPaymentFilter}
+        show24Hours={show24Hours}
+        onToggle24Hours={onToggle24Hours ?? (() => {})}
+        hasHiddenBookings={hasHiddenBookings}
+        todayConflictCount={todayConflictCount}
+        totalConflictCount={totalConflictCount}
       />
 
       <div className="grow min-h-0 relative overflow-hidden">
@@ -414,7 +465,7 @@ export default function BookingGrid({
               return (
                 <div
                   key={court.id}
-                  style={{ width: colWidth, minWidth: colWidth, height: gridHeight, background: courtIndex % 2 === 1 ? 'var(--grid-col-alt)' : undefined }}
+                  style={{ width: colWidth, minWidth: colWidth, height: gridHeight, transition: 'height 300ms ease', background: courtIndex % 2 === 1 ? 'var(--grid-col-alt)' : undefined }}
                   className="relative border-l border-border"
                 >
                   {!court.isActive && <div className="court-reform-overlay" />}
@@ -448,14 +499,19 @@ export default function BookingGrid({
                         className={`absolute left-0 right-0 transition-colors
                                     ${isHour ? 'bg-(--grid-row-alt)' : ''}
                                     ${isHour ? 'border-b border-zinc-800/60' : 'border-b border-zinc-800/25'}
-                                    ${isPast ? 'opacity-40 cursor-not-allowed pointer-events-none' : draggingId ? 'pointer-events-none' : 'group cursor-pointer'}`}
+                                    ${isPast ? 'opacity-40 cursor-not-allowed pointer-events-none' : (draggingId || createGhost) ? 'pointer-events-none' : isFormOpen ? '' : 'group cursor-pointer'}`}
                         style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
                         onMouseEnter={(e) =>
-                          !isPast && handleSlotMouseEnter(court.name, slotMin, e.clientX, e.clientY)
+                          !isPast && !isFormOpen && !createGhost && handleSlotMouseEnter(court.name, slotMin, e.clientX, e.clientY)
                         }
-                        onMouseMove={(e) => !isPast && handleSlotMouseMove(e.clientX, e.clientY)}
+                        onMouseMove={(e) => !isPast && !isFormOpen && !createGhost && handleSlotMouseMove(e.clientX, e.clientY)}
                         onMouseLeave={handleSlotMouseLeave}
-                        onPointerDown={(e) => !isPast && !draggingId && handleCreateStart(court.id, courtIndex, slotMin, e)}
+                        onPointerDown={(e) => {
+                          if (!isPast && !draggingId && !isFormOpen) {
+                            clickedCellRectRef.current = e.currentTarget.getBoundingClientRect()
+                            handleCreateStart(court.id, courtIndex, slotMin, e)
+                          }
+                        }}
                       >
                         {isOutOfBounds && (
                           <span className="absolute inset-0 pointer-events-none bg-zinc-500/[0.11] z-0" />
@@ -489,6 +545,7 @@ export default function BookingGrid({
                       gridStart={gridStart}
                       gridHeight={gridHeight}
                       isHighlighted={highlightId === b.id}
+                      isConflict={conflictIds?.has(b.id) ?? false}
                       isDragging={draggingId === b.id}
                       isResizing={resizingId === b.id}
                       heightOverride={resizingId === b.id ? (resizeHeightPx ?? undefined) : clampedHeight}
@@ -497,19 +554,20 @@ export default function BookingGrid({
                       onResizeStart={handleResizeStart}
                       onSelect={(x, y) => setQuickPopover({ booking: b, courtName: court.name, x, y })}
                       onTooltipEnter={(x, y) => {
-                        if (draggingId) return
+                        if (draggingId || isFormOpen) return
                         const pos = clampTooltipPosition(x, y, 220, 96)
                         setTooltip({ booking: b, x: pos.x, y: pos.y })
                       }}
                       onTooltipMove={(x, y) =>
                         setTooltip((prev) => {
-                          if (!prev || draggingId) return null
+                          if (!prev || draggingId || isFormOpen) return null
                           const pos = clampTooltipPosition(x, y, 220, 96)
                           if (!shouldUpdateTooltipPosition(prev.x, prev.y, pos.x, pos.y)) return prev
                           return { ...prev, x: pos.x, y: pos.y }
                         })
                       }
                       onTooltipLeave={() => setTooltip(null)}
+                      isFormOpen={isFormOpen}
                     />
                   )
                   })}
@@ -575,6 +633,33 @@ export default function BookingGrid({
                 </p>
               </div>
             )}
+
+            {/* Click-create ghost (single click, no drag) */}
+            {!createGhost && activeDraft && (() => {
+              const draftCourtIdx = visibleCourts.findIndex((c) => c.id === activeDraft.courtId)
+              if (draftCourtIdx < 0 || activeDraft.startMin < gridStart || activeDraft.startMin >= gridEnd) return null
+              const dur = activeDraft.durationMinutes
+              return (
+                <div
+                  className="booking-block-create-preview absolute is-pending"
+                  style={{
+                    top: ((activeDraft.startMin - gridStart) / 30) * SLOT_HEIGHT + 2,
+                    left: TIME_COL_WIDTH + draftCourtIdx * colWidth + 5,
+                    width: colWidth - 10,
+                    height: Math.max((dur / 30) * SLOT_HEIGHT - 3, 22),
+                    padding: '8px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                  }}
+                >
+                  <p className="text-[11px] font-bold leading-tight">Nueva reserva</p>
+                  <p className="text-[10px] font-mono leading-tight opacity-70">
+                    {minutesToTime(activeDraft.startMin)} – {minutesToTime(activeDraft.startMin + dur)}
+                  </p>
+                </div>
+              )
+            })()}
 
             {currentLineTop !== null && currentMinutes !== null && (
               <div
@@ -668,18 +753,6 @@ export default function BookingGrid({
         />
       )}
 
-      {pendingCreate && (
-        <DragCreatePopover
-          pendingCreate={pendingCreate}
-          clubId={resolvedClubId}
-          date={date}
-          courts={courts}
-          createManualBookingAction={createManualBooking}
-          onCancel={handleCancelCreate}
-          onCreated={handleDragCreated}
-          isOutOfBounds={isPendingOOB}
-        />
-      )}
     </>
   )
 }

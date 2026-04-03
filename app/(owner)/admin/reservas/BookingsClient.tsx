@@ -2,11 +2,33 @@
 
 import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
 import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
+import type { PendingCreate } from '@/features/reservas/components/booking-grid/hooks/useBookingDragCreate'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import ReservasShell from './ReservasShell'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { timeToMinutes } from '@/lib/availability'
+import { minutesToTime, timeToMinutes } from '@/lib/availability'
+import { toast } from 'sonner'
+import FloatingBookingForm from '@/features/reservas/components/floating-booking-form/FloatingBookingForm'
+import { SLOT_HEIGHT } from '@/features/reservas/components/booking-grid/helpers/bookingGrid.helpers'
+
+// ── Floating form state types ────────────────────────────────────────────────
+
+export type FloatingFormInitialData = {
+  date: string
+  courtId?: string
+  startTime?: string
+  durationMinutes?: number
+  mode: 'full' | 'quick'
+}
+
+type FloatingFormState = {
+  anchorEl: HTMLElement | null
+  virtualCoords?: { x: number; y: number; width: number; height: number }
+  initialData: FloatingFormInitialData
+} | null
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 interface BookingClientProps {
   initialBookings: BookingBlock[]
@@ -16,7 +38,8 @@ interface BookingClientProps {
   baseStart?: number
   baseEnd?: number
   highlightBookingId?: string
-  conflictCount?: number
+  conflicts?: { id: string; dateStr: string }[]
+  baseBookingRule?: { startTime: string; endTime: string; price: number | null } | null
 }
 
 export default function BookingsClient({
@@ -24,24 +47,139 @@ export default function BookingsClient({
   clubId,
   date,
   courts,
-  conflictCount = 0,
+  conflicts = [],
   baseStart,
   baseEnd,
   highlightBookingId,
+  baseBookingRule,
 }: BookingClientProps) {
   const queryClient = useQueryClient()
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
   const [isNavigating, setIsNavigating] = useState(false)
-  const [liveConflictCount, setLiveConflictCount] = useState(conflictCount)
   const [show24Hours, setShow24Hours] = useState(false)
-  const [hideMaintenance, setHideMaintenance] = useState(false)
   const router = useRouter()
+  const prevDateRef = useRef('')
 
   const [initialDataTimestamp] = useState(() => Date.now())
 
-  // Compute grid bounds from toggle state
+  // ── Floating form state ──────────────────────────────────────────────────
+  const [floatingForm, setFloatingForm] = useState<FloatingFormState>(null)
+  const dragCancelRef = useRef<(() => void) | null>(null)
+  const dragCreatedRef = useRef<((bookingId?: string) => void) | null>(null)
+
+  function openFloatingForm(
+    anchorEl: HTMLElement | null,
+    initialData: FloatingFormInitialData,
+    virtualCoords?: { x: number; y: number; width: number; height: number }
+  ) {
+    setFloatingForm({ anchorEl, virtualCoords, initialData })
+  }
+
+  function closeFloatingForm() {
+    dragCancelRef.current?.()
+    dragCancelRef.current = null
+    dragCreatedRef.current = null
+    setFloatingForm(null)
+  }
+
+  function handleFormCreated(bookingId?: string) {
+    dragCreatedRef.current?.(bookingId)
+    dragCreatedRef.current = null
+    dragCancelRef.current = null
+    setFloatingForm(null)
+  }
+
+  // ── Entry point: Global button (custom event from NuevaReservaButton) ────
+  useEffect(() => {
+    function onNuevaReserva(e: Event) {
+      const detail = (e as CustomEvent<{ date?: string; courtId?: string; startTime?: string; buttonEl?: HTMLElement }>).detail
+      const hasContext = !!(detail?.courtId && detail?.startTime)
+      openFloatingForm(
+        detail?.buttonEl ?? null,
+        {
+          date: detail?.date ?? date,
+          courtId: detail?.courtId,
+          startTime: detail?.startTime,
+          mode: hasContext ? 'quick' : 'full',
+        }
+      )
+    }
+    window.addEventListener('reservas:nueva-reserva', onNuevaReserva)
+    return () => window.removeEventListener('reservas:nueva-reserva', onNuevaReserva)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date])
+
+  // ── Entry point: Grid cell click ─────────────────────────────────────────
+  function handleCellClick(courtId: string, slotMinutes: number, cellRect?: DOMRect, availableMinutes?: number) {
+    // Shield: if form is already open, first click outside just closes it
+    if (floatingForm !== null) {
+      closeFloatingForm()
+      return
+    }
+    const court = courts.find((c) => c.id === courtId)
+    const defaultDuration = court?.allowedDurations[0] ?? 60
+    // Abort if not even the minimum duration fits
+    if (availableMinutes !== undefined && availableMinutes < defaultDuration) return
+    // Use the full cell rect as anchor — floating-ui flip works correctly with real column bounds
+    const coords = cellRect
+      ? {
+          x: cellRect.left,
+          y: cellRect.top,
+          width: cellRect.width,
+          height: (defaultDuration / 30) * SLOT_HEIGHT,
+        }
+      : undefined
+    openFloatingForm(
+      null,
+      { date, courtId, startTime: minutesToTime(slotMinutes), durationMinutes: defaultDuration, mode: 'quick' },
+      coords
+    )
+  }
+
+  // ── Entry point: Drag-to-create ──────────────────────────────────────────
+  function handleDragCreateReady(
+    pending: PendingCreate,
+    cancel: () => void,
+    created: (bookingId?: string) => void
+  ) {
+    dragCancelRef.current = cancel
+    dragCreatedRef.current = created
+    openFloatingForm(
+      null,
+      {
+        date,
+        courtId: pending.courtId,
+        startTime: minutesToTime(pending.ghost.startMin),
+        durationMinutes: pending.ghost.durationMinutes,
+        mode: 'quick',
+      },
+      pending.ghostRect
+    )
+  }
+
+  // ── Conflict data ────────────────────────────────────────────────────────
+  const conflictIds = useMemo(() => new Set(conflicts.map((c) => c.id)), [conflicts])
+  const todayConflictCount = useMemo(
+    () => conflicts.filter((c) => c.dateStr === date).length,
+    [conflicts, date]
+  )
+  const totalConflictCount = conflicts.length
+
+  // ── Active draft ghost (single cell-click, while form is open) ──────────
+  const activeDraft = useMemo(() => {
+    if (!floatingForm?.initialData.courtId || !floatingForm?.initialData.startTime) return null
+    return {
+      courtId: floatingForm.initialData.courtId,
+      startMin: timeToMinutes(floatingForm.initialData.startTime),
+      durationMinutes: floatingForm.initialData.durationMinutes ?? 60,
+    }
+  }, [floatingForm])
+
+  // ── Grid bounds ──────────────────────────────────────────────────────────
   const gridStart = show24Hours ? 0 : (baseStart ?? 8 * 60)
   const gridEnd = show24Hours ? 1440 : (baseEnd ?? 23 * 60)
+
+  const handleToggle24Hours = useCallback(() => setShow24Hours((v) => !v), [])
 
   useEffect(() => {
     function onNavigating() { setIsNavigating(true) }
@@ -51,6 +189,22 @@ export default function BookingsClient({
 
   useEffect(() => {
     setIsNavigating(false)
+  }, [date])
+
+  useEffect(() => {
+    if (prevDateRef.current === date) return
+    prevDateRef.current = date
+    if (todayConflictCount > 0) {
+      toast.warning(
+        `${todayConflictCount} reserva${todayConflictCount !== 1 ? 's' : ''} de hoy requiere${todayConflictCount !== 1 ? 'n' : ''} atención`,
+        {
+          action: { label: 'Ver conflictos', onClick: () => router.push('/admin/conflictos') },
+          position: 'bottom-right',
+          duration: 6000,
+        }
+      )
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date])
 
   const { data: allBookings, isFetching } = useQuery({
@@ -95,11 +249,6 @@ export default function BookingsClient({
 
   const bookings = allBookings.filter((b) => b.date === date)
 
-  const visibleCourts = hideMaintenance
-    ? courts.filter((c) => !c.isUnderMaintenance)
-    : courts
-
-  // Detect bookings outside the operating window (only relevant when in normal view)
   const hasHiddenBookings =
     !show24Hours &&
     (baseStart !== undefined || baseEnd !== undefined) &&
@@ -117,88 +266,46 @@ export default function BookingsClient({
         </div>
       )}
 
-      {/* Conflict banner */}
-      {liveConflictCount > 0 && (
-        <div className="shrink-0 mx-4 mt-3 flex items-center gap-3 px-4 py-2.5 rounded-xl
-                        bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <p className="text-[12px] font-semibold flex-1">
-            ⚠️ {liveConflictCount} reserva{liveConflictCount !== 1 ? 's' : ''} requiere{liveConflictCount !== 1 ? 'n' : ''} tu atención por conflictos
-          </p>
-          <a
-            href="/admin/conflictos"
-            className="text-[11px] font-bold px-3 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40
-                       hover:bg-amber-500/30 transition-colors whitespace-nowrap"
-          >
-            Ver conflictos
-          </a>
-        </div>
-      )}
-
-      {/* toolbar: hidden bookings indicator + toggles */}
-      <div className="shrink-0 flex items-center justify-end gap-2.5 px-4 pt-2 pb-0.5">
-        {hasHiddenBookings && (
-          <span className="flex items-center gap-1.5 text-[11px] font-medium text-amber-400">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
-            </span>
-            Turnos fuera de horario
-          </span>
-        )}
-
-        {/* Hide maintenance toggle */}
-        {courts.some((c) => c.isUnderMaintenance) && (
-          <button
-            onClick={() => setHideMaintenance((v) => !v)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors
-                        ${hideMaintenance
-                          ? 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20'
-                          : 'bg-surface border-border text-muted hover:border-border-hover hover:text-text'
-                        }`}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-            </svg>
-            {hideMaintenance ? 'Mostrar mantenimiento' : 'Ocultar mantenimiento'}
-          </button>
-        )}
-
-        {/* 24h toggle */}
-        <button
-          onClick={() => setShow24Hours((v) => !v)}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors
-                      ${show24Hours
-                        ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/20'
-                        : 'bg-surface border-border text-muted hover:border-border-hover hover:text-text'
-                      }`}
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 6v6l4 2" />
-          </svg>
-          {show24Hours ? 'Horario operativo' : 'Ver 24 hs'}
-        </button>
-      </div>
-
       <div className="flex-1 min-h-0">
         <ReservasShell
           bookings={bookings}
           date={date}
           clubId={clubId}
-          courts={visibleCourts}
+          courts={courts}
           gridStart={gridStart}
           gridEnd={gridEnd}
           baseStart={baseStart}
           baseEnd={baseEnd}
+          conflictIds={conflictIds}
+          show24Hours={show24Hours}
+          onToggle24Hours={handleToggle24Hours}
+          hasHiddenBookings={hasHiddenBookings}
+          todayConflictCount={todayConflictCount}
+          totalConflictCount={totalConflictCount}
           isNavigating={isNavigating}
           highlightBookingId={eventHighlightBookingId ?? highlightBookingId}
+          onCellClick={handleCellClick}
+          onDragCreateReady={handleDragCreateReady}
+          isFormOpen={!!floatingForm}
+          activeDraft={activeDraft}
         />
       </div>
 
+      {/* FloatingBookingForm */}
+      {floatingForm && (
+        <FloatingBookingForm
+          anchorEl={floatingForm.anchorEl}
+          virtualCoords={floatingForm.virtualCoords}
+          initialData={floatingForm.initialData}
+          clubId={clubId}
+          courts={courts}
+          baseStart={baseStart}
+          baseEnd={baseEnd}
+          baseBookingRule={baseBookingRule}
+          onClose={closeFloatingForm}
+          onCreated={handleFormCreated}
+        />
+      )}
     </div>
   )
 }

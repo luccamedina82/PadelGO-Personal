@@ -141,27 +141,92 @@ export async function getCourtPendingCount(
   }
 }
 
-export async function toggleCourt(courtId: string, clubId: string): Promise<ActionResult> {
+export async function toggleCourtGridVisibility(
+  courtId: string,
+  clubId: string
+): Promise<ActionResult> {
   await requireRole(['OWNER'])
 
   try {
     const court = await prisma.court.findUnique({
       where: { id: courtId, clubId },
-      select: { isActive: true },
+      select: { hideFromGrid: true },
     })
     if (!court) return { success: false, error: 'Cancha no encontrada.' }
 
     await prisma.court.update({
       where: { id: courtId },
-      data: { isActive: !court.isActive },
+      data: { hideFromGrid: !court.hideFromGrid },
     })
     revalidateTag(`courts-${clubId}`, 'default')
+    revalidateTag(`bookings-${clubId}`, 'default')
     revalidatePath('/admin/canchas')
-    revalidatePath('/admin')
     revalidatePath('/admin/reservas')
     return { success: true }
   } catch (err) {
-    console.error('[toggleCourt]', err)
-    return { success: false, error: 'Error al actualizar la cancha.' }
+    console.error('[toggleCourtGridVisibility]', err)
+    return { success: false, error: 'Error al actualizar la visibilidad.' }
+  }
+}
+
+export async function deactivateCourtAction(
+  courtId: string,
+  clubId: string
+): Promise<ActionResult> {
+  await requireRole(['OWNER'])
+
+  try {
+    const todayUTC = new Date()
+    todayUTC.setUTCHours(0, 0, 0, 0)
+    const futureCount = await prisma.booking.count({
+      where: {
+        courtId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        date: { gte: todayUTC },
+      },
+    })
+    if (futureCount > 0) {
+      return {
+        success: false,
+        error: `Esta cancha tiene ${futureCount} reserva${futureCount !== 1 ? 's' : ''} futura${futureCount !== 1 ? 's' : ''} activa${futureCount !== 1 ? 's' : ''}. Reubicá o cancelá esas reservas antes de desactivarla.`,
+      }
+    }
+
+    await prisma.court.update({
+      where: { id: courtId, clubId },
+      data: { isActive: false },
+    })
+    revalidateTag(`courts-${clubId}`, 'default')
+    revalidateTag(`bookings-${clubId}`, 'default')
+    revalidatePath('/admin/canchas')
+    revalidatePath('/admin/reservas')
+    revalidatePath('/admin')
+    return { success: true }
+  } catch (err) {
+    console.error('[deactivateCourtAction]', err)
+    return { success: false, error: 'Error al desactivar la cancha.' }
+  }
+}
+
+export async function activateCourtAction(
+  courtId: string,
+  clubId: string
+): Promise<ActionResult> {
+  await requireRole(['OWNER'])
+
+  try {
+    await prisma.court.update({
+      where: { id: courtId, clubId },
+      data: { isActive: true },
+    })
+    revalidateTag(`courts-${clubId}`, 'default')
+    revalidateTag(`bookings-${clubId}`, 'default')
+    revalidatePath('/admin/canchas')
+    revalidatePath('/admin/reservas')
+    revalidatePath('/admin')
+    return { success: true }
+  } catch (err) {
+    console.error('[activateCourtAction]', err)
+    return { success: false, error: 'Error al activar la cancha.' }
   }
 }

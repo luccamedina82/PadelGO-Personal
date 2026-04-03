@@ -133,6 +133,7 @@ model Court {
   svgH                Float
   isActive            Boolean   @default(true)
   isUnderMaintenance  Boolean   @default(false)
+  hideFromGrid        Boolean   @default(false)
   createdAt           DateTime  @default(now())
 
   availabilities CourtAvailability[]
@@ -197,6 +198,8 @@ model Booking {
   source          BookingSource @default(ONLINE)
   manualName      String?       // nombre del cliente en reserva manual sin cuenta
   manualPhone     String?       // telefono en reserva manual
+  outOfHoursWarning   Boolean   @default(false)  // reserva creada fuera del horario operativo (soft warning)
+  exceptionApprovedAt DateTime?                  // admin aprobó la excepción; null = pendiente de revisión
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

@@ -2,7 +2,7 @@ import { requireSuperAdmin } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import SuperadminBanner from '@/components/layout/SuperadminBanner'
 import CanchasClient from '@/app/(owner)/admin/canchas/CanchasClient'
-import { createCourt, updateCourt, setCourtMaintenance, getCourtPendingCount } from '@/actions/owner/courts'
+import { createCourt, updateCourt, setCourtMaintenance, getCourtPendingCount, toggleCourtGridVisibility, deactivateCourtAction, activateCourtAction } from '@/actions/owner/courts'
 import { updateAvailability } from '@/actions/owner/availability'
 import { notFound } from 'next/navigation'
 import type { ActionResult } from '@/types'
@@ -66,6 +66,9 @@ export default async function SuperadminClubCanchasPage({ params }: Props) {
         updateCourtAction={updateCourt}
         setMaintenanceAction={setCourtMaintenance}
         getCourtPendingCountAction={getCourtPendingCount}
+        toggleGridVisibilityAction={toggleCourtGridVisibility}
+        deactivateAction={deactivateCourtAction}
+        activateAction={activateCourtAction}
       />
     </div>
   )

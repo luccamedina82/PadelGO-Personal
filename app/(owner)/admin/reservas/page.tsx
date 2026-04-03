@@ -29,7 +29,7 @@ export default async function ReservasPage({ searchParams }: Props) {
   const dateObj = new Date(`${selectedDate}T00:00:00.000Z`)
   const dayOfWeek = dateObj.getUTCDay()
 
-  const [{ courts: allCourts }, conflicts, baseBookingRule] = await Promise.all([
+  const [{ courts: allCourts, clubRules }, conflicts, baseBookingRule] = await Promise.all([
     getCourtsByClubId(club.id),
     getConflictBookings(club.id),
     prisma.bookingRule.findFirst({
@@ -45,7 +45,7 @@ export default async function ReservasPage({ searchParams }: Props) {
         ],
       },
       orderBy: { activeFrom: 'desc' },
-      select: { startTime: true, endTime: true },
+      select: { startTime: true, endTime: true, price: true },
     }),
   ])
 
@@ -69,7 +69,9 @@ export default async function ReservasPage({ searchParams }: Props) {
     baseEnd = (eh ?? 23) * 60 + (em ?? 0)
   }
 
-  const courtColumns: CourtColumn[] = activeCourtsToday.map((c) => {
+  const clubAllowedDurations = [...new Set(clubRules.flatMap((r) => r.allowedDurations))].sort((a, b) => a - b)
+
+  const courtColumns: CourtColumn[] = activeCourtsToday.filter((c) => !c.hideFromGrid).map((c) => {
     let closeTimeMinutes: number | undefined
     let openTimeMinutes: number | undefined
     if (c.availabilities.length > 0) {
@@ -84,13 +86,21 @@ export default async function ReservasPage({ searchParams }: Props) {
       closeTimeMinutes = Math.min(...closeTimes)
       openTimeMinutes = Math.min(...openTimes)
     }
+    const courtRuleDurations = [...new Set(c.bookingRule.flatMap((r) => r.allowedDurations))].sort((a, b) => a - b)
+    const allowedDurations = courtRuleDurations.length > 0
+      ? courtRuleDurations
+      : clubAllowedDurations.length > 0
+        ? clubAllowedDurations
+        : [60, 90, 120]
     return {
       id: c.id,
       name: c.name,
       isActive: c.availabilities.length > 0,
       isUnderMaintenance: c.isUnderMaintenance,
+      hideFromGrid: c.hideFromGrid,
       closeTimeMinutes,
       openTimeMinutes,
+      allowedDurations,
     }
   })
 
@@ -106,14 +116,6 @@ export default async function ReservasPage({ searchParams }: Props) {
       {/* ── Sticky header ──────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-surface border-b border-border print:static print:border-0">
         <div className="pl-4 pr-4 py-2.5 flex items-center gap-3 print:hidden">
-          {/* Nombre del club */}
-          <p className="text-[11px] font-bold text-muted uppercase tracking-widest leading-none shrink-0">
-            {club.name}
-          </p>
-
-          {/* Separador */}
-          <div className="w-px h-5 bg-border shrink-0" />
-
           {/* Navegación de fecha */}
           <DateHeader selectedDate={selectedDate} clubId={club.id} />
 
@@ -141,8 +143,9 @@ export default async function ReservasPage({ searchParams }: Props) {
             courts={courtColumns}
             baseStart={baseStart}
             baseEnd={baseEnd}
-            conflictCount={conflicts.length}
+            conflicts={conflicts.map((c) => ({ id: c.id, dateStr: c.dateStr }))}
             highlightBookingId={highlightParam}
+            baseBookingRule={baseBookingRule}
           />
         </Suspense>
       </div>

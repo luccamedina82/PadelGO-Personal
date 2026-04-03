@@ -5,6 +5,7 @@ import { getConflictBookings, getRecentCancellations } from '@/features/reservas
 import type { ConflictBooking, CancelledBooking } from '@/features/reservas/dal/conflicts'
 import type { ActionResult } from '@/types'
 import prisma from '@/lib/prisma'
+import { revalidateTag } from 'next/cache'
 
 export type { ConflictBooking, CancelledBooking }
 
@@ -23,6 +24,25 @@ export async function fetchConflictsAction(): Promise<
   } catch (err) {
     console.error('[fetchConflictsAction]', err)
     return { success: false, error: 'Error al cargar conflictos.' }
+  }
+}
+
+export async function approveExceptionAction(bookingId: string): Promise<ActionResult> {
+  const { club } = await getAdminContext(['OWNER', 'STAFF'])
+  if (!club) return { success: false, error: 'Sin autorización.' }
+
+  try {
+    const updated = await prisma.booking.updateMany({
+      where: { id: bookingId, clubId: club.id, outOfHoursWarning: true, exceptionApprovedAt: null },
+      data: { exceptionApprovedAt: new Date() },
+    })
+    if (updated.count === 0) return { success: false, error: 'Reserva no encontrada o ya aprobada.' }
+    revalidateTag(`conflicts-${club.id}`, 'default')
+    revalidateTag(`bookings-${club.id}`, 'default')
+    return { success: true }
+  } catch (err) {
+    console.error('[approveExceptionAction]', err)
+    return { success: false, error: 'Error al aprobar la excepción.' }
   }
 }
 

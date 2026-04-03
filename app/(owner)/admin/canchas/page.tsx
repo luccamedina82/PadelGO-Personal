@@ -1,6 +1,14 @@
 import prisma from '@/lib/prisma'
 import CanchasClient from './CanchasClient'
-import { createCourt, updateCourt, setCourtMaintenance, getCourtPendingCount } from '@/actions/owner/courts'
+import {
+  createCourt,
+  updateCourt,
+  setCourtMaintenance,
+  getCourtPendingCount,
+  toggleCourtGridVisibility,
+  deactivateCourtAction,
+  activateCourtAction,
+} from '@/actions/owner/courts'
 import { getAdminContext } from '@/lib/dal/admin'
 import { Role } from '@/app/generated/prisma/browser'
 
@@ -13,7 +21,7 @@ export default async function CanchasPage() {
 
   const courts = await prisma.court.findMany({
     where: { clubId: club.id },
-    select: { id: true, name: true, type: true, covered: true, isActive: true, isUnderMaintenance: true },
+    select: { id: true, name: true, type: true, covered: true, isActive: true, isUnderMaintenance: true, hideFromGrid: true },
     orderBy: { name: 'asc' },
   })
 
@@ -26,6 +34,9 @@ export default async function CanchasPage() {
       updateCourtAction={updateCourt}
       setMaintenanceAction={setCourtMaintenance}
       getCourtPendingCountAction={getCourtPendingCount}
+      toggleGridVisibilityAction={toggleCourtGridVisibility}
+      deactivateAction={deactivateCourtAction}
+      activateAction={activateCourtAction}
     />
   )
 }

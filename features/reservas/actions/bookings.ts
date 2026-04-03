@@ -24,6 +24,7 @@ export interface CreateManualBookingInput {
   blockReason?: string
   userId?: string
   priceOverride?: number // centavos — admin manual override, skips rule resolution
+  outOfHoursWarning?: boolean // true cuando se crea fuera del horario operativo (soft constraint aceptado)
 }
 
 export async function createManualBooking(
@@ -43,6 +44,7 @@ export async function createManualBooking(
     blockReason,
     userId,
     priceOverride,
+    outOfHoursWarning,
   } = input
 
   if (!clubId || !courtId || !date || !startTime) {
@@ -78,15 +80,15 @@ export async function createManualBooking(
       const dayOfWeek = dateObj.getUTCDay()
       const availability = await tx.courtAvailability.findFirst({
         where: { courtId, dayOfWeek, isActive: true },
-        select: { pricePerHour: true, closeTime: true },
+        select: { pricePerHour: true, openTime: true, closeTime: true },
       })
 
+      // NO_AVAILABILITY: court has no configured hours for this day — hard block even for staff
       if (!availability) {
         if (bookingType !== 'BLOQUEO') throw new Error('NO_AVAILABILITY')
-      } else {
-        const closeMin = timeToMinutes(availability.closeTime)
-        if (newEndMin > closeMin) throw new Error('EXCEEDS_CLOSE_TIME')
       }
+      // EXCEEDS_CLOSE_TIME is intentionally NOT enforced for OWNER/STAFF manual bookings.
+      // Out-of-hours bookings are allowed and tracked via outOfHoursWarning.
 
       const existing = await tx.booking.findMany({
         where: {
@@ -126,7 +128,8 @@ export async function createManualBooking(
             newStartMin,
             availability.pricePerHour
           )
-          totalPrice = calcBookingPrice(resolved?.price ?? availability.pricePerHour, durationMinutes)
+          const baseRulePrice = clubRules.find((r) => r.priority === 0)?.price ?? null
+          totalPrice = calcBookingPrice(resolved?.price ?? baseRulePrice ?? availability.pricePerHour, durationMinutes)
         }
       }
 
@@ -148,6 +151,13 @@ export async function createManualBooking(
           source,
           manualName: bookingType !== 'BLOQUEO' ? (manualName ?? null) : (blockReason ?? 'Bloqueo'),
           manualPhone: bookingType !== 'BLOQUEO' ? (manualPhone ?? null) : null,
+          // Auto-flag OOB: frontend hint OR backend detection (past close / before open)
+          outOfHoursWarning: (outOfHoursWarning ?? false) || (
+            availability !== null && (
+              newEndMin > timeToMinutes(availability.closeTime) ||
+              newStartMin < timeToMinutes(availability.openTime)
+            )
+          ),
         },
         select: { id: true },
       })
@@ -162,9 +172,6 @@ export async function createManualBooking(
   } catch (err) {
     if (err instanceof Error && err.message === 'SLOT_TAKEN') {
       return { success: false, error: 'Ese horario ya está ocupado.' }
-    }
-    if (err instanceof Error && err.message === 'EXCEEDS_CLOSE_TIME') {
-      return { success: false, error: 'La reserva excede el horario de cierre de la cancha.' }
     }
     if (err instanceof Error && err.message === 'NO_AVAILABILITY') {
       return { success: false, error: 'La cancha no tiene horario configurado para ese día.' }
@@ -370,7 +377,8 @@ export async function updateBooking(
           newStartMin,
           avail.pricePerHour
         )
-        updateData.totalPrice = calcBookingPrice(resolved?.price ?? avail.pricePerHour, durationMinutes)
+        const baseRulePriceForUpdate = clubRulesForUpdate.find((r) => r.priority === 0)?.price ?? null
+        updateData.totalPrice = calcBookingPrice(resolved?.price ?? baseRulePriceForUpdate ?? avail.pricePerHour, durationMinutes)
       }
 
       await tx.booking.update({ where: { id: bookingId }, data: updateData })

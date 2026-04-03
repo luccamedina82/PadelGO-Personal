@@ -31,6 +31,7 @@ export async function getCourtsByClubId(clubId: string) {
         type: true,
         covered: true,
         isUnderMaintenance: true,
+        hideFromGrid: true,
         availabilities: {
           where: { isActive: true },
           select: {

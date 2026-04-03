@@ -13,7 +13,8 @@ export interface CreateGhost {
 export interface PendingCreate {
   ghost: CreateGhost
   courtId: string
-  popoverPos: { x: number; y: number }
+  /** Bounding rect of the ghost in viewport coordinates — used as floating-ui anchor */
+  ghostRect: { x: number; y: number; width: number; height: number }
 }
 
 interface Props {
@@ -24,6 +25,8 @@ interface Props {
   containerRef: RefObject<HTMLDivElement | null>
   gridBodyRef: RefObject<HTMLDivElement | null>
   onEmptyClick: (courtId: string, slotMin: number) => void
+  occupiedSlots: Map<string, Set<number>>
+  courtMinDurations: Map<string, number>
 }
 
 export interface DragCreateResult {
@@ -49,6 +52,8 @@ export function useBookingDragCreate({
   containerRef,
   gridBodyRef,
   onEmptyClick,
+  occupiedSlots,
+  courtMinDurations,
 }: Props): DragCreateResult {
   const dragInfoRef = useRef<{
     courtId: string
@@ -90,12 +95,24 @@ export function useBookingDragCreate({
       if (!info.isDragging && Math.abs(deltaY) < DRAG_THRESHOLD) return
       info.isDragging = true
 
+      const courtMinDuration = courtMinDurations.get(info.courtId) ?? 60
+      const minSlots = courtMinDuration / 30
       const deltaSlots = Math.max(0, Math.round(deltaY / SLOT_HEIGHT))
-      const rawDuration = (deltaSlots + 2) * 30 // minimum 2 slots = 60 min
+      const rawDuration = (deltaSlots + minSlots) * 30
       const court = visibleCourts[info.courtIndex]
-      const courtCloseMin = court?.closeTimeMinutes ?? gridEnd
-      const maxDuration = courtCloseMin - info.startMin
-      const durationMinutes = Math.max(60, Math.min(rawDuration, maxDuration))
+      const courtCloseMin = Math.min(court?.closeTimeMinutes ?? gridEnd, gridEnd)
+      // Cap at court close and first collision
+      const occupied = occupiedSlots.get(info.courtId)
+      let maxDuration = courtCloseMin - info.startMin
+      if (occupied) {
+        for (let m = info.startMin + 30; m < courtCloseMin; m += 30) {
+          if (occupied.has(m)) {
+            maxDuration = m - info.startMin
+            break
+          }
+        }
+      }
+      const durationMinutes = Math.min(rawDuration, maxDuration)
 
       setCreateGhost({
         courtIndex: info.courtIndex,
@@ -121,31 +138,24 @@ export function useBookingDragCreate({
 
       setCreateGhost((ghost) => {
         if (!ghost) return null
-        // Calculate popover position relative to the ghost block
-        const gridBodyEl = gridBodyRef.current
+        // Don't open form if capped duration is below this court's minimum
+        const courtMinDuration = courtMinDurations.get(info.courtId) ?? 60
+        if (ghost.durationMinutes < courtMinDuration) return null
+        // Compute ghost bounding rect in viewport coordinates
+        // floating-ui will handle left/right flip automatically
         const containerEl = containerRef.current
-        let popX = e.clientX + 16
-        let popY = e.clientY - 40
-        if (gridBodyEl && containerEl) {
+        let ghostLeft = e.clientX
+        let ghostTop = e.clientY
+        if (containerEl) {
           const rect = containerEl.getBoundingClientRect()
-          const ghostLeft = rect.left + TIME_COL_WIDTH + ghost.courtIndex * colWidth
-          const ghostRight = ghostLeft + colWidth
-          const ghostTop = rect.top + ((ghost.startMin - gridStart) / 30) * SLOT_HEIGHT
-          // Prefer right side of ghost, fallback left
-          const popoverWidth = 240
-          if (ghostRight + 16 + popoverWidth < window.innerWidth - 12) {
-            popX = ghostRight + 8
-          } else {
-            popX = ghostLeft - popoverWidth - 8
-          }
-          popY = Math.max(12, Math.min(ghostTop, window.innerHeight - 280))
+          ghostLeft = rect.left + TIME_COL_WIDTH + ghost.courtIndex * colWidth
+          ghostTop = rect.top + ((ghost.startMin - gridStart) / 30) * SLOT_HEIGHT - containerEl.scrollTop
         }
-        const clampedX = Math.max(12, Math.min(popX, window.innerWidth - 260))
-        const clampedY = Math.max(12, Math.min(popY, window.innerHeight - 280))
+        const ghostHeight = (ghost.durationMinutes / 30) * SLOT_HEIGHT
         setPendingCreate({
           ghost,
           courtId: info.courtId,
-          popoverPos: { x: clampedX, y: clampedY },
+          ghostRect: { x: ghostLeft, y: ghostTop, width: colWidth, height: ghostHeight },
         })
         return ghost // keep ghost visible while popover is open
       })
@@ -158,7 +168,7 @@ export function useBookingDragCreate({
       window.removeEventListener('pointerup', onPointerUp)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleCourts, gridStart, gridEnd, colWidth, onEmptyClick])
+  }, [visibleCourts, gridStart, gridEnd, colWidth, onEmptyClick, occupiedSlots, courtMinDurations])
 
   function handleCancelCreate() {
     dragInfoRef.current = null
