@@ -187,7 +187,7 @@ export default function BookingsClient({
         return start < (baseStart ?? 0) || end > (baseEnd ?? 1440)
       })
   }, [show24Hours, baseStart, baseEnd, bookings])
-
+  
   return (
     <div className="relative h-full min-h-0 flex flex-col">
       {isFetching && (

@@ -70,7 +70,6 @@ export default function FloatingBookingFormContent({
   const [isExpanded, setIsExpanded] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const clientNameRef = useRef<HTMLInputElement>(null)
-
   const [form, dispatch] = useReducer(formReducer, {
     bookingMode: 'RESERVA',
     date: initialData.date,
@@ -96,7 +95,6 @@ export default function FloatingBookingFormContent({
     const unique = [...new Set(all)].sort((a, b) => a - b)
     return unique.length > 0 ? unique : [60, 90, 120]
   }, [courts, form.courtId])
-
 
   const { data: courtSlots = [], isLoading: isLoadingSlots } = useQuery<FloatingFormCourtSlots[]>({
     queryKey: ['courtSlots', clubId, form.date],
@@ -348,7 +346,7 @@ export default function FloatingBookingFormContent({
 
             {/* Court + duration */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1.5">
+              <div className="mb-1.5">
                 {form.bookingMode === 'BLOQUEO' ? 
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${form.courtId ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
@@ -364,7 +362,7 @@ export default function FloatingBookingFormContent({
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Cancha y duración</p>
                   </div>
                 }
-              </p>
+              </div>
               {form.startTime ? (
               <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto [scrollbar-width:thin]">
                 {courtsForTime.length === 0 ? (

@@ -50,7 +50,7 @@ const centerFallback: Middleware = {
 
 export default function FloatingBookingForm(props: FloatingBookingFormProps) {
   const { anchorEl, virtualCoords, onClose } = props
-
+  
   // Hydration guard — render nothing on SSR, mount on client only
   const [isMounted, setIsMounted] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -166,7 +166,6 @@ export default function FloatingBookingForm(props: FloatingBookingFormProps) {
       </FloatingPortal>
     )
   }
-
   // ── Desktop: anchor-positioned panel (cell click or drag-create) ─────────
   return (
     <FloatingPortal>

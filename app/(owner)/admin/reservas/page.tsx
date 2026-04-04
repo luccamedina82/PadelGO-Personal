@@ -1,9 +1,7 @@
 import { argTodayStr } from '@/lib/date'
 import NuevaReservaButton from './ui/NuevaReservaButton'
-import type { CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import { getAdminContext } from '@/lib/dal/admin'
 import { getBaseBookingRule, getCourtsByClubId } from '@/features/reservas/dal/courts'
-import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
 import { getConflictBookings } from '@/features/reservas/dal/conflicts'
 import DateHeader from './ui/DateHeader/DateHeader'
 import BookingsClient from './BookingsClient'
@@ -40,7 +38,6 @@ export default async function ReservasPage({ searchParams }: Props) {
   ])
 
   const { courtColumns, baseStart, baseEnd } = prepareGridData(allCourts, clubRules, baseBookingRule, dayOfWeek)
-
   const dateLabel = dateObj.toLocaleDateString('es-AR', {
     weekday: 'long',
     day: 'numeric',
