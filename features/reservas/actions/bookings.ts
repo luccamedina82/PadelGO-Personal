@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/features/auth/actions/auth'
-import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
+import { getAdminBookingsByDate, getBookingsByDate } from '@/features/reservas/dal/bookings'
 import { calcAvailableSlots, calcBookingPrice, resolveBookingRule, timeToMinutes, VALID_DURATIONS, MIN_ADVANCE_MINUTES } from '@/lib/availability'
 import type { BookingRuleInput } from '@/lib/availability'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
@@ -285,10 +285,6 @@ export async function updateBooking(
 
   const { startTime, durationMinutes, manualName, manualPhone, courtId: newCourtId, date: newDateStr } = data
 
-  if (!(VALID_DURATIONS as readonly number[]).includes(durationMinutes)) {
-    return { success: false, error: 'Duración no válida. Opciones: 60, 90 o 120 minutos.' }
-  }
-
   const timeRegex = /^([01]\d|2[0-3]):([03]0)$/
   if (!timeRegex.test(startTime)) {
     return { success: false, error: 'El horario debe ser en intervalos de 30 minutos.' }
@@ -306,6 +302,11 @@ export async function updateBooking(
         throw new Error('FORBIDDEN')
       }
       if (booking.status === 'CANCELLED') throw new Error('CANCELLED')
+
+      if (booking.source !== 'BLOCK' && !(VALID_DURATIONS as readonly number[]).includes(durationMinutes)) {
+        throw new Error('DURATION_NOT_ALLOWED')
+      }
+
 
       const targetCourtId = newCourtId ?? booking.courtId
 
@@ -360,25 +361,29 @@ export async function updateBooking(
       }
 
       // Recalculate price when time or court changes
-      if (avail) {
-        const [courtRules, clubRulesForUpdate] = await Promise.all([
-          tx.bookingRule.findMany({
-            where: { courtIds: { has: targetCourtId }, isActive: true },
-            select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
-          }),
-          tx.bookingRule.findMany({
-            where: { clubId: booking.clubId, courtIds: { isEmpty: true }, isActive: true },
-            select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
-          }),
-        ])
-        const resolved = resolveBookingRule(
-          [...clubRulesForUpdate, ...courtRules] as BookingRuleInput[],
-          dayOfWeek,
-          newStartMin,
-          avail.pricePerHour
-        )
-        const baseRulePriceForUpdate = clubRulesForUpdate.find((r) => r.priority === 0)?.price ?? null
-        updateData.totalPrice = calcBookingPrice(resolved?.price ?? baseRulePriceForUpdate ?? avail.pricePerHour, durationMinutes)
+      if (!avail) {
+        if (booking.source !== 'BLOCK') {
+          throw new Error('NO_AVAILABILITY') 
+        }
+      } else {
+          const [courtRules, clubRulesForUpdate] = await Promise.all([
+            tx.bookingRule.findMany({
+              where: { courtIds: { has: targetCourtId }, isActive: true },
+              select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
+            }),
+            tx.bookingRule.findMany({
+              where: { clubId: booking.clubId, courtIds: { isEmpty: true }, isActive: true },
+              select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
+            }),
+          ])
+          const resolved = resolveBookingRule(
+            [...clubRulesForUpdate, ...courtRules] as BookingRuleInput[],
+            dayOfWeek,
+            newStartMin,
+            avail.pricePerHour
+          )
+          const baseRulePriceForUpdate = clubRulesForUpdate.find((r) => r.priority === 0)?.price ?? null
+          updateData.totalPrice = calcBookingPrice(resolved?.price ?? baseRulePriceForUpdate ?? avail.pricePerHour, durationMinutes)
       }
 
       await tx.booking.update({ where: { id: bookingId }, data: updateData })
@@ -404,6 +409,8 @@ export async function updateBooking(
         return { success: false, error: 'Esa duración no está habilitada para este club.' }
       if (err.message === 'INVALID_COURT')
         return { success: false, error: 'La cancha no pertenece a este club.' }
+      if (err.message === 'NO_AVAILABILITY')
+        return { success: false, error: 'La cancha no tiene horario configurado para el nuevo día.' }
     }
     console.error('[updateBooking]', err)
     return { success: false, error: 'Error al editar la reserva.' }
@@ -655,4 +662,18 @@ export async function fetchBookingsAction(
   const endDate = new Date(`${endDateStr}T23:59:59.999Z`)
   if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return []
   return getAdminBookingsByDate(clubId, startDate, endDate)
+}
+
+
+
+
+export async function fetchBookingsByDateAction(
+  clubId: string,
+  dateStr: string
+) {
+  if (!dateStr) return []
+  const startDate = new Date(`${dateStr}T00:00:00.000Z`)
+  const endDate = new Date(`${dateStr}T23:59:59.999Z`)
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return []
+  return getBookingsByDate(clubId, startDate, endDate)
 }

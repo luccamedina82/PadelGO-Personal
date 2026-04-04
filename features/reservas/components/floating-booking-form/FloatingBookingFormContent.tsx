@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useMemo, useReducer, useRef, useState, useTransition } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { calcBookingPrice, formatPrice, timeToMinutes } from '@/lib/availability'
@@ -20,6 +20,7 @@ import { CalendarPopover } from '@/features/reservas/components/ui/CalendarPopov
 import type { CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import type { FloatingFormInitialData } from '@/app/(owner)/admin/reservas/BookingsClient'
 import type { BookingBlock } from '@/features/reservas/components/booking-grid/types/bookingGrid.types'
+import { formReducer } from './helpers/formReducer'
 
 interface Props {
   clubId: string
@@ -65,170 +66,142 @@ export default function FloatingBookingFormContent({
   const router = useRouter()
   const calendarBtnRef = useRef<HTMLButtonElement>(null)
 
-  // ── Slot data ────────────────────────────────────────────────────────────
-  const [courtSlots, setCourtSlots] = useState<FloatingFormCourtSlots[]>([])
-  const [isLoadingSlots, setIsLoadingSlots] = useState(true)
-
   // ── Form state ───────────────────────────────────────────────────────────
-  const [bookingMode, setBookingMode] = useState<BookingMode>('RESERVA')
-  const [date, setDate] = useState(initialData.date)
-  const [courtId, setCourtId] = useState(initialData.courtId ?? '')
-  const [startTime, setStartTime] = useState(initialData.startTime ?? '')
-  const [duration, setDuration] = useState(initialData.durationMinutes ?? 0)
   const [isExpanded, setIsExpanded] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
-  const [clientName, setClientName] = useState('')
-  const [clientPhone, setClientPhone] = useState('')
-  const [motivo, setMotivo] = useState('')
-  const [blockEndTime, setBlockEndTime] = useState('')
-  const [oobConfirmed, setOobConfirmed] = useState(false)
-  const [priceOverrideEnabled, setPriceOverrideEnabled] = useState(false)
-  const [priceOverrideInput, setPriceOverrideInput] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const clientNameRef = useRef<HTMLInputElement>(null)
 
+  const [form, dispatch] = useReducer(formReducer, {
+    bookingMode: 'RESERVA',
+    date: initialData.date,
+    courtId: initialData.courtId ?? '',
+    startTime: initialData.startTime ?? '',
+    duration: initialData.durationMinutes ?? 0,
+    clientName: '',
+    clientPhone: '',
+    motivo: '',
+    blockEndTime: '',
+    oobConfirmed: false,
+    priceOverrideEnabled: false,
+    priceOverrideInput: '',
+    error: null
+  })
   // ── Duration options derived from selected court (or union of all courts) ──
   const durationOptions = useMemo(() => {
-    if (courtId) {
-      const court = courts.find((c) => c.id === courtId)
+    if (form.courtId) {
+      const court = courts.find((c) => c.id === form.courtId)
       if (court && court.allowedDurations.length > 0) return court.allowedDurations
     }
     const all = courts.flatMap((c) => c.allowedDurations)
     const unique = [...new Set(all)].sort((a, b) => a - b)
     return unique.length > 0 ? unique : [60, 90, 120]
-  }, [courts, courtId])
+  }, [courts, form.courtId])
 
-  // Reset duration when durationOptions change and current value is no longer valid
-  useEffect(() => {
-    if (duration > 0 && !durationOptions.includes(duration)) {
-      setDuration(durationOptions[0] ?? 0)
-    }
-  }, [durationOptions]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Fetch slot data on date change ───────────────────────────────────────
-  useEffect(() => {
-    setIsLoadingSlots(true)
-    getFloatingFormDataAction(clubId, date).then((data) => {
-      if (data) setCourtSlots(data.courtSlots)
-      setIsLoadingSlots(false)
-    })
-  }, [clubId, date])
-
-  // Auto-focus client name when slots are loaded
-  useEffect(() => {
-    if (!isLoadingSlots) setTimeout(() => clientNameRef.current?.focus(), 50)
-  }, [isLoadingSlots])
+  const { data: courtSlots = [], isLoading: isLoadingSlots } = useQuery<FloatingFormCourtSlots[]>({
+    queryKey: ['courtSlots', clubId, form.date],
+    queryFn: async () => {
+      const res = await getFloatingFormDataAction(clubId, form.date);
+      return res?.courtSlots ?? [];
+    },
+    staleTime: 1000 * 60, // Guardar en memoria por 1 minuto
+  })
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const visibleTimes = getVisibleTimeSlotsForDate(courtSlots, durationOptions)
-  const courtsForTime = startTime
-    ? bookingMode === 'BLOQUEO'
+  const courtsForTime = form.startTime
+    ? form.bookingMode === 'BLOQUEO'
       ? courts
-      : courts.filter((c) => getAvailableDurationsForCourt(startTime, c.id, courtSlots, durationOptions).length > 0)
+      : courts.filter((c) => getAvailableDurationsForCourt(form.startTime, c.id, courtSlots, durationOptions).length > 0)
     : []
 
-  const selectedSlot = courtId && startTime
-    ? courtSlots.find((cs) => cs.courtId === courtId)?.slots.find((s) => s.time === startTime)
+  const selectedSlot = form.courtId && form.startTime
+    ? courtSlots.find((cs) => cs.courtId === form.courtId)?.slots.find((s) => s.time === form.startTime)
     : undefined
 
-  const startMin = startTime ? timeToMinutes(startTime) : 0
-  const endMin = startMin + duration
+  const startMin = form.startTime ? timeToMinutes(form.startTime) : 0
+  const endMin = startMin + form.duration
 
   const isOOB =
-    !!startTime && duration > 0 && baseStart !== undefined && baseEnd !== undefined &&
+    !!form.startTime && form.duration > 0 && baseStart !== undefined && baseEnd !== undefined &&
     (startMin < baseStart || endMin > baseEnd)
 
-  const basePrice = selectedSlot && duration > 0
-    ? calcBookingPrice(selectedSlot.pricePerHour, duration)
-    : isOOB && baseBookingRule?.price != null && duration > 0
-      ? calcBookingPrice(baseBookingRule.price, duration)
+  const basePrice = selectedSlot && form.duration > 0
+    ? calcBookingPrice(selectedSlot.pricePerHour, form.duration)
+    : isOOB && baseBookingRule?.price != null && form.duration > 0
+      ? calcBookingPrice(baseBookingRule.price, form.duration)
       : 0
 
-  const endTime = startTime && duration > 0 ? computeEndTime(startTime, duration) : null
-  const courtName = courts.find((c) => c.id === courtId)?.name ?? ''
+  const endTime = form.startTime && form.duration > 0 ? computeEndTime(form.startTime, form.duration) : null
+  const courtName = courts.find((c) => c.id === form.courtId)?.name ?? ''
 
   const canSubmit =
-    !!courtId && !!startTime && duration > 0 &&
-    (bookingMode === 'BLOQUEO' || clientName.trim().length > 0) &&
-    (!isOOB || oobConfirmed)
+    !!form.courtId && !!form.startTime && form.duration > 0 &&
+    (form.bookingMode === 'BLOQUEO' || form.clientName.trim().length > 0) &&
+    (!isOOB || form.oobConfirmed)
 
   const isQuick = initialData.mode === 'quick' && !isExpanded
   const showPickers = initialData.mode === 'full' || isExpanded
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
   function handleDateChange(d: string) {
-    setDate(d)
-    setStartTime('')
-    setCourtId('')
-    setDuration(0)
+    dispatch({ type: 'SET_DATE', payload: d })
     setCalendarOpen(false)
-    setPriceOverrideEnabled(false)
-    setPriceOverrideInput('')
   }
 
   function handleSelectTime(t: string) {
-    setStartTime(t)
-    setCourtId('')
-    setPriceOverrideEnabled(false)
-    setPriceOverrideInput('')
-    if (bookingMode === 'RESERVA') {
+    dispatch({ type: 'SET_TIME', payload: t })
+    if (form.bookingMode === 'RESERVA') {
+      // Calculamos las duraciones disponibles para esta nueva hora
       const allDurs = courtSlots.flatMap((cs) => {
         const slot = cs.slots.find((s) => s.time === t)
         return slot?.available ? slot.durationOptions : []
       })
       const valid = [...new Set(allDurs)]
-      setDuration((prev) => (valid.includes(prev) ? prev : (valid[0] ?? 0)))
-    } else {
-      setDuration(0)
+      const newDur = valid.includes(form.duration) ? form.duration : (valid[0] ?? 0)
+      
+      // Como no elegimos cancha todavía, mandamos un ID vacío
+      dispatch({ type: 'SET_COURT_DURATION', payload: { courtId: '', duration: newDur } })
     }
   }
 
   function handleCourtDuration(cId: string, dur: number) {
-    setCourtId(cId)
-    setDuration(dur)
-    setPriceOverrideEnabled(false)
-    setPriceOverrideInput('')
+    dispatch({ type: 'SET_COURT_DURATION', payload: { courtId: cId, duration: dur } })
   }
 
   function handleBlockEndTimeChange(endT: string) {
-    setBlockEndTime(endT)
-    if (startTime && endT) {
-      const [sh = '0', sm = '0'] = startTime.split(':')
+    dispatch({ type: 'SET_FIELD', field: 'blockEndTime', value: endT })
+    if (form.startTime && endT) {
+      const [sh = '0', sm = '0'] = form.startTime.split(':')
       const [eh = '0', em = '0'] = endT.split(':')
       const dur = (parseInt(eh) * 60 + parseInt(em)) - (parseInt(sh) * 60 + parseInt(sm))
-      setDuration(dur > 0 ? dur : 0)
+      if (dur > 0) {
+        dispatch({ type: 'SET_COURT_DURATION', payload: { courtId: form.courtId, duration: dur } })
+      }
     }
   }
 
   function handleModeChange(m: BookingMode) {
-    setBookingMode(m)
-    // Preserve time, court, duration — reset only client/reason fields
-    setClientName('')
-    setClientPhone('')
-    setMotivo('')
-    setBlockEndTime('')
-    setPriceOverrideEnabled(false)
-    setPriceOverrideInput('')
+    dispatch({ type: 'SET_MODE', payload: m })
   }
 
   function handleSubmit() {
     if (!canSubmit) return
-    setError(null)
+    dispatch({ type: 'SET_FIELD', field: 'error', value: null })
     const priceOverride =
-      bookingMode === 'RESERVA' && priceOverrideEnabled && priceOverrideInput.trim() !== ''
-        ? parseInt(priceOverrideInput, 10) * 100
+      form.bookingMode === 'RESERVA' && form.priceOverrideEnabled && form.priceOverrideInput.trim() !== ''
+        ? parseInt(form.priceOverrideInput, 10) * 100
         : undefined
     const payload =
-      bookingMode === 'RESERVA'
-        ? { clubId, courtId, date, startTime, durationMinutes: duration, bookingType: 'PRESENCIAL' as const, manualName: clientName.trim() || undefined, manualPhone: clientPhone.trim() || undefined, priceOverride, outOfHoursWarning: isOOB }
-        : { clubId, courtId, date, startTime, durationMinutes: duration, bookingType: 'BLOQUEO' as const, blockReason: motivo.trim() || undefined }
+      form.bookingMode === 'RESERVA'
+        ? { clubId, courtId: form.courtId, date: form.date, startTime: form.startTime, durationMinutes: form.duration, bookingType: 'PRESENCIAL' as const, manualName: form.clientName.trim() || undefined, manualPhone: form.clientPhone.trim() || undefined, priceOverride, outOfHoursWarning: isOOB }
+        : { clubId, courtId: form.courtId, date: form.date, startTime: form.startTime, durationMinutes: form.duration, bookingType: 'BLOQUEO' as const, blockReason: form.motivo.trim() || undefined }
 
     startTransition(async () => {
       const result = await createManualBooking(payload)
       if (result.success && result.data) {
         const bookingId = result.data.bookingId
         toast.success('Reserva creada', { position: 'bottom-right' })
-
+        queryClient.invalidateQueries({ queryKey: ['bookings', clubId, payload.date] })
         // ── Optimistic UI ─────────────────────────────────────────────────
         const optimisticBooking: BookingBlock = {
           id: bookingId,
@@ -254,9 +227,6 @@ export default function FloatingBookingFormContent({
             ['bookings', clubId, payload.date],
             (old: BookingBlock[] | undefined) => [...(old ?? []), optimisticBooking]
           )
-          window.dispatchEvent(
-            new CustomEvent('reservas:refresh', { detail: { bookingId, date: payload.date } })
-          )
           onCreated(bookingId)
         } else {
           // Different day: navigate to the new date with highlight
@@ -264,7 +234,7 @@ export default function FloatingBookingFormContent({
           router.push(`/admin/reservas?date=${payload.date}&highlight=${bookingId}`)
         }
       } else {
-        setError(('error' in result ? (result.error as string) : null) ?? 'Error al crear la reserva.')
+        dispatch({ type: 'SET_FIELD', field: 'error', value: ('error' in result ? (result.error as string) : null) ?? 'Error al crear la reserva.' })
       }
     })
   }
@@ -282,11 +252,11 @@ export default function FloatingBookingFormContent({
         Creando…
       </span>
     )
-    if (!startTime) return 'Selecciona un horario'
-    if (!courtId) return 'Elegí una cancha'
-    if (bookingMode === 'RESERVA' && !clientName.trim()) return 'Ingresá el nombre'
-    if (isOOB && !oobConfirmed) return 'Confirmá horario especial'
-    return bookingMode === 'BLOQUEO' ? 'Confirmar bloqueo' : 'Guardar reserva'
+    if (!form.startTime) return 'Selecciona un horario'
+    if (!form.courtId) return 'Elegí una cancha'
+    if (form.bookingMode === 'RESERVA' && !form.clientName.trim()) return 'Ingresá el nombre'
+    if (isOOB && !form.oobConfirmed) return 'Confirmá horario especial'
+    return form.bookingMode === 'BLOQUEO' ? 'Confirmar bloqueo' : 'Guardar reserva'
   }
 
   return (
@@ -298,7 +268,7 @@ export default function FloatingBookingFormContent({
             {(['RESERVA', 'BLOQUEO'] as const).map((m) => (
               <button key={m} type="button" onClick={() => handleModeChange(m)}
                 className={`px-3 py-1 rounded-md text-[11px] font-bold cursor-pointer transition-all
-                  ${bookingMode === m ? 'bg-card text-text shadow-sm' : 'text-muted hover:text-text'}`}>
+                  ${form.bookingMode === m ? 'bg-card text-text shadow-sm' : 'text-muted hover:text-text'}`}>
                 {m === 'RESERVA' ? 'Reserva' : 'Bloqueo'}
               </button>
             ))}
@@ -319,9 +289,9 @@ export default function FloatingBookingFormContent({
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-bold text-muted uppercase tracking-wide mb-0.5">Turno</p>
               <p className="text-[13px] font-semibold text-text truncate">
-                {courtName || '—'} · {startTime}{endTime ? ` – ${endTime}` : ''}{duration > 0 ? ` · ${fmtDur(duration)}` : ''}
+                {courtName || '—'} · {form.startTime}{endTime ? ` – ${endTime}` : ''}{form.duration > 0 ? ` · ${fmtDur(form.duration)}` : ''}
               </p>
-              <p className="text-[11px] text-muted capitalize">{formatDateFull(date)}</p>
+              <p className="text-[11px] text-muted capitalize">{formatDateFull(form.date)}</p>
             </div>
             <button type="button" onClick={() => setIsExpanded(true)}
               className="shrink-0 text-[11px] font-semibold text-accent hover:text-accent-dark transition-colors px-2 py-1 rounded-lg hover:bg-accent/10">
@@ -336,8 +306,8 @@ export default function FloatingBookingFormContent({
             
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${date ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
-                  {date ? '✓' : '1'}
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${form.date ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
+                  {form.date ? '✓' : '1'}
                 </span>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Fecha</p>
               </div>
@@ -346,16 +316,16 @@ export default function FloatingBookingFormContent({
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-muted shrink-0">
                   <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                <span className="flex-1 text-left capitalize">{formatDateFull(date)}</span>
+                <span className="flex-1 text-left capitalize">{formatDateFull(form.date)}</span>
               </button>
-              {calendarOpen && <CalendarPopover selectedDate={date} onSelect={handleDateChange} onClose={() => setCalendarOpen(false)} anchorRef={calendarBtnRef} clubId={clubId} />}
+              {calendarOpen && <CalendarPopover selectedDate={form.date} onSelect={handleDateChange} onClose={() => setCalendarOpen(false)} anchorRef={calendarBtnRef} clubId={clubId} />}
             </div>
 
             {/* Time slots */}
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${startTime ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
-                  {startTime ? '✓' : '2'}
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${form.startTime ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
+                  {form.startTime ? '✓' : '2'}
                 </span>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Hora de inicio</p>
               </div>
@@ -368,7 +338,7 @@ export default function FloatingBookingFormContent({
                   {visibleTimes.map((t) => (
                     <button key={t} type="button" onClick={() => handleSelectTime(t)}
                       className={`py-1.5 px-2.5 rounded-lg border text-[11px] font-mono font-semibold cursor-pointer transition-all active:scale-95
-                        ${startTime === t ? 'bg-accent border-accent text-accent-text' : 'border-border bg-card text-muted hover:border-border-hover hover:text-text'}`}>
+                        ${form.startTime === t ? 'bg-accent border-accent text-accent-text' : 'border-border bg-card text-muted hover:border-border-hover hover:text-text'}`}>
                       {t}
                     </button>
                   ))}
@@ -379,41 +349,41 @@ export default function FloatingBookingFormContent({
             {/* Court + duration */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1.5">
-                {bookingMode === 'BLOQUEO' ? 
+                {form.bookingMode === 'BLOQUEO' ? 
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${courtId ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
-                      {courtId ? '✓' : '3'}
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${form.courtId ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
+                      {form.courtId ? '✓' : '3'}
                     </span>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Cancha</p>
                   </div>
                 : 
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${courtId ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
-                      {courtId ? '✓' : '3'}
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${form.courtId ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
+                      {form.courtId ? '✓' : '3'}
                     </span>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Cancha y duración</p>
                   </div>
                 }
               </p>
-              {startTime ? (
+              {form.startTime ? (
               <div className="flex flex-col gap-1.5 max-h-[140px] overflow-y-auto [scrollbar-width:thin]">
                 {courtsForTime.length === 0 ? (
                   <p className="text-xs text-muted text-center py-3">Sin canchas disponibles</p>
                 ) : courtsForTime.map((c) => {
-                  const durations = bookingMode === 'RESERVA'
-                    ? getAvailableDurationsForCourt(startTime, c.id, courtSlots, durationOptions)
+                  const durations = form.bookingMode === 'RESERVA'
+                    ? getAvailableDurationsForCourt(form.startTime, c.id, courtSlots, durationOptions)
                     : []
-                  const isSel = courtId === c.id
+                  const isSel = form.courtId === c.id
                   return (
-                    <div key={c.id} onClick={() => bookingMode === 'BLOQUEO' && setCourtId(c.id)}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-colors ${isSel ? 'border-accent bg-accent/8' : 'border-border bg-card'} ${bookingMode === 'BLOQUEO' ? 'cursor-pointer hover:border-border-hover' : ''}`}>
+                    <div key={c.id} onClick={() => form.bookingMode === 'BLOQUEO' && dispatch({ type: 'SET_COURT_DURATION', payload: { courtId: c.id, duration: form.duration } })}
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-colors ${isSel ? 'border-accent bg-accent/8' : 'border-border bg-card'} ${form.bookingMode === 'BLOQUEO' ? 'cursor-pointer hover:border-border-hover' : ''}`}>
                       <span className={`text-[13px] font-semibold truncate ${isSel ? 'text-accent' : 'text-text'}`}>{c.name}</span>
-                      {bookingMode === 'RESERVA' && (
+                      {form.bookingMode === 'RESERVA' && (
                         <div className="flex gap-1 shrink-0 ml-2">
                           {durations.map((d) => (
                             <button key={d} type="button" onClick={() => handleCourtDuration(c.id, d)}
                               className={`px-2 py-0.5 rounded-full text-[11px] font-bold cursor-pointer transition-all active:scale-95
-                                ${isSel && duration === d ? 'bg-accent text-accent-text' : 'bg-surface border border-border text-muted hover:border-accent/60 hover:text-text'}`}>
+                                ${isSel && form.duration === d ? 'bg-accent text-accent-text' : 'bg-surface border border-border text-muted hover:border-accent/60 hover:text-text'}`}>
                               {fmtDur(d)}
                             </button>
                           ))}
@@ -433,19 +403,20 @@ export default function FloatingBookingFormContent({
         )}
 
         {/* Block end time selector */}
-        {showPickers && bookingMode === 'BLOQUEO' && (
+        {showPickers && form.bookingMode === 'BLOQUEO' && (
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${blockEndTime ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
-                {blockEndTime ? '✓' : '4'}
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${form.blockEndTime ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
+                {form.blockEndTime ? '✓' : '4'}
               </span>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Hora fin</p>
             </div>
-            { startTime ?
-            <select value={blockEndTime} onChange={(e) => handleBlockEndTimeChange(e.target.value)}
-              className={`${inputCls} font-mono ${!blockEndTime ? 'text-muted' : ''} ${ring}`}>
+            { form.startTime ?
+            <select value={form.blockEndTime} onChange={(e) => handleBlockEndTimeChange(e.target.value)}
+              className={`${inputCls} font-mono ${!form.blockEndTime ? 'text-muted' : ''} ${ring}`}>
+                <option value="Selecciona un horario">Selecciona un horario</option>
               {
-                getBlockEndOptions(startTime).map((t) => (
+                getBlockEndOptions(form.startTime).map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))
               } 
@@ -467,7 +438,7 @@ export default function FloatingBookingFormContent({
               <span className="text-[11px] font-semibold text-amber-400">Fuera del horario operativo</span>
             </div>
             <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" checked={oobConfirmed} onChange={(e) => setOobConfirmed(e.target.checked)}
+              <input type="checkbox" checked={form.oobConfirmed} onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'oobConfirmed', value: e.target.checked })}
                 className="w-3.5 h-3.5 accent-amber-400 cursor-pointer"/>
               <span className="text-[11px] text-muted">Confirmar reserva igualmente</span>
             </label>
@@ -476,46 +447,49 @@ export default function FloatingBookingFormContent({
 
         {/* Client / Motivo */}
         <div className="flex flex-col gap-2">
-          {bookingMode === 'RESERVA' ? (
+          {form.bookingMode === 'RESERVA' ? (
             <>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${clientName ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
-                  {clientName ? '✓' : '4'}
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${form.clientName ? 'bg-green-500/20 text-green-500' : 'bg-accent text-accent-text'}`}>
+                  {form.clientName ? '✓' : '4'}
                 </span>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Datos del cliente</p>
               </div>
-              <input ref={clientNameRef} type="text" placeholder="Nombre del cliente *" value={clientName}
-                onChange={(e) => setClientName(e.target.value)} disabled={isPending}
+              <input ref={clientNameRef} type="text" placeholder="Nombre del cliente *" value={form.clientName}
+                onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'clientName', value: e.target.value })} disabled={isPending}
                 className={`${inputCls} ${ring}`}/>
-              <input type="tel" placeholder="Teléfono (opcional)" value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)} disabled={isPending}
+              <input type="tel" placeholder="Teléfono (opcional)" value={form.clientPhone}
+                onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'clientPhone', value: e.target.value })} disabled={isPending}
                 className={`${inputCls} ${ring}`}/>
             </>
           ) : (
-            <input ref={clientNameRef} type="text" placeholder="Motivo (opcional)" value={motivo}
-              onChange={(e) => setMotivo(e.target.value)} disabled={isPending}
+            <input ref={clientNameRef} type="text" placeholder="Motivo (opcional)" value={form.motivo}
+              onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'motivo', value: e.target.value })} disabled={isPending}
               className={`${inputCls} ${ring}`}/>
           )}
         </div>
 
         {/* Price */}
-        {bookingMode === 'RESERVA' && courtId && duration > 0 && (
+        {form.bookingMode === 'RESERVA' && form.courtId && form.duration > 0 && (
           <div className="shrink-0 pt-2 border-t border-border/40">
             <PriceRuleDisplay
               appliedRuleName={isOOB ? 'Regla Base (fuera de horario)' : selectedSlot?.appliedRuleName}
               basePrice={basePrice}
-              overrideEnabled={priceOverrideEnabled}
-              overrideInput={priceOverrideInput}
-              onToggleOverride={() => { setPriceOverrideEnabled((v) => !v); setPriceOverrideInput('') }}
-              onChangeOverride={setPriceOverrideInput}
+              overrideEnabled={form.priceOverrideEnabled}
+              overrideInput={form.priceOverrideInput}
+              onToggleOverride={() => { 
+                dispatch({ type: 'SET_FIELD', field: 'priceOverrideEnabled', value: !form.priceOverrideEnabled }); 
+                dispatch({ type: 'SET_FIELD', field: 'priceOverrideInput', value: '' });
+              }}
+              onChangeOverride={(val) => dispatch({ type: 'SET_FIELD', field: 'priceOverrideInput', value: val })}
             />
           </div>
         )}
 
         {/* Error */}
-        {error && (
+        {form.error && (
           <p className="text-[12px] text-red-400 bg-red-400/8 border border-red-400/20 rounded-lg px-3 py-2">
-            {error}
+            {form.error}
           </p>
         )}
       </div>

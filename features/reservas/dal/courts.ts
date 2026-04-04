@@ -64,3 +64,27 @@ export async function getCourtsByClubId(clubId: string) {
 
   return { courts, clubRules: clubRules as BookingRuleInput[] }
 }
+
+
+
+export async function getBaseBookingRule(clubId: string, selectedDate: string) {
+  'use cache'
+  cacheLife('days')
+  cacheTag(`courts-${clubId}`)
+  cacheTag(`rules-${clubId}`)
+
+  return await prisma.bookingRule.findFirst({
+    where: {
+      clubId,
+      priority: 0,
+      isActive: true,
+      courtIds: { isEmpty: true },
+      AND: [
+        { OR: [{ activeFrom: null }, { activeFrom: { lte: new Date(`${selectedDate}T23:59:59.999Z`) } }] },
+        { OR: [{ activeUntil: null }, { activeUntil: { gte: new Date(`${selectedDate}T00:00:00.000Z`) } }] },
+      ],
+    },
+    orderBy: { activeFrom: 'desc' },
+    select: { startTime: true, endTime: true, price: true },
+  })
+}

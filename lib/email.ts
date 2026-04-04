@@ -271,7 +271,6 @@ export interface StaffInvitationParams {
 
 export async function sendStaffInvitation(params: StaffInvitationParams): Promise<void> {
   const { to, clubName, inviterName, invitationUrl } = params
-  console.log('que coño pasa aqui chavales')
   const html = baseHtml(`
     <div class="body">
       <h1>Te invitaron a gestionar ${clubName}</h1>

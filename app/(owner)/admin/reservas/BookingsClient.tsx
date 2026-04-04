@@ -11,6 +11,7 @@ import { minutesToTime, timeToMinutes } from '@/lib/availability'
 import { toast } from 'sonner'
 import FloatingBookingForm from '@/features/reservas/components/floating-booking-form/FloatingBookingForm'
 import { SLOT_HEIGHT } from '@/features/reservas/components/booking-grid/helpers/bookingGrid.helpers'
+import { useBookingFormStore } from '@/store/useBookingFormStore'
 
 // ── Floating form state types ────────────────────────────────────────────────
 
@@ -21,12 +22,6 @@ export type FloatingFormInitialData = {
   durationMinutes?: number
   mode: 'full' | 'quick'
 }
-
-type FloatingFormState = {
-  anchorEl: HTMLElement | null
-  virtualCoords?: { x: number; y: number; width: number; height: number }
-  initialData: FloatingFormInitialData
-} | null
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -53,67 +48,35 @@ export default function BookingsClient({
   highlightBookingId,
   baseBookingRule,
 }: BookingClientProps) {
-  const queryClient = useQueryClient()
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
-  const [isNavigating, setIsNavigating] = useState(false)
   const [show24Hours, setShow24Hours] = useState(false)
   const router = useRouter()
   const prevDateRef = useRef('')
+  const { isOpen, anchorEl, virtualCoords, initialData, openForm, closeForm } = useBookingFormStore()
 
   const [initialDataTimestamp] = useState(() => Date.now())
 
   // ── Floating form state ──────────────────────────────────────────────────
-  const [floatingForm, setFloatingForm] = useState<FloatingFormState>(null)
   const dragCancelRef = useRef<(() => void) | null>(null)
   const dragCreatedRef = useRef<((bookingId?: string) => void) | null>(null)
 
-  function openFloatingForm(
-    anchorEl: HTMLElement | null,
-    initialData: FloatingFormInitialData,
-    virtualCoords?: { x: number; y: number; width: number; height: number }
-  ) {
-    setFloatingForm({ anchorEl, virtualCoords, initialData })
-  }
-
-  function closeFloatingForm() {
-    dragCancelRef.current?.()
-    dragCancelRef.current = null
-    dragCreatedRef.current = null
-    setFloatingForm(null)
-  }
 
   function handleFormCreated(bookingId?: string) {
     dragCreatedRef.current?.(bookingId)
     dragCreatedRef.current = null
     dragCancelRef.current = null
-    setFloatingForm(null)
+    closeForm()
+    if (bookingId) {
+      setEventHighlightBookingId(bookingId)
+    }
   }
 
-  // ── Entry point: Global button (custom event from NuevaReservaButton) ────
-  useEffect(() => {
-    function onNuevaReserva(e: Event) {
-      const detail = (e as CustomEvent<{ date?: string; courtId?: string; startTime?: string; buttonEl?: HTMLElement }>).detail
-      const hasContext = !!(detail?.courtId && detail?.startTime)
-      openFloatingForm(
-        detail?.buttonEl ?? null,
-        {
-          date: detail?.date ?? date,
-          courtId: detail?.courtId,
-          startTime: detail?.startTime,
-          mode: hasContext ? 'quick' : 'full',
-        }
-      )
-    }
-    window.addEventListener('reservas:nueva-reserva', onNuevaReserva)
-    return () => window.removeEventListener('reservas:nueva-reserva', onNuevaReserva)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date])
 
   // ── Entry point: Grid cell click ─────────────────────────────────────────
   function handleCellClick(courtId: string, slotMinutes: number, cellRect?: DOMRect, availableMinutes?: number) {
     // Shield: if form is already open, first click outside just closes it
-    if (floatingForm !== null) {
-      closeFloatingForm()
+    if (isOpen) {
+      closeForm()
       return
     }
     const court = courts.find((c) => c.id === courtId)
@@ -133,10 +96,10 @@ export default function BookingsClient({
           height: (defaultDuration / 30) * SLOT_HEIGHT,
         }
       : undefined
-    openFloatingForm(
-      null,
+    openForm(
       { date, courtId, startTime: minutesToTime(slotMinutes), durationMinutes: defaultDuration, mode: 'quick' },
-      coords
+      null,
+      coords 
     )
   }
 
@@ -148,15 +111,9 @@ export default function BookingsClient({
   ) {
     dragCancelRef.current = cancel
     dragCreatedRef.current = created
-    openFloatingForm(
+    openForm(
+      { date, courtId: pending.courtId, startTime: minutesToTime(pending.ghost.startMin), durationMinutes: pending.ghost.durationMinutes, mode: 'quick' },
       null,
-      {
-        date,
-        courtId: pending.courtId,
-        startTime: minutesToTime(pending.ghost.startMin),
-        durationMinutes: pending.ghost.durationMinutes,
-        mode: 'quick',
-      },
       pending.ghostRect
     )
   }
@@ -171,13 +128,13 @@ export default function BookingsClient({
 
   // ── Active draft ghost (single cell-click, while form is open) ──────────
   const activeDraft = useMemo(() => {
-    if (!floatingForm?.initialData.courtId || !floatingForm?.initialData.startTime) return null
+    if (!initialData?.courtId || !initialData?.startTime) return null
     return {
-      courtId: floatingForm.initialData.courtId,
-      startMin: timeToMinutes(floatingForm.initialData.startTime),
-      durationMinutes: floatingForm.initialData.durationMinutes ?? 60,
+      courtId: initialData.courtId,
+      startMin: timeToMinutes(initialData.startTime),
+      durationMinutes: initialData.durationMinutes ?? 60,
     }
-  }, [floatingForm])
+  }, [initialData])
 
   // ── Grid bounds ──────────────────────────────────────────────────────────
   const gridStart = show24Hours ? 0 : (baseStart ?? 8 * 60)
@@ -186,32 +143,25 @@ export default function BookingsClient({
   const handleToggle24Hours = useCallback(() => setShow24Hours((v) => !v), [])
 
   useEffect(() => {
-    function onNavigating() { setIsNavigating(true) }
-    window.addEventListener('reservas:date-navigating', onNavigating)
-    return () => window.removeEventListener('reservas:date-navigating', onNavigating)
-  }, [])
-
-  useEffect(() => {
-    setIsNavigating(false)
-  }, [date])
-
-  useEffect(() => {
-    if (prevDateRef.current === date) return
-    prevDateRef.current = date
-    if (todayConflictCount > 0) {
-      toast.warning(
-        `${todayConflictCount} reserva${todayConflictCount !== 1 ? 's' : ''} de hoy requiere${todayConflictCount !== 1 ? 'n' : ''} atención`,
-        {
-          action: { label: 'Ver conflictos', onClick: () => router.push('/admin/conflictos') },
-          position: 'bottom-right',
-          duration: 6000,
-        }
-      )
+    // Si es la primera vez que renderiza o cambió la fecha, evaluamos
+    if (prevDateRef.current !== date) {
+      prevDateRef.current = date; // Actualizamos la ref al día actual
+      
+      if (todayConflictCount > 0) {
+        toast.warning(
+          `${todayConflictCount} reserva${todayConflictCount !== 1 ? 's' : ''} de hoy requiere${todayConflictCount !== 1 ? 'n' : ''} atención`,
+          {
+            action: { label: 'Ver conflictos', onClick: () => router.push('/admin/conflictos') },
+            position: 'bottom-right',
+            duration: 6000,
+          }
+        )
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date])
+  }, [date, todayConflictCount, router])
 
-  const { data: allBookings, isFetching } = useQuery({
+
+  const { data: bookings, isFetching } = useQuery({
     queryKey: ['bookings', clubId, date],
     queryFn: () => fetchBookingsAction(clubId, date, date),
     initialData: initialBookings,
@@ -222,49 +172,25 @@ export default function BookingsClient({
   })
 
   useEffect(() => {
-    async function handleReservasRefresh(event: Event) {
-      const detail = (event as CustomEvent<{ date?: string; bookingId?: string }>).detail
-      const targetDate = detail?.date
-      const bookingId = detail?.bookingId
-
-      if (bookingId) setEventHighlightBookingId(bookingId)
-
-      if (targetDate && targetDate !== date) {
-        queryClient.invalidateQueries({ queryKey: ['bookings', clubId, targetDate], exact: true })
-        setTimeout(() => {
-          router.push(`/admin/reservas?date=${targetDate}${bookingId ? '&new=' + bookingId : ''}`)
-        }, 150)
-      } else {
-        const exactQueryKey = ['bookings', clubId, date] as const
-        await queryClient.invalidateQueries({ queryKey: exactQueryKey, exact: true })
-        await queryClient.refetchQueries({ queryKey: exactQueryKey, type: 'active', exact: true })
-      }
-    }
-
-    window.addEventListener('reservas:refresh', handleReservasRefresh)
-    return () => window.removeEventListener('reservas:refresh', handleReservasRefresh)
-  }, [clubId, queryClient, date, router])
-
-  useEffect(() => {
     if (!eventHighlightBookingId) return
     const timer = setTimeout(() => setEventHighlightBookingId(undefined), 30_000)
     return () => clearTimeout(timer)
   }, [eventHighlightBookingId])
 
-  const bookings = allBookings.filter((b) => b.date === date)
 
-  const hasHiddenBookings =
-    !show24Hours &&
-    (baseStart !== undefined || baseEnd !== undefined) &&
-    bookings.some((b) => {
-      const start = timeToMinutes(b.startTime)
-      const end = start + b.durationMinutes
-      return start < (baseStart ?? 0) || end > (baseEnd ?? 1440)
-    })
+  const hasHiddenBookings = useMemo(() => {
+    return !show24Hours &&
+      (baseStart !== undefined || baseEnd !== undefined) &&
+      bookings.some((b) => {
+        const start = timeToMinutes(b.startTime)
+        const end = start + b.durationMinutes
+        return start < (baseStart ?? 0) || end > (baseEnd ?? 1440)
+      })
+  }, [show24Hours, baseStart, baseEnd, bookings])
 
   return (
     <div className="relative h-full min-h-0 flex flex-col">
-      {isFetching && !isNavigating && (
+      {isFetching && (
         <div className="absolute top-0 left-0 right-0 z-30 h-0.5 overflow-hidden rounded-t-2xl">
           <div className="h-full bg-accent animate-[loading-bar_1.2s_ease-in-out_infinite]" />
         </div>
@@ -286,27 +212,31 @@ export default function BookingsClient({
           hasHiddenBookings={hasHiddenBookings}
           todayConflictCount={todayConflictCount}
           totalConflictCount={totalConflictCount}
-          isNavigating={isNavigating}
           highlightBookingId={eventHighlightBookingId ?? highlightBookingId}
           onCellClick={handleCellClick}
           onDragCreateReady={handleDragCreateReady}
-          isFormOpen={!!floatingForm}
+          isFormOpen={isOpen}
           activeDraft={activeDraft}
         />
       </div>
 
       {/* FloatingBookingForm */}
-      {floatingForm && (
+      {isOpen && initialData &&(
         <FloatingBookingForm
-          anchorEl={floatingForm.anchorEl}
-          virtualCoords={floatingForm.virtualCoords}
-          initialData={floatingForm.initialData}
+          anchorEl={anchorEl}
+          virtualCoords={virtualCoords}
+          initialData={initialData}
           clubId={clubId}
           courts={courts}
           baseStart={baseStart}
           baseEnd={baseEnd}
           baseBookingRule={baseBookingRule}
-          onClose={closeFloatingForm}
+          onClose={() => {
+            dragCancelRef.current?.()
+            dragCancelRef.current = null
+            dragCreatedRef.current = null
+            closeForm()
+          }}
           onCreated={handleFormCreated}
         />
       )}

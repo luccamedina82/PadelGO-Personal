@@ -1,18 +1,16 @@
 import type { BookingBlock } from '../types/bookingGrid.types'
 import { formatPrice, minutesToTime, timeToMinutes } from '@/lib/availability'
 import { isBlockSource, getSourceLabel } from '../helpers/bookingGrid.helpers'
+import { useTooltipStore } from '@/store/useTooltipStore'
 
 interface BookingGridTooltipsProps {
-  tooltip: { booking: BookingBlock; x: number; y: number } | null
-  slotTooltip: { courtName: string; time: string; x: number; y: number } | null
   selectedBooking: BookingBlock | null
 }
 
 export default function BookingGridTooltips({
-  tooltip,
-  slotTooltip,
   selectedBooking,
 }: BookingGridTooltipsProps) {
+  const { tooltip, slotTooltip} = useTooltipStore()
   return (
     <>
 

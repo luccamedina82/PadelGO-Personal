@@ -89,12 +89,14 @@ export function useBookingDragCreate({
 
   useEffect(() => {
     function onPointerMove(e: PointerEvent) {
+
       const info = dragInfoRef.current
       if (!info) return
 
       const deltaY = e.clientY - info.startClientY
       if (!info.isDragging && Math.abs(deltaY) < DRAG_THRESHOLD) return
       info.isDragging = true
+      document.body.style.cursor = 'crosshair'
 
       const courtMinDuration = courtMinDurations.get(info.courtId) ?? 60
       const minSlots = courtMinDuration / 30
@@ -126,6 +128,7 @@ export function useBookingDragCreate({
       const info = dragInfoRef.current
       if (!info) return
       document.body.style.userSelect = ''
+      document.body.style.cursor = ''
 
       if (!info.isDragging) {
         // Treat as a regular click
@@ -179,6 +182,8 @@ export function useBookingDragCreate({
     setCreateGhost(null)
     setPendingCreate(null)
     document.body.style.userSelect = ''
+    document.body.style.cursor = ''
+
   }
 
   return {

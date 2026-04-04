@@ -20,7 +20,6 @@ interface ReservasShellProps {
   todayConflictCount?: number
   totalConflictCount?: number
   highlightBookingId?: string
-  isNavigating?: boolean
   onCellClick?: (courtId: string, slotMinutes: number, cellRect?: DOMRect) => void
   onDragCreateReady?: (pending: PendingCreate, cancel: () => void, created: (bookingId?: string) => void) => void
   isFormOpen?: boolean
@@ -43,7 +42,6 @@ export default function ReservasShell({
   todayConflictCount,
   totalConflictCount,
   highlightBookingId,
-  isNavigating,
   onCellClick,
   onDragCreateReady,
   isFormOpen,
@@ -67,7 +65,6 @@ export default function ReservasShell({
         todayConflictCount={todayConflictCount}
         totalConflictCount={totalConflictCount}
         highlightBookingId={highlightBookingId}
-        isNavigating={isNavigating}
         onCellClick={onCellClick}
         onDragCreateReady={onDragCreateReady}
         isFormOpen={isFormOpen}

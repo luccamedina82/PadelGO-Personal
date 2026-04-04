@@ -20,23 +20,21 @@ export function useBookingMutations(clubId: string) {
   function patchBookingsCache(
     updater: (booking: Record<string, unknown>) => Record<string, unknown> | null
   ) {
-    queryClient.setQueriesData({ queryKey: ['bookings', clubId] }, (old) => {
+    queryClient.setQueriesData({ queryKey: ['bookings', clubId] }, (old: any) => {
       if (!Array.isArray(old)) return old
-      const next = old
+      return old
         .map((item) => {
           if (!item || typeof item !== 'object') return item
           const patched = updater(item as Record<string, unknown>)
           return patched ?? null
         })
         .filter((item): item is NonNullable<typeof item> => item !== null)
-      return next
     })
   }
 
   // 1. El "Gatillo" centralizado: Invalida y fuerza refetch de reservas activas
   const invalidateBookings = async () => {
     await queryClient.invalidateQueries({ queryKey: ['bookings', clubId] })
-    await queryClient.refetchQueries({ queryKey: ['bookings', clubId], type: 'active' })
   }
 
   // 2. Las Mutaciones

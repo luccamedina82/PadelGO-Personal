@@ -17,3 +17,4 @@ export const useSidebarStore = create<SidebarStore>()(
     { name: 'padelgo-sidebar' }
   )
 )
+  

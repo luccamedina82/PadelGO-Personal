@@ -65,7 +65,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
     getFinancialBookings(club.id, prevPeriodStart, prevPeriodEnd), // Reutilizamos DAL
     getBarSalesPeriod(club.id, prevPeriodStart, prevPeriodEnd), // Reutilizamos DAL
   ])
-  console.log(prevPeriodStart, prevPeriodEnd)
+
   const availabilities = courts.flatMap((court) =>
     court.availabilities.map((a) => ({
       courtId: court.id,
@@ -95,9 +95,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const ingresosMonth = calcularIngresos(bookings, barRecords, monthPeriod)
   const ocupacion = calcularOcupacion(bookings, courts, availabilities, period)
   const horarios = calcularHorariosPico(bookings, period)
-  console.log(bookings, period)
   const semana = calcularIngresosSemanales(bookings, barRecords)
-  console.log(semana)
   const prevIngresos = {
     bookings: prevBookingsTotal,
     bar: prevBarSalesTotal,

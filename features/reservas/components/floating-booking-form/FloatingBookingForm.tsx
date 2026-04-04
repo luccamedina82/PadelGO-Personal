@@ -128,7 +128,10 @@ export default function FloatingBookingForm(props: FloatingBookingFormProps) {
           onClick={onClose}
         />
         {/* Sheet */}
-        <div className="fixed bottom-0 left-0 right-0 z-[71] rounded-t-2xl border-t border-border bg-card shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-hidden flex flex-col">
+        <div 
+          ref={refs.setFloating} 
+          {...getFloatingProps()}
+          className="fixed bottom-0 left-0 right-0 z-[71] rounded-t-2xl border-t border-border bg-card shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-hidden flex flex-col">
           <div className="flex justify-center pt-3 pb-1 shrink-0">
             <div className="w-10 h-1 rounded-full bg-border" />
           </div>
@@ -146,9 +149,14 @@ export default function FloatingBookingForm(props: FloatingBookingFormProps) {
       <FloatingPortal>
         <div
           className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (e.target === e.currentTarget) onClose() 
+            }}
         >
           <div
+            ref={refs.setFloating}
+            {...getFloatingProps()} 
             className="relative rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
             style={{ width: formWidth }}
           >

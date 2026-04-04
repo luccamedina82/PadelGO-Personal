@@ -74,7 +74,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>
-    console.log(body)
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }

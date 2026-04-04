@@ -23,15 +23,13 @@ import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import {
   SLOT_HEIGHT,
   TIME_COL_WIDTH,
-  TOOLTIP_DELAY_MS,
-  clampTooltipPosition,
   getBlockClass,
   getLocalDateStr,
   isBlockSource,
-  shouldUpdateTooltipPosition,
   type SourceFilterKey,
 } from './helpers/bookingGrid.helpers'
 import { toast } from 'sonner'
+import { useTooltipStore } from '@/store/useTooltipStore'
 
 export type { BookingBlock, CourtColumn, UpdateBookingData }
 
@@ -53,7 +51,6 @@ export default function BookingGrid({
   todayConflictCount = 0,
   totalConflictCount = 0,
   highlightBookingId,
-  isNavigating,
   onCellClick,
   onDragCreateReady,
   isFormOpen = false,
@@ -73,8 +70,6 @@ export default function BookingGrid({
     }
     prevGridStartRef.current = gridStart
   }
-  const slotHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const slotHoverPointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const clickedCellRectRef = useRef<DOMRect | null>(null)
   const [colWidth, setColWidth] = useState(140)
   const [gridReady, setGridReady] = useState(false)
@@ -88,23 +83,18 @@ export default function BookingGrid({
     y: number
   } | null>(null)
   const [highlightId, setHighlightId] = useState<string | undefined>(highlightBookingId)
+  const { 
+  setBookingTooltipStart,
+  updateBookingTooltipPos,
+  clearBookingTooltip 
+} = useTooltipStore()
+
 
   const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<SourceFilterKey>(null)
   const [paymentFilter, setPaymentFilter] = useState<'PAID' | 'UNPAID' | null>(null)
   const [openInEditMode, setOpenInEditMode] = useState(false)
 
-  const [tooltip, setTooltip] = useState<{
-    booking: BookingBlock
-    x: number
-    y: number
-  } | null>(null)
-  const [slotTooltip, setSlotTooltip] = useState<{
-    courtName: string
-    time: string
-    x: number
-    y: number
-  } | null>(null)
 
   const isViewingToday = clientTodayStr ? date === clientTodayStr : false
   const isViewingPast = clientTodayStr ? date < clientTodayStr : false
@@ -114,24 +104,18 @@ export default function BookingGrid({
     [bookings, highlightId]
   )
 
-  useEffect(() => { setHighlightId(highlightBookingId) }, [highlightBookingId])
+  // Si la prop de arriba cambia, forzamos la actualización sin useEffect (React pro-tip)
+  const prevHighlightPropRef = useRef(highlightBookingId)
+  if (highlightBookingId !== prevHighlightPropRef.current) {
+    prevHighlightPropRef.current = highlightBookingId
+    setHighlightId(highlightBookingId)
+  }
 
   useEffect(() => {
     if (!highlightId) return
     const timer = setTimeout(() => setHighlightId(undefined), 30_000)
     return () => clearTimeout(timer)
   }, [highlightId])
-
-  useEffect(() => {
-    function updateToday() { setClientTodayStr(getLocalDateStr()) }
-    updateToday()
-    const iv = setInterval(updateToday, 60_000)
-    return () => clearInterval(iv)
-  }, [])
-
-  useEffect(() => {
-    return () => { if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current) }
-  }, [])
 
   const visibleCourts = useMemo(
     () => (focusCourtIds.length > 0 ? courts.filter((c) => focusCourtIds.includes(c.id)) : courts),
@@ -143,38 +127,6 @@ export default function BookingGrid({
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     )
   }
-
-  const visibleBookings = useMemo(
-    () =>
-      bookings.filter((b) => {
-        if (typeFilter !== null) {
-          if (typeFilter === 'MANUAL' && b.source !== 'MANUAL_STAFF' && b.source !== 'MANUAL_SUPPORT') return false
-          else if (typeFilter === 'RECURRING' && !b.recurringBookingId) return false
-          else if (typeFilter !== 'MANUAL' && typeFilter !== 'RECURRING' && b.source !== typeFilter) return false
-        }
-        if (paymentFilter !== null) {
-          if (isBlockSource(b.source) || b.status === 'CANCELLED') return false
-          if (paymentFilter === 'PAID' && b.paymentStatus !== 'PAID') return false
-          if (paymentFilter === 'UNPAID' && (b.paymentStatus === 'PAID' || b.paymentStatus === 'MANUAL')) return false
-        }
-        return true
-      }),
-    [bookings, typeFilter, paymentFilter]
-  )
-
-
-  const unpaidCount = useMemo(
-    () =>
-      bookings.filter(
-        (b) =>
-          b.status !== 'CANCELLED' &&
-          !BLOCK_SOURCES.has(b.source) &&
-          b.paymentStatus !== 'PAID' &&
-          b.paymentStatus !== 'MANUAL'
-      ).length,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bookings]
-  )
 
   const visibleCourtCount = visibleCourts.length
 
@@ -209,27 +161,55 @@ export default function BookingGrid({
   })
 
   // ── Drag-to-create ───────────────────────────────────────────────────
-    const effectiveBookings = useMemo(() => {
-    const keys = Object.keys(localOverrides)
-    if (keys.length === 0) return visibleBookings
-    return visibleBookings.map((b) => {
-      const ov = localOverrides[b.id]
-      return ov ? { ...b, startTime: ov.startTime, durationMinutes: ov.durationMinutes, courtId: ov.courtId } : b
-    })
-  }, [visibleBookings, localOverrides])
-  const occupiedSlotsByCourt = useMemo(() => {
-    const map = new Map<string, Set<number>>()
-    for (const booking of effectiveBookings) {
-      const bookingStart = timeToMinutes(booking.startTime)
-      const bookingEnd = bookingStart + booking.durationMinutes
-      let slots = map.get(booking.courtId)
-      if (!slots) { slots = new Set<number>(); map.set(booking.courtId, slots) }
-      for (let slotMin = bookingStart; slotMin < bookingEnd; slotMin += 30) {
-        slots.add(slotMin)
+const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } = useMemo(() => {
+    const effective: BookingBlock[] = []
+    const occupied = new Map<string, Set<number>>()
+    const byCourt = new Map<string, BookingBlock[]>()
+    let unpaid = 0
+
+    for (const b of bookings) {
+      // 1. Cálculo de Deuda (Unpaid) - Filtro global
+      const isCancelled = b.status === 'CANCELLED'
+      const isBlock = BLOCK_SOURCES.has(b.source)
+      if (!isCancelled && !isBlock && b.paymentStatus !== 'PAID' && b.paymentStatus !== 'MANUAL') {
+        unpaid++
       }
+
+      // 2. Filtros de Visibilidad (UI Filters)
+      if (typeFilter !== null) {
+        if (typeFilter === 'MANUAL' && b.source !== 'MANUAL_STAFF' && b.source !== 'MANUAL_SUPPORT') continue
+        if (typeFilter === 'RECURRING' && !b.recurringBookingId) continue
+        if (typeFilter !== 'MANUAL' && typeFilter !== 'RECURRING' && b.source !== typeFilter) continue
+      }
+      if (paymentFilter !== null) {
+        if (isBlock || isCancelled) continue
+        if (paymentFilter === 'PAID' && b.paymentStatus !== 'PAID') continue
+        if (paymentFilter === 'UNPAID' && (b.paymentStatus === 'PAID' || b.paymentStatus === 'MANUAL')) continue
+      }
+
+      // 3. Aplicar Drag & Drop Overrides
+      const ov = localOverrides[b.id]
+      const effectiveB = ov 
+        ? { ...b, startTime: ov.startTime, durationMinutes: ov.durationMinutes, courtId: ov.courtId } 
+        : b
+
+      effective.push(effectiveB)
+
+      // 4. Agrupar por Cancha
+      const list = byCourt.get(effectiveB.courtId) ?? []
+      list.push(effectiveB)
+      byCourt.set(effectiveB.courtId, list)
+
+      // 5. Calcular Ocupación
+      const startMin = timeToMinutes(effectiveB.startTime)
+      const endMin = startMin + effectiveB.durationMinutes
+      let slots = occupied.get(effectiveB.courtId)
+      if (!slots) { slots = new Set<number>(); occupied.set(effectiveB.courtId, slots) }
+      for (let m = startMin; m < endMin; m += 30) slots.add(m)
     }
-    return map
-  }, [effectiveBookings])
+
+    return { effectiveBookings: effective, occupiedSlotsByCourt: occupied, bookingsByCourt: byCourt, unpaidCount: unpaid }
+  }, [bookings, typeFilter, paymentFilter, localOverrides])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -244,6 +224,29 @@ export default function BookingGrid({
     observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [visibleCourtCount])
+
+  const handleEmptyClick = useCallback((courtId: string, slotMinutes: number) => {
+    const court = visibleCourts.find((c) => c.id === courtId)
+    const courtMinDuration = court?.allowedDurations[0] ?? 60
+    const courtClose = court?.closeTimeMinutes ?? gridEnd
+    const occupied = occupiedSlotsByCourt.get(courtId)
+    
+    let availableMinutes = courtClose - slotMinutes
+    if (occupied) {
+      for (let m = slotMinutes + 30; m < courtClose; m += 30) {
+        if (occupied.has(m)) { availableMinutes = m - slotMinutes; break }
+      }
+    }
+    if (availableMinutes < courtMinDuration) {
+      toast.warning(`Espacio insuficiente. El mínimo para esta cancha es de ${courtMinDuration} minutos.`)
+      clickedCellRectRef.current = null 
+      return 
+    }
+    onCellClick?.(courtId, slotMinutes, clickedCellRectRef.current ?? undefined, availableMinutes)
+    clickedCellRectRef.current = null
+  }, [visibleCourts, gridEnd, occupiedSlotsByCourt, onCellClick])
+
+
   const {
     createGhost,
     pendingCreate,
@@ -260,46 +263,63 @@ export default function BookingGrid({
     occupiedSlots: occupiedSlotsByCourt,
     courtMinDurations,
   })
+  const handleCellPointerDown = useCallback((courtId: string, courtIndex: number, e: React.PointerEvent<HTMLDivElement>) => {
+    if (draggingId || isFormOpen) return
 
-  // Notify parent when a drag-create finishes so FloatingBookingForm can open
+    // Obtenemos el rectángulo de la COLUMNA
+    const rect = e.currentTarget.getBoundingClientRect()
+    const relativeY = e.clientY - rect.top
+    
+    // Calculamos el slot exacto basado en la posición Y
+    const slotIndex = Math.floor(relativeY / SLOT_HEIGHT)
+    const slotMinutes = gridStart + (slotIndex * 30)
+
+    // Seteamos la ref del rect para el formulario flotante (usando la posición de la celda calculada)
+    clickedCellRectRef.current = {
+      left: rect.left,
+      top: rect.top + (slotIndex * SLOT_HEIGHT),
+      width: rect.width,
+      height: SLOT_HEIGHT,
+    } as DOMRect
+
+    // Iniciamos el drag-to-create
+    handleCreateStart(courtId, courtIndex, slotMinutes, e)
+  }, [draggingId, isFormOpen, gridStart, handleCreateStart])
+
+// Calculamos la fecha actual una sola vez al montar (Hydration safe)
   useEffect(() => {
-    if (!pendingCreate || !onDragCreateReady) return
-    onDragCreateReady(
-      pendingCreate,
-      handleCancelCreate,
-      (bookingId) => {
-        handleCancelCreate()
-        window.dispatchEvent(new CustomEvent('reservas:refresh', { detail: { bookingId } }))
-      }
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingCreate])
+    setClientTodayStr(getLocalDateStr())
+  }, [])
 
-  // Apply local overrides for optimistic drag/resize rendering
-
-
-  const bookingsByCourt = useMemo(() => {
-    const map = new Map<string, BookingBlock[]>()
-    for (const booking of effectiveBookings) {
-      const current = map.get(booking.courtId)
-      if (current) current.push(booking)
-      else map.set(booking.courtId, [booking])
+  // Un solo timer para mover la línea roja de la hora actual
+  useEffect(() => {
+    if (!isViewingToday) { 
+      setCurrentMinutes(null)
+      return 
     }
-    return map
-  }, [effectiveBookings])
-
-
-
-  useEffect(() => {
-    if (!isViewingToday) { setCurrentMinutes(null); return }
     function update() {
       const now = new Date()
       setCurrentMinutes(now.getHours() * 60 + now.getMinutes())
     }
     update()
-    const iv = setInterval(update, 60_000)
+    const iv = setInterval(update, 60_000) // Se actualiza cada 1 minuto
     return () => clearInterval(iv)
   }, [isViewingToday])
+
+// Notify parent when a drag-create finishes so FloatingBookingForm can open
+  useEffect(() => {
+      if (!pendingCreate || !onDragCreateReady) return
+
+      onDragCreateReady(
+        pendingCreate,
+        handleCancelCreate,
+        (bookingId) => {
+          handleCancelCreate()
+        }
+      )
+    }, [pendingCreate, onDragCreateReady, handleCancelCreate])
+
+
 
   useEffect(() => {
     if (!highlightId || !containerRef.current || !highlightedBooking) return
@@ -366,55 +386,6 @@ export default function BookingGrid({
       ? ((currentMinutes - gridStart) / 30) * SLOT_HEIGHT
       : null
 
-  function handleEmptyClick(courtId: string, slotMinutes: number) {
-    if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
-    setSlotTooltip(null)
-    const court = visibleCourts.find((c) => c.id === courtId)
-    const courtMinDuration = court?.allowedDurations[0] ?? 60
-    const courtClose = court?.closeTimeMinutes ?? gridEnd
-    const occupied = occupiedSlotsByCourt.get(courtId)
-    let availableMinutes = courtClose - slotMinutes
-    if (occupied) {
-      for (let m = slotMinutes + 30; m < courtClose; m += 30) {
-        if (occupied.has(m)) { availableMinutes = m - slotMinutes; break }
-      }
-    }
-    if (availableMinutes < courtMinDuration) {
-      toast.warning(`Espacio insuficiente. El mínimo para esta cancha es de ${courtMinDuration} minutos.`)
-      clickedCellRectRef.current = null 
-      return 
-    }
-    onCellClick?.(courtId, slotMinutes, clickedCellRectRef.current ?? undefined, availableMinutes)
-    clickedCellRectRef.current = null
-  }
-
-  function handleSlotMouseEnter(courtName: string, slotMinutes: number, x: number, y: number) {
-    if (draggingId) return
-    if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
-    slotHoverPointerRef.current = { x, y }
-    const time = minutesToTime(slotMinutes)
-    slotHoverTimerRef.current = setTimeout(() => {
-      const pos = clampTooltipPosition(slotHoverPointerRef.current.x, slotHoverPointerRef.current.y, 170, 62)
-      setSlotTooltip({ courtName, time, x: pos.x, y: pos.y })
-    }, TOOLTIP_DELAY_MS)
-  }
-
-  function handleSlotMouseMove(x: number, y: number) {
-    if (draggingId) return
-    slotHoverPointerRef.current = { x, y }
-    setSlotTooltip((prev) => {
-      if (!prev) return prev
-      const pos = clampTooltipPosition(x, y, 170, 62)
-      if (!shouldUpdateTooltipPosition(prev.x, prev.y, pos.x, pos.y)) return prev
-      return { ...prev, x: pos.x, y: pos.y }
-    })
-  }
-
-  function handleSlotMouseLeave() {
-    if (slotHoverTimerRef.current) clearTimeout(slotHoverTimerRef.current)
-    setSlotTooltip(null)
-  }
-
   // ── Ghost block class (same visual style as source booking) ──────────
   const ghostBooking = ghostPos
     ? effectiveBookings.find((b) => b.id === draggingId)
@@ -425,6 +396,8 @@ export default function BookingGrid({
 
   return (
     <>
+      {draggingId && <style>{`* { cursor: grabbing !important; } body { user-select: none; }`}</style>}
+      {resizingId && <style>{`* { cursor: ns-resize !important; } body { user-select: none; }`}</style>}
       <BookingGridFilterBar
         courts={courts}
         focusCourtIds={focusCourtIds}
@@ -443,11 +416,6 @@ export default function BookingGrid({
       />
 
       <div className="grow min-h-0 relative overflow-hidden">
-        {isNavigating && (
-          <div className="absolute inset-0 z-[25] bg-bg/60 backdrop-blur-[2px] flex items-center justify-center animate-fadeIn">
-            <div className="w-9 h-9 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
-          </div>
-        )}
       <div ref={containerRef} className="h-full overflow-auto">
         {!gridReady ? (
           <BookingGridSkeleton courts={visibleCourts} gridStart={gridStart} gridEnd={gridEnd} />
@@ -472,6 +440,10 @@ export default function BookingGrid({
                   key={court.id}
                   style={{ width: colWidth, minWidth: colWidth, height: gridHeight, transition: 'height 300ms ease', background: courtIndex % 2 === 1 ? 'var(--grid-col-alt)' : undefined }}
                   className="relative border-l border-border"
+                  onPointerDown={(e) => {
+                    if (court.isUnderMaintenance || court.isActive === false) return
+                    handleCellPointerDown(court.id, courtIndex, e)
+                  }}
                 >
                   {!court.isActive && <div className="court-reform-overlay" />}
 
@@ -501,32 +473,19 @@ export default function BookingGrid({
                     return (
                       <div
                         key={i}
-                        className={`absolute left-0 right-0 transition-colors
-                                    ${isHour ? 'bg-(--grid-row-alt)' : ''}
-                                    ${isHour ? 'border-b border-zinc-800/60' : 'border-b border-zinc-800/25'}
-                                    ${isPast ? 'opacity-40 cursor-not-allowed pointer-events-none' : (draggingId || createGhost) ? 'pointer-events-none' : isFormOpen ? '' : 'group cursor-pointer'}`}
+                        className={`absolute left-0 right-0 
+                          ${isHour ? 'bg-(--grid-row-alt) border-b border-zinc-800/60' : 'border-b border-zinc-800/25'}
+                          ${isPast ? 'opacity-40' : 'group'}`} // Usamos group para el hover CSS
                         style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
-                        onMouseEnter={(e) =>
-                          !isPast && !isFormOpen && !createGhost && handleSlotMouseEnter(court.name, slotMin, e.clientX, e.clientY)
-                        }
-                        onMouseMove={(e) => !isPast && !isFormOpen && !createGhost && handleSlotMouseMove(e.clientX, e.clientY)}
-                        onMouseLeave={handleSlotMouseLeave}
-                        onPointerDown={(e) => {
-                          if (!isPast && !draggingId && !isFormOpen) {
-                            clickedCellRectRef.current = e.currentTarget.getBoundingClientRect()
-                            handleCreateStart(court.id, courtIndex, slotMin, e)
-                          }
-                        }}
                       >
-                        {isOutOfBounds && (
-                          <span className="absolute inset-0 pointer-events-none bg-zinc-500/[0.11] z-0" />
-                        )}
-                        {!isPast && (
-                          <span className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-150 bg-(--grid-slot-hover) group-hover:opacity-100" />
+                        {isOutOfBounds && <span className="absolute inset-0 bg-zinc-500/[0.11]" />}
+                        
+                        {!isPast && !isFormOpen && (
+                          <span className="absolute inset-0 opacity-0 transition-opacity duration-75 bg-(--grid-slot-hover) group-hover:opacity-100" />
                         )}
                       </div>
-                    )
-                  })}
+                      )
+                    })}
 
                   {courtBookings.map((b) => {
                     const bookingStartMin = timeToMinutes(b.startTime)
@@ -560,18 +519,14 @@ export default function BookingGrid({
                       onSelect={(x, y) => setQuickPopover({ booking: b, courtName: court.name, x, y })}
                       onTooltipEnter={(x, y) => {
                         if (draggingId || isFormOpen) return
-                        const pos = clampTooltipPosition(x, y, 220, 96)
-                        setTooltip({ booking: b, x: pos.x, y: pos.y })
+                        setBookingTooltipStart(b, x, y)
                       }}
-                      onTooltipMove={(x, y) =>
-                        setTooltip((prev) => {
-                          if (!prev || draggingId || isFormOpen) return null
-                          const pos = clampTooltipPosition(x, y, 220, 96)
-                          if (!shouldUpdateTooltipPosition(prev.x, prev.y, pos.x, pos.y)) return prev
-                          return { ...prev, x: pos.x, y: pos.y }
-                        })
-                      }
-                      onTooltipLeave={() => setTooltip(null)}
+                      onTooltipMove={(x, y) => {
+                        if (draggingId || isFormOpen) return
+                        updateBookingTooltipPos(x, y)
+                        }
+                      } 
+                      onTooltipLeave={clearBookingTooltip}
                       isFormOpen={isFormOpen}
                     />
                   )
@@ -752,8 +707,6 @@ export default function BookingGrid({
 
       {gridReady && (
         <BookingGridTooltips
-          tooltip={tooltip}
-          slotTooltip={slotTooltip}
           selectedBooking={selectedBooking}
         />
       )}

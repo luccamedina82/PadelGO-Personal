@@ -78,6 +78,7 @@ export default function BookingBlockCell({
   function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (!isActive) return
     const offsetY = e.clientY - e.currentTarget.getBoundingClientRect().top
+    e.stopPropagation()
     onDragStart(b, e, offsetY, onSelect)
   }
 
@@ -90,12 +91,9 @@ export default function BookingBlockCell({
         !isBlock && !isCancelled ? (isPaid ? 'booking-block-paid' : 'booking-block-unpaid') : '',
         isHighlighted ? 'booking-block-highlighted' : '',
         isPast && !isDragging ? 'opacity-40 grayscale-[0.4]' : '',
-        isDragging
-          ? 'opacity-80 !scale-[1.02] shadow-xl cursor-grabbing z-50'
-          : isActive
-            ? `cursor-grab transition-shadow${isFormOpen ? '' : ' hover:shadow-md'}`
-            : '',
-        isResizing ? 'select-none' : '',
+        isDragging ? 'opacity-40 !scale-[1.02] shadow-none cursor-grabbing z-50 select-none' : '',
+        !isDragging && isActive && !isFormOpen ? 'cursor-grab hover:shadow-md transition-shadow' : '',
+        isResizing ? 'select-none cursor-ns-resize' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -157,7 +155,10 @@ export default function BookingBlockCell({
       {isActive && !isDragging && (
         <div
           className="absolute bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-current opacity-0 group-hover:opacity-25 transition-opacity cursor-ns-resize"
-          onPointerDown={(e) => onResizeStart(b, e)}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onResizeStart(b, e);
+          }}
         />
       )}
     </div>

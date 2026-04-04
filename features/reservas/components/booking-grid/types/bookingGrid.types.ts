@@ -64,7 +64,6 @@ export interface BookingGridProps {
   ) => Promise<void>
   onSearchPlayers?: (query: string) => Promise<{ id: string; name: string }[]>
   highlightBookingId?: string
-  isNavigating?: boolean
   onCellClick?: (courtId: string, slotMinutes: number, cellRect?: DOMRect, availableMinutes?: number) => void
   onDragCreateReady?: (pending: PendingCreate, cancel: () => void, created: (bookingId?: string) => void) => void
   /** True while the floating booking form is open — suppresses cell hover and tooltips */

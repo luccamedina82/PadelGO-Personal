@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, type RefObject, type PointerEvent as ReactPointerEvent } from 'react'
 import { toast } from 'sonner'
 import { minutesToTime, timeToMinutes } from '@/lib/availability'
-import { SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
+import { BLOCK_SOURCES, SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
 import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
 import type { BookingBlock, CourtColumn } from '../types/bookingGrid.types'
 
@@ -28,6 +28,7 @@ interface ResizeInfo {
   origDuration: number
   startClientY: number
   courtCloseMin: number
+  source: string
 }
 
 export interface GhostPos {
@@ -242,7 +243,6 @@ export function useBookingDragResize({
         if (!drag.isDrag && dist < 5) return
         if (!drag.isDrag) {
           drag.isDrag = true
-          document.body.style.cursor = 'grabbing'
         }
 
         if (!gridBodyRef.current || !containerRef.current) return
@@ -277,8 +277,14 @@ export function useBookingDragResize({
       if (activeResizeRef.current) {
         const resize = activeResizeRef.current
         const deltaSlots = Math.round((e.clientY - resize.startClientY) / SLOT_HEIGHT)
+
+        const court = courts.find(c => c.id === resize.courtId)
+        const minByCourt = court?.allowedDurations[0] ?? 60
+        const maxByCourt = court?.allowedDurations[court.allowedDurations.length - 1] ?? 120
         const maxByClose = resize.courtCloseMin - resize.startMin
-        const newDuration = Math.max(60, Math.min(120, Math.min(maxByClose, resize.origDuration + deltaSlots * 30)))
+        const isBlock = BLOCK_SOURCES.has(resize.source)
+        const upperLimit = isBlock ? maxByClose : Math.min(maxByCourt, maxByClose)
+        const newDuration = Math.max(minByCourt, Math.min(upperLimit, resize.origDuration + deltaSlots * 30))
         currentResizeDurationRef.current = newDuration
         setResizeHeightPx((newDuration / 30) * SLOT_HEIGHT - 3)
       }
@@ -358,7 +364,6 @@ export function useBookingDragResize({
 
     setDraggingId(booking.id)
     setGhostPos(ghostPosRef.current)
-    document.body.style.userSelect = 'none'
   }
 
   function handleResizeStart(booking: BookingBlock, e: React.PointerEvent<HTMLDivElement>) {
@@ -378,13 +383,12 @@ export function useBookingDragResize({
       origDuration: booking.durationMinutes,
       startClientY: e.clientY,
       courtCloseMin,
+      source: booking.source,
     }
 
     currentResizeDurationRef.current = booking.durationMinutes
     setResizingId(booking.id)
     setResizeHeightPx((booking.durationMinutes / 30) * SLOT_HEIGHT - 3)
-    document.body.style.cursor = 'ns-resize'
-    document.body.style.userSelect = 'none'
   }
 
   return {
