@@ -133,12 +133,15 @@ export default function BookingGrid({
   // ── Drag / resize ────────────────────────────────────────────────────
 
   const courtMinDurations = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const court of visibleCourts) {
-      map.set(court.id, court.allowedDurations[0] ?? 60)
-    }
-    return map
-  }, [visibleCourts])
+      const map = new Map<string, number>()
+      for (const court of visibleCourts) {
+        // La grilla visual ya no maneja las reglas complejas de duración.
+        // Seteamos 60 min (o 90) solo como tamaño del bloque fantasma al hacer clic.
+        // El Popover se encargará de ajustarlo a la duración real permitida.
+        map.set(court.id, 60) 
+      }
+      return map
+    }, [visibleCourts])
 
   const resolvedClubId = clubId ?? bookings[0]?.clubId ?? ''
 
@@ -227,10 +230,9 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
 
   const handleEmptyClick = useCallback((courtId: string, slotMinutes: number) => {
     const court = visibleCourts.find((c) => c.id === courtId)
-    const courtMinDuration = court?.allowedDurations[0] ?? 60
     const courtClose = court?.closeTimeMinutes ?? gridEnd
     const occupied = occupiedSlotsByCourt.get(courtId)
-    
+    const courtMinDuration = 60
     let availableMinutes = courtClose - slotMinutes
     if (occupied) {
       for (let m = slotMinutes + 30; m < courtClose; m += 30) {

@@ -46,14 +46,13 @@ async function getClubs(params: SearchParams) {
     include: {
       courts: {
         where: { isActive: true },
-        include: { availabilities: { where: { isActive: true } } },
       },
     },
     orderBy: { rating: 'desc' },
   })
 
   return clubs.map((club) => {
-    const allPrices = club.courts.flatMap((c) => c.availabilities.map((a) => a.pricePerHour))
+    const allPrices = club.courts.flatMap((c) => 40)
     const minPrice = allPrices.length > 0 ? Math.min(...allPrices) : null
     return {
       id: club.id,

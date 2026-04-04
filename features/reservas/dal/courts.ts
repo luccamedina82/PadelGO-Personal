@@ -32,16 +32,6 @@ export async function getCourtsByClubId(clubId: string) {
         covered: true,
         isUnderMaintenance: true,
         hideFromGrid: true,
-        availabilities: {
-          where: { isActive: true },
-          select: {
-            dayOfWeek: true,
-            openTime: true,
-            closeTime: true,
-            pricePerHour: true,
-            isActive: true,
-          },
-        },
       },
       orderBy: { name: 'asc' },
     }),
@@ -61,7 +51,6 @@ export async function getCourtsByClubId(clubId: string) {
       .filter((r) => r.courtIds.includes(court.id))
       .map(({ courtIds: _courtIds, ...rest }) => rest),
   }))
-
   return { courts, clubRules: clubRules as BookingRuleInput[] }
 }
 
@@ -85,6 +74,6 @@ export async function getBaseBookingRule(clubId: string, selectedDate: string) {
       ],
     },
     orderBy: { activeFrom: 'desc' },
-    select: { startTime: true, endTime: true, price: true },
+    select: RULE_SELECT,
   })
 }

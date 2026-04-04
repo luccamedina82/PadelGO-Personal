@@ -18,8 +18,6 @@ export interface UpdateCourtInput {
   covered?: boolean
 }
 
-const DEFAULT_OPEN  = '08:00'
-const DEFAULT_CLOSE = '23:00'
 
 export async function createCourt(
   input: CreateCourtInput
@@ -43,18 +41,6 @@ export async function createCourt(
         svgH: 180,
         isActive: true,
         isUnderMaintenance: false,
-        // Create default availability for all 7 days so the court appears in the calendar immediately
-        availabilities: {
-          createMany: {
-            data: Array.from({ length: 7 }, (_, dow) => ({
-              dayOfWeek: dow,
-              openTime: DEFAULT_OPEN,
-              closeTime: DEFAULT_CLOSE,
-              pricePerHour: 0, // price is driven by BookingRules
-              isActive: true,
-            })),
-          },
-        },
       },
       select: { id: true },
     })

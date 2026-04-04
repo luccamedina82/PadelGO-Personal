@@ -86,28 +86,45 @@ export default function FloatingBookingFormContent({
     error: null
   })
   // ── Duration options derived from selected court (or union of all courts) ──
-  const durationOptions = useMemo(() => {
-    if (form.courtId) {
-      const court = courts.find((c) => c.id === form.courtId)
-      if (court && court.allowedDurations.length > 0) return court.allowedDurations
-    }
-    const all = courts.flatMap((c) => c.allowedDurations)
-    const unique = [...new Set(all)].sort((a, b) => a - b)
-    return unique.length > 0 ? unique : [60, 90, 120]
-  }, [courts, form.courtId])
 
-  const { data: courtSlots = [], isLoading: isLoadingSlots } = useQuery<FloatingFormCourtSlots[]>({
-    queryKey: ['courtSlots', clubId, form.date],
+  const { data: floatingData, isLoading: isLoadingSlots } = useQuery({
+    queryKey: ['floatingData', clubId, form.date],
     queryFn: async () => {
-      const res = await getFloatingFormDataAction(clubId, form.date);
-      return res?.courtSlots ?? [];
+      return await getFloatingFormDataAction(clubId, form.date)
     },
-    staleTime: 1000 * 60, // Guardar en memoria por 1 minuto
+    staleTime: 1000 * 60, 
   })
+  const courtSlots = floatingData?.courtSlots ?? []
+  const globalDurations = floatingData?.durationOptions ?? []
+
+  const durationOptions = useMemo(() => {
+    // 1. Si el admin ya eligió Cancha y Hora, buscamos el slot exacto y sus duraciones permitidas
+    if (form.courtId && form.startTime) {
+      const courtData = courtSlots.find((cs) => cs.courtId === form.courtId)
+      const slotData = courtData?.slots.find((s) => s.time === form.startTime)
+      if (slotData && slotData.durationOptions.length > 0) {
+        return slotData.durationOptions
+      }
+    }
+
+    // 2. Si solo eligió la Hora, unimos las duraciones permitidas de todas las canchas para esa hora
+    if (form.startTime) {
+      const allAtTime = courtSlots.flatMap((cs) => {
+        const s = cs.slots.find((x) => x.time === form.startTime)
+        return s?.available ? s.durationOptions : []
+      })
+      const unique = [...new Set(allAtTime)].sort((a, b) => a - b)
+      if (unique.length > 0) return unique
+    }
+
+    // 3. Fallback: Las duraciones globales activas hoy (para mostrar antes de que haga clic en una hora)
+    return globalDurations.length > 0 ? globalDurations : [60, 90] // Fallback final por si está vacía la BD
+  }, [form.courtId, form.startTime, courtSlots, globalDurations])
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const visibleTimes = getVisibleTimeSlotsForDate(courtSlots, durationOptions)
   const courtsForTime = form.startTime
+  
     ? form.bookingMode === 'BLOQUEO'
       ? courts
       : courts.filter((c) => getAvailableDurationsForCourt(form.startTime, c.id, courtSlots, durationOptions).length > 0)

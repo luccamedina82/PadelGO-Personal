@@ -56,15 +56,7 @@ export interface UserPublic {
   createdAt: Date
 }
 
-export interface CourtAvailabilitySlot {
-  id: string
-  courtId: string
-  dayOfWeek: number // 0=Sun ... 6=Sat
-  openTime: string // "08:00"
-  closeTime: string // "22:00"
-  pricePerHour: number // centavos ARS
-  isActive: boolean
-}
+
 
 export interface CourtWithAvailability {
   id: string
@@ -77,7 +69,6 @@ export interface CourtWithAvailability {
   svgW: number
   svgH: number
   isActive: boolean
-  availabilities: CourtAvailabilitySlot[]
 }
 
 export interface ClubPublic {

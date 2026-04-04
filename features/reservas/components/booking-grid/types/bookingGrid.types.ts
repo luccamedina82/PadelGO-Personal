@@ -27,7 +27,6 @@ export interface CourtColumn {
   hideFromGrid?: boolean
   openTimeMinutes?: number  // apertura de cancha en minutos desde medianoche
   closeTimeMinutes?: number // cierre de cancha en minutos desde medianoche
-  allowedDurations: number[] // duraciones permitidas en minutos, ordenadas ascendente
 }
 
 export interface UpdateBookingData {

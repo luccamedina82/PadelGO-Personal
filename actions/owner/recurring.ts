@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/actions/auth'
-import { timeToMinutes, VALID_DURATIONS } from '@/lib/availability'
+import { timeToMinutes } from '@/lib/availability'
 import { getNextOccurrences, RECURRING_WEEKS_AHEAD } from '@/lib/recurring'
 import { argToday } from '@/lib/date'
 import type { ActionResult } from '@/types'
@@ -55,7 +55,7 @@ export async function createRecurringBooking(
 
   if (!playerName?.trim()) return { success: false, error: 'El nombre del jugador es obligatorio.' }
   if (!clubId || !courtId || !startTime) return { success: false, error: 'Datos incompletos.' }
-  if (!(VALID_DURATIONS as readonly number[]).includes(durationMinutes))
+  if (durationMinutes !== 60 && durationMinutes !== 90 && durationMinutes !== 120)
     return { success: false, error: 'Duración no válida. Opciones: 60, 90 o 120 minutos.' }
   if (dayOfWeek < 0 || dayOfWeek > 6) return { success: false, error: 'Día de semana inválido.' }
   if (pricePerSession < 0) return { success: false, error: 'El precio no puede ser negativo.' }

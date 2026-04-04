@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/features/auth/actions/auth'
 import { getAdminBookingsByDate, getBookingsByDate } from '@/features/reservas/dal/bookings'
-import { calcAvailableSlots, calcBookingPrice, resolveBookingRule, timeToMinutes, VALID_DURATIONS, MIN_ADVANCE_MINUTES } from '@/lib/availability'
+import { calcAvailableSlots, calcBookingPrice, resolveBookingRule, timeToMinutes, MIN_ADVANCE_MINUTES } from '@/lib/availability'
 import type { BookingRuleInput } from '@/lib/availability'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import type { PaymentStatus } from '@/app/generated/prisma/enums'
@@ -51,10 +51,6 @@ export async function createManualBooking(
     return { success: false, error: 'Datos incompletos.' }
   }
 
-  if (bookingType !== 'BLOQUEO' && !(VALID_DURATIONS as readonly number[]).includes(durationMinutes)) {
-    return { success: false, error: 'Duración no válida. Opciones: 60, 90 o 120 minutos.' }
-  }
-
   if (durationMinutes <= 0 || durationMinutes > 1440) {
     return { success: false, error: 'Duración inválida.' }
   }
@@ -78,18 +74,27 @@ export async function createManualBooking(
   try {
     const booking = await prisma.$transaction(async (tx) => {
       const dayOfWeek = dateObj.getUTCDay()
-      const availability = await tx.courtAvailability.findFirst({
-        where: { courtId, dayOfWeek, isActive: true },
-        select: { pricePerHour: true, openTime: true, closeTime: true },
-      })
 
-      // NO_AVAILABILITY: court has no configured hours for this day — hard block even for staff
-      if (!availability) {
+
+      const rules = await tx.bookingRule.findMany({
+        where: {
+          clubId,
+          isActive: true,
+          daysOfWeek: { has: dayOfWeek },
+          OR: [
+            { courtIds: { isEmpty: true } }, // Reglas globales del club
+            { courtIds: { has: courtId } }   // Reglas específicas de esta cancha
+          ],
+        },
+      })
+      if (rules.length === 0) {
         if (bookingType !== 'BLOQUEO') throw new Error('NO_AVAILABILITY')
       }
       // EXCEEDS_CLOSE_TIME is intentionally NOT enforced for OWNER/STAFF manual bookings.
       // Out-of-hours bookings are allowed and tracked via outOfHoursWarning.
-
+      const openTimeMin = rules.length > 0 ? Math.min(...rules.map(r => timeToMinutes(r.startTime))) : 0
+      const closeTimeMin = rules.length > 0 ? Math.max(...rules.map(r => timeToMinutes(r.endTime))) : 1440
+      
       const existing = await tx.booking.findMany({
         where: {
           courtId,
@@ -108,28 +113,19 @@ export async function createManualBooking(
       if (conflict) throw new Error('SLOT_TAKEN')
 
       let totalPrice = 0
-      if (bookingType !== 'BLOQUEO' && availability) {
+      if (bookingType !== 'BLOQUEO' && rules.length > 0) {
         if (priceOverride !== undefined) {
           totalPrice = priceOverride
         } else {
-          const [courtRules, clubRules] = await Promise.all([
-            tx.bookingRule.findMany({
-              where: { courtIds: { has: courtId }, isActive: true },
-              select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
-            }),
-            tx.bookingRule.findMany({
-              where: { clubId, courtIds: { isEmpty: true }, isActive: true },
-              select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
-            }),
-          ])
+          const baseRulePrice = rules.find(r => r.priority === 0)?.price ?? 0
           const resolved = resolveBookingRule(
-            [...clubRules, ...courtRules] as BookingRuleInput[],
+            rules as BookingRuleInput[],
             dayOfWeek,
             newStartMin,
-            availability.pricePerHour
+            baseRulePrice
           )
-          const baseRulePrice = clubRules.find((r) => r.priority === 0)?.price ?? null
-          totalPrice = calcBookingPrice(resolved?.price ?? baseRulePrice ?? availability.pricePerHour, durationMinutes)
+          const finalPricePerHour = resolved?.price ?? baseRulePrice
+          totalPrice = calcBookingPrice(finalPricePerHour, durationMinutes)
         }
       }
 
@@ -153,10 +149,7 @@ export async function createManualBooking(
           manualPhone: bookingType !== 'BLOQUEO' ? (manualPhone ?? null) : null,
           // Auto-flag OOB: frontend hint OR backend detection (past close / before open)
           outOfHoursWarning: (outOfHoursWarning ?? false) || (
-            availability !== null && (
-              newEndMin > timeToMinutes(availability.closeTime) ||
-              newStartMin < timeToMinutes(availability.openTime)
-            )
+            rules.length > 0 && (newEndMin > closeTimeMin || newStartMin < openTimeMin)
           ),
         },
         select: { id: true },
@@ -303,11 +296,6 @@ export async function updateBooking(
       }
       if (booking.status === 'CANCELLED') throw new Error('CANCELLED')
 
-      if (booking.source !== 'BLOCK' && !(VALID_DURATIONS as readonly number[]).includes(durationMinutes)) {
-        throw new Error('DURATION_NOT_ALLOWED')
-      }
-
-
       const targetCourtId = newCourtId ?? booking.courtId
 
       // Verify new court belongs to same club
@@ -325,13 +313,39 @@ export async function updateBooking(
 
       // CloseTime check on the target court
       const dayOfWeek = targetDate.getUTCDay()
-      const avail = await tx.courtAvailability.findFirst({
-        where: { courtId: targetCourtId, dayOfWeek, isActive: true },
-        select: { closeTime: true, pricePerHour: true },
+      const rules = await tx.bookingRule.findMany({
+        where: {
+          clubId: booking.clubId,
+          isActive: true,
+          daysOfWeek: { has: dayOfWeek },
+          OR: [
+            { courtIds: { isEmpty: true } },
+            { courtIds: { has: targetCourtId } }
+          ],
+        },
       })
-      if (avail) {
-        const closeMin = timeToMinutes(avail.closeTime)
-        if (newEndMin > closeMin) throw new Error('EXCEEDS_CLOSE_TIME')
+
+      // 2. Si no hay reglas, no hay disponibilidad
+      if (rules.length === 0) {
+        if (booking.source !== 'BLOCK') throw new Error('NO_AVAILABILITY')
+      }
+
+      // 3. Verificamos horario de cierre (solo si hay reglas)
+      if (rules.length > 0) {
+        const closeMin = Math.max(...rules.map(r => timeToMinutes(r.endTime)))
+        if (newEndMin > closeMin && booking.source !== 'BLOCK') {
+          // Acá podrías decidir si un Admin puede arrastrar fuera de horario o no.
+          // En tu versión anterior tiraba error, lo mantenemos:
+          throw new Error('EXCEEDS_CLOSE_TIME')
+        }
+
+        // Verificamos duración permitida (solo si no es bloqueo)
+        if (booking.source !== 'BLOCK') {
+          const allAllowedDurations = rules.flatMap(r => r.allowedDurations)
+          if (!allAllowedDurations.includes(durationMinutes)) {
+            throw new Error('DURATION_NOT_ALLOWED')
+          }
+        }
       }
 
       // Conflict check on the target court (excluding self)
@@ -361,29 +375,16 @@ export async function updateBooking(
       }
 
       // Recalculate price when time or court changes
-      if (!avail) {
-        if (booking.source !== 'BLOCK') {
-          throw new Error('NO_AVAILABILITY') 
-        }
-      } else {
-          const [courtRules, clubRulesForUpdate] = await Promise.all([
-            tx.bookingRule.findMany({
-              where: { courtIds: { has: targetCourtId }, isActive: true },
-              select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
-            }),
-            tx.bookingRule.findMany({
-              where: { clubId: booking.clubId, courtIds: { isEmpty: true }, isActive: true },
-              select: { name: true, priority: true, daysOfWeek: true, startTime: true, endTime: true, price: true, intervalMinutes: true, allowedDurations: true },
-            }),
-          ])
-          const resolved = resolveBookingRule(
-            [...clubRulesForUpdate, ...courtRules] as BookingRuleInput[],
-            dayOfWeek,
-            newStartMin,
-            avail.pricePerHour
-          )
-          const baseRulePriceForUpdate = clubRulesForUpdate.find((r) => r.priority === 0)?.price ?? null
-          updateData.totalPrice = calcBookingPrice(resolved?.price ?? baseRulePriceForUpdate ?? avail.pricePerHour, durationMinutes)
+      if (booking.source !== 'BLOCK' && rules.length > 0) {
+        const baseRulePrice = rules.find((r) => r.priority === 0)?.price ?? 0
+        const resolved = resolveBookingRule(
+          rules as BookingRuleInput[],
+          dayOfWeek,
+          newStartMin,
+          baseRulePrice
+        )
+        const finalPricePerHour = resolved?.price ?? baseRulePrice
+        updateData.totalPrice = calcBookingPrice(finalPricePerHour, durationMinutes)
       }
 
       await tx.booking.update({ where: { id: bookingId }, data: updateData })
@@ -599,9 +600,25 @@ export async function getMonthAvailability(
 
   const rangeStartDate = new Date(`${rangeStart}T00:00:00.000Z`)
 
-  const [{ courts }, bookings] = await Promise.all([
+  const [{ courts }, bookings, rules] = await Promise.all([
     getCourtsByClubId(clubId),
     getAdminBookingsByDate(clubId, rangeStartDate, endOfNextMonth),
+    prisma.bookingRule.findMany({
+      where: { clubId, isActive: true },
+      select: { 
+        name: true,
+        priority: true,
+        courtIds: true, 
+        daysOfWeek: true, 
+        startTime: true, 
+        endTime: true,
+        price: true,
+        intervalMinutes: true,
+        allowedDurations: true,
+        activeFrom: true,
+        activeUntil: true
+      }
+    }),
   ])
 
   // Group bookings by courtId:date for O(1) lookup
@@ -627,12 +644,24 @@ export async function getMonthAvailability(
     const dow = cursor.getUTCDay()
     let count = 0
 
+    const rulesForDay = rules.filter(r => r.daysOfWeek.includes(dow))
+
     for (const court of courts) {
-      const avail = court.availabilities.find((a) => a.dayOfWeek === dow)
-      if (!avail) continue
+      const courtRules = rulesForDay.filter(r => r.courtIds.length === 0 || r.courtIds.includes(court.id))
+      
+      if (courtRules.length === 0) continue
+      const openTimeMin = Math.min(...courtRules.map(r => timeToMinutes(r.startTime)))
+      const closeTimeMin = Math.max(...courtRules.map(r => timeToMinutes(r.endTime)))
+
       const courtBookings = bookingsByKey.get(`${court.id}:${dateStr}`) ?? []
+      
       const slots = calcAvailableSlots(
-        { openTime: avail.openTime, closeTime: avail.closeTime, pricePerHour: avail.pricePerHour },
+        { 
+          openTime: `${String(Math.floor(openTimeMin/60)).padStart(2, '0')}:${String(openTimeMin%60).padStart(2, '0')}`, 
+          closeTime: `${String(Math.floor(closeTimeMin/60)).padStart(2, '0')}:${String(closeTimeMin%60).padStart(2, '0')}`,
+          pricePerHour: 0,
+          rules: courtRules
+        },
         courtBookings,
         cursor,
         now,

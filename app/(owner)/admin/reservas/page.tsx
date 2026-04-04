@@ -6,7 +6,6 @@ import { getConflictBookings } from '@/features/reservas/dal/conflicts'
 import DateHeader from './ui/DateHeader/DateHeader'
 import BookingsClient from './BookingsClient'
 import { Suspense } from 'react'
-import prisma from '@/lib/prisma'
 import { prepareGridData } from '@/lib/utils/gridHelpers'
 import { fetchBookingsByDateAction } from '@/actions/owner/bookings'
 
@@ -44,7 +43,6 @@ export default async function ReservasPage({ searchParams }: Props) {
     month: 'long',
     timeZone: 'UTC',
   })
-
   return (
     <div className="h-screen bg-bg flex flex-col">
       {/* ── Sticky header ──────────────────────────────────────────── */}

@@ -279,9 +279,9 @@ export function useBookingDragResize({
         const deltaSlots = Math.round((e.clientY - resize.startClientY) / SLOT_HEIGHT)
 
         const court = courts.find(c => c.id === resize.courtId)
-        const minByCourt = court?.allowedDurations[0] ?? 60
-        const maxByCourt = court?.allowedDurations[court.allowedDurations.length - 1] ?? 120
-        const maxByClose = resize.courtCloseMin - resize.startMin
+        const minByCourt = 30 
+         const maxByCourt = 1440 
+         const maxByClose = resize.courtCloseMin - resize.startMin
         const isBlock = BLOCK_SOURCES.has(resize.source)
         const upperLimit = isBlock ? maxByClose : Math.min(maxByCourt, maxByClose)
         const newDuration = Math.max(minByCourt, Math.min(upperLimit, resize.origDuration + deltaSlots * 30))

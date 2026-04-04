@@ -9,11 +9,7 @@ import type { TimeSlot } from '@/types'
 
 // ── CONSTANTS ──────────────────────────────────────────────────────────────
 
-export const VALID_DURATIONS = [60, 90, 120] as const
-export type DurationMinutes = (typeof VALID_DURATIONS)[number]
-
-export const DEFAULT_DURATION: DurationMinutes = 90
-
+export type DurationMinutes = number
 /** Minimum minutes ahead of now to allow a booking */
 export const MIN_ADVANCE_MINUTES = 60
 
@@ -49,6 +45,7 @@ export interface ExistingBooking {
 export interface BookingRuleInput {
   name: string
   priority: number
+  courtIds: string[]
   daysOfWeek: number[] // [0..6]
   startTime: string // "HH:MM" — block start
   endTime: string // "HH:MM" — block end (exclusive)
@@ -191,14 +188,9 @@ export function calcAvailableSlots(
   for (let start = openMinutes; start <= closeMinutes - 60; start += ADMIN_SLOT_INCREMENT) {
     // Resolve the winning rule for this slot position
     const resolved = resolveBookingRule(dateRules, dayOfWeek, start, config.pricePerHour)
-
+    if (!resolved) continue
     const effectivePrice = resolved?.price ?? config.pricePerHour
-    const effectiveDurations =
-      mode === 'admin'
-        ? (VALID_DURATIONS as readonly number[])
-        : resolved && resolved.allowedDurations.length > 0
-          ? resolved.allowedDurations
-          : (VALID_DURATIONS as readonly number[])
+    const effectiveDurations = resolved.allowedDurations
     const effectiveInterval = resolved?.intervalMinutes ?? ADMIN_SLOT_INCREMENT
     const appliedRuleName = resolved?.ruleName
 
@@ -229,7 +221,7 @@ export function calcAvailableSlots(
 
     slots.push({
       time: minutesToTime(start),
-      endTime: minutesToTime(start + DEFAULT_DURATION),
+      endTime: minutesToTime(start + (durationOptions[0] ?? 60)),
       pricePerHour: effectivePrice,
       available,
       durationOptions: available ? availableDurations : [],

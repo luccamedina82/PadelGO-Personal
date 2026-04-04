@@ -54,10 +54,7 @@ export default async function SuperadminClubReservasPage({ params, searchParams 
     select: {
       id: true,
       name: true,
-      availabilities: {
-        where: { dayOfWeek, isActive: true },
-        select: { openTime: true, closeTime: true },
-      },
+
     },
     orderBy: { name: 'asc' },
   })
@@ -67,14 +64,7 @@ export default async function SuperadminClubReservasPage({ params, searchParams 
 
   const openTimes: number[] = []
   const closeTimes: number[] = []
-  for (const court of courts) {
-    for (const avail of court.availabilities) {
-      const [oh, om] = avail.openTime.split(':').map(Number)
-      const [ch, cm] = avail.closeTime.split(':').map(Number)
-      openTimes.push((oh ?? 8) * 60 + (om ?? 0))
-      closeTimes.push((ch ?? 23) * 60 + (cm ?? 0))
-    }
-  }
+    
   if (openTimes.length > 0) gridStart = Math.min(...openTimes)
   if (closeTimes.length > 0) gridEnd = Math.max(...closeTimes)
   gridStart = Math.floor(gridStart / 30) * 30

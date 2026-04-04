@@ -136,7 +136,6 @@ model Court {
   hideFromGrid        Boolean   @default(false)
   createdAt           DateTime  @default(now())
 
-  availabilities CourtAvailability[]
   bookings       Booking[]
   recurringBookings RecurringBooking[]
 }
@@ -151,7 +150,7 @@ model BookingRule {
   daysOfWeek       Int[]    // [0..6], 0=Domingo
   startTime        String   // "08:00"
   endTime          String   // "22:00"
-  price            Int?     // centavos ARS; null = hereda pricePerHour de CourtAvailability
+  price            Int?     // centavos ARS;
   intervalMinutes  Int      @default(30) // granularidad de slots para jugadores: 30 o 60
   allowedDurations Int[]    @default([60, 90, 120])
   isActive         Boolean   @default(true)
@@ -160,17 +159,6 @@ model BookingRule {
   createdAt        DateTime  @default(now())
 
   @@index([clubId])
-}
-
-model CourtAvailability {
-  id           String  @id @default(cuid())
-  courtId      String
-  court        Court   @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  dayOfWeek    Int     // 0=Dom, 1=Lun, ..., 6=Sab
-  openTime     String  // "08:00"
-  closeTime    String  // "22:00"
-  pricePerHour Int     // precio en centavos de ARS por hora
-  isActive     Boolean @default(true)
 }
 
 // ── BOOKINGS ────────────────────

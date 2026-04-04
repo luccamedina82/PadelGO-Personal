@@ -398,15 +398,21 @@ async function main() {
         svgH: 190,
       },
     })
-    await prisma.courtAvailability.createMany({
-      data: Array.from({ length: 7 }, (_, dow) => ({
-        courtId: court.id,
-        dayOfWeek: dow,
-        openTime: '08:00',
-        closeTime: '23:00',
-        pricePerHour: cfg.pricePerHour,
-      })),
-    })
+    await prisma.bookingRule.create({
+        data: {
+          clubId: court.clubId, // Asegurate de que el objeto court tenga clubId (o usá la variable del club que tengas ahí)
+          name: 'Regla Base Seed',
+          priority: 0,
+          courtIds: [court.id],
+          daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+          startTime: '08:00',
+          endTime: '23:00',
+          price: 1500000, // 15.000 ARS en centavos (Ajustalo al precio de tu seed)
+          intervalMinutes: 30,
+          allowedDurations: [60, 90, 120],
+          isActive: true,
+        }
+      })
     racketCourts.push({ id: court.id, pricePerHour: cfg.pricePerHour })
   }
 
@@ -536,14 +542,20 @@ async function main() {
           svgH: 190,
         },
       })
-      await prisma.courtAvailability.createMany({
-        data: Array.from({ length: 7 }, (_, dow) => ({
-          courtId: court.id,
-          dayOfWeek: dow,
-          openTime: '08:00',
-          closeTime: '23:00',
-          pricePerHour: c.pricePerHour,
-        })),
+      await prisma.bookingRule.create({
+        data: {
+          clubId: court.clubId, // O pasale la variable de ID de club que tengas a mano ahí
+          name: 'Tarifa Base',
+          priority: 0,
+          courtIds: [court.id],
+          daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+          startTime: '08:00',
+          endTime: '23:00',
+          price: c.pricePerHour, // 🟢 Mantenemos el precio que venía en tu variable 'c'
+          intervalMinutes: 30,
+          allowedDurations: [60, 90, 120],
+          isActive: true,
+        }
       })
       courts.push({ id: court.id, pricePerHour: c.pricePerHour })
     }

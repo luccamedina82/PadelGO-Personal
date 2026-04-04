@@ -12,6 +12,7 @@ import { getAdminContext } from '@/lib/dal/admin'
 import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getFinancialBookings } from '@/lib/dal/analytic'
 import { getBarSalesPeriod } from '@/lib/dal/bar'
+import prisma from '@/lib/prisma'
 
 interface Props {
   searchParams: Promise<{ start?: string; end?: string }>
@@ -58,23 +59,14 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const prevPeriodEnd = new Date(period.start)
   prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1)
 
-  const [{ courts }, bookings, barSales, prevBookings, prevBarSales] = await Promise.all([
+  const [{ courts }, bookings, barSales, prevBookings, prevBarSales, rules] = await Promise.all([
     getCourtsByClubId(club.id), // ¡Trae las canchas Y sus disponibilidades!
     getFinancialBookings(club.id, period.start, period.end),
     getBarSalesPeriod(club.id, period.start, period.end),
     getFinancialBookings(club.id, prevPeriodStart, prevPeriodEnd), // Reutilizamos DAL
     getBarSalesPeriod(club.id, prevPeriodStart, prevPeriodEnd), // Reutilizamos DAL
+    prisma.bookingRule.findMany({ where: { clubId: club.id, isActive: true } })
   ])
-
-  const availabilities = courts.flatMap((court) =>
-    court.availabilities.map((a) => ({
-      courtId: court.id,
-      dayOfWeek: a.dayOfWeek,
-      openTime: a.openTime,
-      closeTime: a.closeTime,
-      isActive: a.isActive,
-    }))
-  )
 
   // 3. Los bookings ya vienen en el formato correcto desde el DAL,
   // solo filtramos los confirmados para las métricas que lo requieran.
@@ -93,7 +85,7 @@ export default async function AnalyticsPage({ searchParams }: Props) {
 
   const ingresos = calcularIngresos(bookings, barRecords, period)
   const ingresosMonth = calcularIngresos(bookings, barRecords, monthPeriod)
-  const ocupacion = calcularOcupacion(bookings, courts, availabilities, period)
+  const ocupacion = calcularOcupacion(bookings, courts, rules, period)
   const horarios = calcularHorariosPico(bookings, period)
   const semana = calcularIngresosSemanales(bookings, barRecords)
   const prevIngresos = {

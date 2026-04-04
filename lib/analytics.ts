@@ -8,6 +8,7 @@
  */
 
 import { argToday, argTomorrow, argTodayStr } from '@/lib/date'
+import { BookingRuleInput, timeToMinutes } from './availability'
 
 // ── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -33,13 +34,7 @@ export interface CourtRecord {
   name: string
 }
 
-export interface AvailabilityRecord {
-  courtId: string
-  dayOfWeek: number // 0–6
-  openTime: string
-  closeTime: string
-  isActive: boolean
-}
+
 
 export interface AnalyticsPeriod {
   start: Date
@@ -52,11 +47,7 @@ function isInPeriod(date: Date, period: AnalyticsPeriod): boolean {
   return date >= period.start && date < period.end
 }
 
-function minutesBetween(openTime: string, closeTime: string): number {
-  const [oh, om] = openTime.split(':').map(Number)
-  const [ch, cm] = closeTime.split(':').map(Number)
-  return ch * 60 + cm - (oh * 60 + (om ?? 0))
-}
+
 
 // ── INGRESOS ───────────────────────────────────────────────────────────────
 
@@ -122,7 +113,7 @@ export interface OcupacionResult {
 export function calcularOcupacion(
   bookings: BookingRecord[],
   courts: CourtRecord[],
-  availabilities: AvailabilityRecord[],
+  rules: BookingRuleInput[], // 🟢 AHORA RECIBE LAS REGLAS
   period: AnalyticsPeriod
 ): OcupacionResult {
   // Calculate total available minutes per court per day in the period
@@ -143,12 +134,21 @@ export function calcularOcupacion(
 
     for (const day of days) {
       const dow = day.getUTCDay()
-      const avail = availabilities.find(
-        (a) => a.courtId === court.id && a.dayOfWeek === dow && a.isActive
+      
+      // 1. Buscamos las reglas que aplican a ESTE día y a ESTA cancha
+      const courtRules = rules.filter(r => 
+        r.daysOfWeek.includes(dow) && 
+        (r.courtIds.length === 0 || r.courtIds.includes(court.id))
       )
-      if (!avail) continue
 
-      const mins = minutesBetween(avail.openTime, avail.closeTime)
+      // Si no hay reglas, la cancha estuvo cerrada ese día
+      if (courtRules.length === 0) continue
+
+      // 2. Calculamos la amplitud térmica (del horario de apertura al de cierre)
+      const openMin = Math.min(...courtRules.map(r => timeToMinutes(r.startTime)))
+      const closeMin = Math.max(...courtRules.map(r => timeToMinutes(r.endTime)))
+      const mins = closeMin - openMin
+
       const current = totalPerCourt.get(court.id) ?? 0
       totalPerCourt.set(court.id, current + mins)
       totalMinutes += mins

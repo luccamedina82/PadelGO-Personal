@@ -1,15 +1,17 @@
 import { requireSuperAdmin } from '@/actions/auth'
 import prisma from '@/lib/prisma'
 import SuperadminBanner from '@/components/layout/SuperadminBanner'
-import HorariosClient from '@/app/(owner)/admin/horarios/HorariosClient'
-import { updateClubAvailability } from '@/actions/owner/availability'
+import CanchasClient from '@/app/(owner)/admin/canchas/CanchasClient'
+import { createCourt, updateCourt, setCourtMaintenance, getCourtPendingCount, toggleCourtGridVisibility, deactivateCourtAction, activateCourtAction } from '@/actions/owner/courts'
 import { notFound } from 'next/navigation'
+import type { ActionResult } from '@/types'
+
 
 interface Props {
   params: Promise<{ id: string }>
 }
 
-export default async function SuperadminClubHorariosPage({ params }: Props) {
+export default async function SuperadminClubCanchasPage({ params }: Props) {
   await requireSuperAdmin()
 
   const { id } = await params
@@ -28,8 +30,7 @@ export default async function SuperadminClubHorariosPage({ params }: Props) {
   if (!club) notFound()
 
   const courts = await prisma.court.findMany({
-    where: { clubId: id, isActive: true },
-    include: { availabilities: { orderBy: { dayOfWeek: 'asc' } } },
+    where: { clubId: id },
     orderBy: { name: 'asc' },
   })
 
@@ -42,11 +43,17 @@ export default async function SuperadminClubHorariosPage({ params }: Props) {
         courtCount={club._count.courts}
         isActive={club.isActive}
       />
-      <HorariosClient
+      <CanchasClient
         clubId={id}
         clubName={club.name}
         courts={courts}
-        updateClubAvailabilityAction={updateClubAvailability}
+        createCourtAction={createCourt}
+        updateCourtAction={updateCourt}
+        setMaintenanceAction={setCourtMaintenance}
+        getCourtPendingCountAction={getCourtPendingCount}
+        toggleGridVisibilityAction={toggleCourtGridVisibility}
+        deactivateAction={deactivateCourtAction}
+        activateAction={activateCourtAction}
       />
     </div>
   )

@@ -34,9 +34,7 @@ function getClubData(id: string) {
         include: {
           courts: {
             where: { isActive: true },
-            include: {
-              availabilities: { where: { isActive: true } },
-            },
+            
             orderBy: { name: 'asc' },
           },
         },
@@ -174,13 +172,6 @@ export default async function ClubPage({ params }: PageProps) {
   // Build CourtForWizard[] — include availabilityByDay
   const courtsForWizard: CourtForWizard[] = club.courts.map((court) => {
     const availabilityByDay: Record<number, AvailabilityConfig> = {}
-    for (const avail of court.availabilities) {
-      availabilityByDay[avail.dayOfWeek] = {
-        openTime: avail.openTime,
-        closeTime: avail.closeTime,
-        pricePerHour: avail.pricePerHour,
-      }
-    }
     return {
       id: court.id,
       name: court.name,
@@ -196,7 +187,7 @@ export default async function ClubPage({ params }: PageProps) {
   })
 
   // Min price across all courts and availabilities
-  const allPrices = club.courts.flatMap((c) => c.availabilities.map((a) => a.pricePerHour))
+  const allPrices = club.courts.flatMap((c) => 40)
   const minPrice = allPrices.length > 0 ? Math.min(...allPrices) : null
 
   // Gradient from club RGB seed
@@ -292,15 +283,7 @@ export default async function ClubPage({ params }: PageProps) {
                           {court.covered ? 'Techada' : 'Exterior'} · {court.type}
                         </p>
                       </div>
-                      {court.availabilities.length > 0 && (
-                        <span className="font-mono text-xs text-accent">
-                          desde{' '}
-                          {formatPrice(
-                            Math.min(...court.availabilities.map((a) => a.pricePerHour))
-                          )}
-                          /hr
-                        </span>
-                      )}
+
                     </div>
                   ))}
                 </div>

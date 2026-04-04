@@ -79,8 +79,7 @@ export default function BookingsClient({
       closeForm()
       return
     }
-    const court = courts.find((c) => c.id === courtId)
-    const defaultDuration = court?.allowedDurations[0] ?? 60
+    const defaultDuration = 60
     // Abort if not even the minimum duration fits
 
     if (availableMinutes !== undefined && availableMinutes < defaultDuration) {

@@ -3,7 +3,7 @@
 import { getAdminContext } from '@/lib/dal/admin'
 import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
-import { calcAvailableSlots } from '@/lib/availability'
+import { calcAvailableSlots, timeToMinutes } from '@/lib/availability'
 import type { BookingRuleInput } from '@/lib/availability'
 
 export type FloatingFormSlot = {
@@ -40,22 +40,33 @@ export async function getFloatingFormDataAction(
   ])
 
   const courtSlots: FloatingFormCourtSlots[] = []
-
+  const globalDurations = new Set<number>()
   for (const court of courts) {
-    const avail = court.availabilities.find((a) => a.dayOfWeek === dow)
-    if (!avail) {
+
+    const combinedRules: BookingRuleInput[] = [...clubRules, ...(court.bookingRule as BookingRuleInput[])]
+    const rulesForDay = combinedRules.filter((r) => r.daysOfWeek.includes(dow))
+
+    // 2. Si no hay reglas, la cancha está cerrada
+    if (rulesForDay.length === 0) {
       courtSlots.push({ courtId: court.id, slots: [] })
       continue
     }
-    const combinedRules: BookingRuleInput[] = [...clubRules, ...(court.bookingRule as BookingRuleInput[])]
-    const courtBookings = bookings.filter((b) => b.courtId === court.id)
 
+    rulesForDay.forEach(r => r.allowedDurations.forEach(d => globalDurations.add(d)))
+
+    const openMin = Math.min(...rulesForDay.map(r => timeToMinutes(r.startTime)))
+    const closeMin = Math.max(...rulesForDay.map(r => timeToMinutes(r.endTime)))
+    const openTime = `${String(Math.floor(openMin / 60)).padStart(2, '0')}:${String(openMin % 60).padStart(2, '0')}`
+    const closeTime = `${String(Math.floor(closeMin / 60)).padStart(2, '0')}:${String(closeMin % 60).padStart(2, '0')}`
+    
+    const courtBookings = bookings.filter((b) => b.courtId === court.id)
+    
     const slots = calcAvailableSlots(
       {
-        openTime: avail.openTime,
-        closeTime: avail.closeTime,
-        pricePerHour: avail.pricePerHour,
-        rules: combinedRules,
+        openTime: openTime,
+        closeTime: closeTime,
+        pricePerHour: 0,
+        rules: rulesForDay,
         isUnderMaintenance: court.isUnderMaintenance,
       },
       courtBookings,
@@ -77,5 +88,10 @@ export async function getFloatingFormDataAction(
     })
   }
 
-  return { courtSlots, durationOptions: [60, 90, 120] }
+  return { 
+    courtSlots, 
+    durationOptions: globalDurations.size > 0 
+      ? Array.from(globalDurations).sort((a, b) => a - b) 
+      : []
+  }
 }

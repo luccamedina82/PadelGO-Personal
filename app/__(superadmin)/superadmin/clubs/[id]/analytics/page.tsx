@@ -35,7 +35,7 @@ export default async function SuperadminClubAnalyticsPage({ params }: Props) {
 
   const last30 = periodLastNDays(30)
 
-  const [bookings, barSales, courts, availabilities] = await Promise.all([
+  const [bookings, barSales, courts] = await Promise.all([
     prisma.booking.findMany({
       where: { clubId: id, date: { gte: last30.start, lt: last30.end } },
       select: {
@@ -56,17 +56,14 @@ export default async function SuperadminClubAnalyticsPage({ params }: Props) {
       where: { clubId: id, isActive: true },
       select: { id: true, name: true },
     }),
-    prisma.courtAvailability.findMany({
-      where: { court: { clubId: id } },
-      select: { courtId: true, dayOfWeek: true, openTime: true, closeTime: true, isActive: true },
-    }),
+    
   ])
 
   const bookingRecords = bookings.map((b) => ({ ...b }))
   const barRecords = barSales.map((s) => ({ ...s }))
 
   const ingresos = calcularIngresos(bookingRecords, barRecords, last30)
-  const ocupacion = calcularOcupacion(bookingRecords, courts, availabilities, last30)
+  const ocupacion = calcularOcupacion(bookingRecords, courts, [], last30)
   const horarios = calcularHorariosPico(bookingRecords, last30)
   const semana = calcularIngresosSemanales(bookingRecords, barRecords)
 

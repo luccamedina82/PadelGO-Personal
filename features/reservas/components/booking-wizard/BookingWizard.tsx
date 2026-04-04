@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import {
   calcAvailableSlots,
   calcBookingPrice,
-  DEFAULT_DURATION,
   type DurationMinutes,
 } from '@/lib/availability'
 import {
@@ -52,7 +51,7 @@ export default function BookingWizard({
     courts.length > 0 ? courts[0].id : null
   )
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
-  const [selectedDuration, setSelectedDuration] = useState<DurationMinutes>(DEFAULT_DURATION)
+  const [selectedDuration, setSelectedDuration] = useState<DurationMinutes>(60)
   const [error, setError] = useState<string | null>(null)
 
   // Payment state (Step 4)
@@ -156,7 +155,7 @@ export default function BookingWizard({
 
   const handleSelectSlot = useCallback((time: string) => {
     setSelectedTime(time)
-    setSelectedDuration(DEFAULT_DURATION)
+    setSelectedDuration(60)
     setError(null)
     // Start 2s cooldown to prevent accidental double-tap
     setCooldownActive(true)

@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireAuth } from '@/actions/auth'
-import { calcBookingPrice, timeToMinutes, VALID_DURATIONS } from '@/lib/availability'
+import { BookingRuleInput, calcBookingPrice, resolveBookingRule, timeToMinutes } from '@/lib/availability'
 import { generateAvatarColor } from '@/lib/auth'
 import { argToday } from '@/lib/date'
 import type { ActionResult } from '@/types'
@@ -29,8 +29,8 @@ function validateBookingInput(input: CreateBookingInput): string | null {
   const { clubId, courtId, date, startTime, durationMinutes } = input
   if (!clubId || !courtId || !date || !startTime)
     return 'Datos incompletos. Por favor intentá de nuevo.'
-  if (!(VALID_DURATIONS as readonly number[]).includes(durationMinutes))
-    return 'Duración no válida. Opciones: 60, 90 o 120 minutos.'
+  if (durationMinutes <= 0 || durationMinutes > 1440)
+    return 'Duración inválida.'
   const dateObj = new Date(`${date}T00:00:00.000Z`)
   if (isNaN(dateObj.getTime())) return 'Fecha inválida.'
   if (dateObj < argToday()) return 'No podés reservar en fechas pasadas.'
@@ -63,18 +63,39 @@ async function insertBooking(
 
   // 2. Price + operating hours
   const dayOfWeek = dateObj.getUTCDay()
-  const availability = await tx.courtAvailability.findFirst({
-    where: { courtId, dayOfWeek, isActive: true },
-    select: { pricePerHour: true, openTime: true, closeTime: true },
-  })
-  if (!availability) throw new Error('NO_AVAILABILITY')
 
-  const openMin = timeToMinutes(availability.openTime)
-  const closeMin = timeToMinutes(availability.closeTime)
+
+  const rules = await tx.bookingRule.findMany({
+    where: {
+      clubId,
+      isActive: true,
+      daysOfWeek: { has: dayOfWeek },
+      OR: [
+        { courtIds: { isEmpty: true } }, // Reglas del club
+        { courtIds: { has: courtId } }   // Reglas de esta cancha
+      ]
+    },
+  })
+  if (rules.length === 0) throw new Error('NO_AVAILABILITY')
+
+  const openMin = Math.min(...rules.map(r => timeToMinutes(r.startTime)))
+  const closeMin = Math.max(...rules.map(r => timeToMinutes(r.endTime)))
+
   if (newStartMin < openMin || newEndMin > closeMin) throw new Error('OUT_OF_HOURS')
 
-  const totalPrice = calcBookingPrice(availability.pricePerHour, durationMinutes)
+  const allAllowedDurations = rules.flatMap(r => r.allowedDurations)
+  if (!allAllowedDurations.includes(durationMinutes)) throw new Error('DURATION_NOT_ALLOWED')
 
+  const baseRulePrice = rules.find(r => r.priority === 0)?.price ?? 0
+  const resolved = resolveBookingRule(
+    rules as BookingRuleInput[],
+    dayOfWeek,
+    newStartMin,
+    baseRulePrice
+  )
+
+  const finalPricePerHour = resolved?.price ?? baseRulePrice
+  const totalPrice = calcBookingPrice(finalPricePerHour, durationMinutes)
   // 3. Create
   return tx.booking.create({
     data: {
@@ -125,6 +146,9 @@ export async function createBooking(
         }
       if (err.message === 'OUT_OF_HOURS')
         return { success: false, error: 'El horario está fuera del rango de apertura del club.' }
+      if (err.message === 'DURATION_NOT_ALLOWED')
+        return { success: false, error: 'La duración seleccionada no está permitida.' }
+    
     }
     console.error('[createBooking]', err)
     return { success: false, error: 'Error al crear la reserva. Por favor intentá de nuevo.' }
