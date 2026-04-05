@@ -4,10 +4,10 @@
 :root {
   --bg: #080808;
   --surface: #111111;
-  --card: #1a1a1a;
-  --card-hover: #202020;
-  --border: #282828;
-  --border-hover: #3a3a3a;
+  --card: #161616;
+  --card-hover: #1c1c1c;
+  --border: #242424;
+  --border-hover: #383838;
   --accent: #d4f000;
   --accent-dark: #b8d400;
   --accent-text: #080808;
@@ -38,10 +38,10 @@
   --radius: 0.75rem;
 
   /* ── Booking source colors — dark theme ── */
-  --booking-unified-bg: rgba(56, 139, 253, 0.13);
-  --booking-unified-border: rgba(56, 139, 253, 0.35);
-  --booking-unified-bar: #4d9fff;
-  --booking-unified-text: #74b4ff;
+  --booking-unified-bg: rgba(56, 139, 253, 0.15);
+  --booking-unified-border: rgba(56, 139, 253, 0.45);
+  --booking-unified-bar: #388bfd;
+  --booking-unified-text: #60a5ff;
 
   --booking-cancelled-bg: rgba(60, 60, 60, 0.1);
   --booking-cancelled-border: rgba(80, 80, 80, 0.25);
@@ -63,24 +63,24 @@
 
 /* ── DESIGN TOKENS — Obsidian Light ─────────────────────────────────── */
 [data-theme='light'] {
-  --bg: #f5f7f2;
-  --surface: #ecefea;
-  --card: #fafbf8;
-  --card-hover: #f3f5f0;
-  --border: #d8ddd0;
-  --border-hover: #b8c0ae;
-  --accent: #7a9600;
-  --accent-dark: #607800;
+  --bg: #f5f5f0;
+  --surface: #ebebeb;
+  --card: #ffffff;
+  --card-hover: #f9f9f4;
+  --border: #d2d2c8;
+  --border-hover: #aaaaA0;
+  --accent: #8aa000;
+  --accent-dark: #728800;
   --accent-text: #ffffff;
-  --accent-glow: rgba(122, 150, 0, 0.14);
-  --text: #1a1f14;
-  --muted: #6b7260;
-  --sub: #99a08a;
-  --tag: #edf2d8;
-  --tag-text: #527000;
-  --tag-border: #c8d890;
+  --accent-glow: rgba(138, 160, 0, 0.15);
+  --text: #141414;
+  --muted: #484848;
+  --sub: #606060;
+  --tag: #f0f4d0;
+  --tag-text: #6a8000;
+  --tag-border: #d8e490;
 
-  /* shadcn bridge */
+  /* ── shadcn/ui bridge — maps shadcn vars to our design tokens ── */
   --background: var(--bg);
   --foreground: var(--text);
   --card-foreground: var(--text);
@@ -98,24 +98,28 @@
   --ring: var(--accent);
   --radius: 0.75rem;
 
-  /* Booking blocks — slate azul pizarra, neutro sobre sage */
-  --booking-unified-bg: #e4eaf4;
-  --booking-unified-border: #b0c0d8;
-  --booking-unified-bar: #3d5a80;
-  --booking-unified-text: #1e3550;
+  /* ── Booking source colors — light theme ── */
+  --booking-unified-bg: #dbeafe;
+  --booking-unified-border: #93c5fd;
+  --booking-unified-bar: #2563eb;
+  --booking-unified-text: #1d4ed8;
 
-  --booking-cancelled-bg: rgba(0, 0, 0, 0.04);
-  --booking-cancelled-border: rgba(0, 0, 0, 0.1);
-  --booking-cancelled-bar: #b8c0ae;
-  --booking-cancelled-text: #99a08a;
+  --booking-cancelled-bg: #f9fafb;
+  --booking-cancelled-border: #e5e7eb;
+  --booking-cancelled-bar: #d1d5db;
+  --booking-cancelled-text: #9ca3af;
 
   /* Grid chrome */
-  --grid-row-alt: rgba(0, 0, 0, 0.012);
-  --grid-col-alt: rgba(0, 0, 0, 0.025);
-  --grid-reform-stripe: rgba(0, 0, 0, 0.018);
-  --grid-slot-hover: rgba(0, 0, 0, 0.16);
+  --grid-row-alt: rgba(0, 0, 0, 0.018);
+  --grid-col-alt: rgba(0, 0, 0, 0.04);
+  --grid-reform-stripe: rgba(0, 0, 0, 0.028);
+  --grid-slot-hover: rgba(0, 0, 0, 0.25);
+
+  /* Current time indicator (distinct from accent) */
   --now-line: #dc2626;
-  --booking-label-bg: rgba(0, 0, 0, 0.07);
+
+  /* Booking label tag background */
+  --booking-label-bg: rgba(0, 0, 0, 0.12);
 }
 
 /* ── TAILWIND v4 THEME — inline = references runtime CSS vars ──────── */
@@ -208,12 +212,11 @@ body {
 
 /* Base block — all sources share structure */
 .booking-block {
-  backdrop-filter: blur(2px);
   position: absolute;
   border-radius: 8px;
   border-width: 1px;
   border-style: solid;
-  border-left-width: 5px;
+  border-left-width: 4px;
   padding: 8px 10px;
   overflow: hidden;
   cursor: pointer;
@@ -263,32 +266,34 @@ body {
 }
 
 [data-theme='light'] .booking-block-block {
-  background-color: rgba(180, 130, 40, 0.08);
+  background-color: rgba(200, 200, 200, 0.18);
   background-image: repeating-linear-gradient(
     -45deg,
     transparent,
     transparent 6px,
-    rgba(160, 110, 20, 0.10) 6px,
-    rgba(160, 110, 20, 0.10) 12px
+    rgba(0, 0, 0, 0.06) 6px,
+    rgba(0, 0, 0, 0.06) 12px
   );
-  border-color: rgba(180, 130, 40, 0.3);
-  border-left-color: #b07d28 !important;
-  color: #7a5520;
+  border-color: #d1d5db;
+  border-left-color: #6b7280 !important;
+  color: #374151;
 }
 
 /* Mantenimiento — gray diagonal stripe */
-[data-theme='light'] .booking-block-mantenimiento {
-  background-color: rgba(180, 130, 40, 0.06);
+.booking-block-mantenimiento {
+  background-color: rgba(90, 90, 90, 0.1);
   background-image: repeating-linear-gradient(
     -45deg,
     transparent,
     transparent 6px,
-    rgba(160, 110, 20, 0.08) 6px,
-    rgba(160, 110, 20, 0.08) 12px
+    rgba(150, 150, 150, 0.1) 6px,
+    rgba(150, 150, 150, 0.1) 12px
   );
-  border-color: rgba(180, 130, 40, 0.25);
-  border-left-color: #9e7020 !important;
-  color: #7a5520;
+  border-style: dashed !important;
+  border-left-style: solid !important;
+  border-color: rgba(120, 120, 120, 0.35);
+  border-left-color: #6b7280 !important;
+  color: #9ca3af;
 }
 
 [data-theme='light'] .booking-block-mantenimiento {
@@ -304,17 +309,7 @@ body {
   border-left-color: #6b7280 !important;
   color: #374151;
 }
-[data-theme='light'] .booking-block-unpaid {
-  border-left-color: #e07040 !important; /* naranja más cálido, menos alarma */
-}
 
-[data-theme='light'] .booking-block-paid {
-  border-left-color: #3a9060 !important; /* verde más oscuro, mejor contraste */
-}
-
-[data-theme='light'] aside {
-  border-right: 1px solid var(--border);
-}
 /* Drag-to-create ghost */
 .booking-block-create-preview {
   background-color: color-mix(in srgb, var(--booking-unified-bg) 70%, transparent);
@@ -332,6 +327,14 @@ body {
   opacity: 0.9;
 }
 
+/* Payment status — left border accent overrides source color */
+.booking-block-unpaid {
+  border-left-color: #f87171 !important; /* red-400 */
+}
+
+.booking-block-paid {
+  border-left-color: #4ade80 !important; /* green-400 */
+}
 
 .booking-block-cancelled {
   background-color: var(--booking-cancelled-bg);
@@ -791,16 +794,3 @@ body {
 }
 
 
-.grid-slot-empty:hover::after {
-  content: '+';
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 300;
-  color: var(--muted);
-  opacity: 0.5;
-  pointer-events: none;
-}

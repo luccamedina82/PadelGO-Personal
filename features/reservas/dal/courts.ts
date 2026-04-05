@@ -30,6 +30,7 @@ export async function getCourtsByClubId(clubId: string) {
         name: true,
         type: true,
         covered: true,
+        isActive: true,
         isUnderMaintenance: true,
         hideFromGrid: true,
       },

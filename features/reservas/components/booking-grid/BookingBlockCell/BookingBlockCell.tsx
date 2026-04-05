@@ -68,11 +68,10 @@ export default function BookingBlockCell({
   if (top < 0 || top > gridHeight) return null
 
   const isPaid = b.paymentStatus === 'PAID'
-  const isUnpaid = !isPaid
   const isCancelled = b.status === 'CANCELLED'
   const isBlock = isBlockSource(b.source)
   const showPaymentRow = height > 52 && !isBlock && !isCancelled
-  const showPaymentDot = !showPaymentRow && !isBlock && !isCancelled // compact: dot only
+  const showPaidBadge = !showPaymentRow && isPaid && !isBlock && !isCancelled
   const isActive = !isCancelled
 
   function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
@@ -88,7 +87,6 @@ export default function BookingBlockCell({
       className={[
         'booking-block group',
         blockCls,
-        !isBlock && !isCancelled ? (isPaid ? 'booking-block-paid' : 'booking-block-unpaid') : '',
         isHighlighted ? 'booking-block-highlighted' : '',
         isPast && !isDragging ? 'opacity-40 grayscale-[0.4]' : '',
         isDragging ? 'opacity-40 !scale-[1.02] shadow-none cursor-grabbing z-50 select-none' : '',
@@ -132,10 +130,8 @@ export default function BookingBlockCell({
           <p className="text-[11px] font-mono leading-tight opacity-70 flex-1">
             {b.startTime} – {endTime}
           </p>
-          {showPaymentDot && (
-            isPaid
-              ? <IconCheck className="w-3.5 h-3.5 text-green-400 shrink-0" />
-              : <div className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" />
+          {showPaidBadge && (
+            <IconCheck className="w-3 h-3 opacity-50 shrink-0" />
           )}
         </div>
       )}
@@ -143,11 +139,10 @@ export default function BookingBlockCell({
       {/* Price + payment indicator (full row, taller slots) */}
       {showPaymentRow && (
         <div className="flex items-center justify-between mt-auto gap-1">
-          <p className={`text-[14px] font-bold ${isPaid ? 'text-green-400' : 'text-orange-400'}`}>
+          <p className="text-[14px] font-bold opacity-85">
             {formatPrice(b.totalPrice)}
           </p>
-          {isPaid && <IconCheck className="w-3.5 h-3.5 text-green-400 shrink-0" />}
-          {isUnpaid && <div className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" />}
+          {isPaid && <IconCheck className="w-3.5 h-3.5 opacity-50 shrink-0" />}
         </div>
       )}
 

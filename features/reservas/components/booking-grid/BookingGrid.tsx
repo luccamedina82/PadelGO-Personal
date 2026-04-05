@@ -483,7 +483,12 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                         {isOutOfBounds && <span className="absolute inset-0 bg-zinc-500/[0.11]" />}
                         
                         {!isPast && !isFormOpen && (
-                          <span className="absolute inset-0 opacity-0 transition-opacity duration-75 bg-(--grid-slot-hover) group-hover:opacity-100" />
+                          <>
+                            <span className="absolute inset-0 opacity-0 transition-opacity duration-75 bg-(--grid-slot-hover) group-hover:opacity-20" />
+                            <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-75 pointer-events-none select-none">
+                              <span className="text-[15px] font-thin leading-none" style={{ color: 'var(--muted)', opacity: 0.35 }}>+</span>
+                            </span>
+                          </>
                         )}
                       </div>
                       )
@@ -635,8 +640,8 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                   >
                     {/* hora actual sobre la columna de tiempo */}
                     <span
-                      className="absolute right-full mr-0.5 text-[9px] font-bold tabular-nums leading-none"
-                      style={{ color: 'var(--now-line)', transform: 'translateY(-50%)' }}
+                      className="absolute left-0 right-0 text-center text-[9px] font-bold tabular-nums leading-none"
+                      style={{ color: 'var(--now-line)', transform: 'translateY(-160%)' }}
                     >
                       {String(Math.floor(currentMinutes / 60)).padStart(2, '0')}:{String(currentMinutes % 60).padStart(2, '0')}
                     </span>

@@ -7,7 +7,7 @@ export function prepareGridData(
   baseBookingRule: any, 
   dayOfWeek: number
 ) {
-
+  console.log(allCourts)
   let baseStart = 8 * 60
   let baseEnd = 23 * 60
 
