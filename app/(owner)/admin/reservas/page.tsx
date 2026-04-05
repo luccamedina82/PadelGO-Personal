@@ -1,23 +1,25 @@
 import { argTodayStr, getWeekStart, addDays } from '@/lib/date'
 import { getAdminContext } from '@/lib/dal/admin'
-import { getBaseBookingRulesForWeek, getCourtsByClubId } from '@/features/reservas/dal/courts'
+import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getConflictBookings } from '@/features/reservas/dal/conflicts'
 import BookingsClient from './BookingsClient'
+import BookingsHeader from './BookingsHeader'
+import { BookingsProvider, CourtsProvider } from './BookingsContext'
 import { Suspense } from 'react'
-import { prepareGridData } from '@/lib/utils/gridHelpers'
 import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
+import BookingGridSkeleton from '@/features/reservas/components/booking-grid/BookingGridSkeleton/BookingGridSkeleton'
 import type { CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
-
-export type DayGridData = {
-  courtColumns: CourtColumn[]
-  baseStart: number
-  baseEnd: number
-  baseBookingRule: { startTime: string; endTime: string; price: number | null } | null
-}
 
 interface Props {
   searchParams: Promise<{ date?: string; highlight?: string }>
 }
+
+// Used only for the Suspense fallback while courts+bookings load on first visit.
+const FALLBACK_COURTS: CourtColumn[] = [
+  { id: '1', name: '', isActive: true },
+  { id: '2', name: '', isActive: true },
+  { id: '3', name: '', isActive: true },
+]
 
 export default async function ReservasPage({ searchParams }: Props) {
   const { date: dateParam, highlight: highlightParam } = await searchParams
@@ -29,54 +31,65 @@ export default async function ReservasPage({ searchParams }: Props) {
 
   const selectedDate =
     dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : argTodayStr()
-
   const weekStart = getWeekStart(selectedDate)
+
+  // BookingsProvider renders the header immediately (no DB data required).
+  // The grid streams in via the Suspense below — only fires on the initial page load.
+  // All subsequent week navigations are client-side (history.pushState), so
+  // the Suspense never triggers again and the grid never remounts.
+  return (
+    <BookingsProvider initialSelectedDate={selectedDate} initialWeekStart={weekStart}>
+      <BookingsHeader clubId={club.id} clubName={club.name} />
+      <Suspense
+        fallback={
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <BookingGridSkeleton courts={FALLBACK_COURTS} gridStart={8 * 60} gridEnd={22 * 60} />
+          </div>
+        }
+      >
+        <BookingsData
+          clubId={club.id}
+          weekStart={weekStart}
+          highlightParam={highlightParam}
+        />
+      </Suspense>
+    </BookingsProvider>
+  )
+}
+
+// ── Async server component: fetches courts + bookings, renders once ───────────
+// weekData is NOT computed here anymore — BookingsClient derives it client-side
+// from the courts/rules passed via CourtsContext, enabling week navigation
+// without any server involvement.
+async function BookingsData({
+  clubId,
+  weekStart,
+  highlightParam,
+}: {
+  clubId: string
+  weekStart: string
+  highlightParam?: string
+}) {
   const weekEnd = addDays(weekStart, 6)
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
-  const [[{ courts: allCourts, clubRules }, conflicts, initialBookings], baseRules] =
-    await Promise.all([
-      Promise.all([
-        getCourtsByClubId(club.id),
-        getConflictBookings(club.id),
-        fetchBookingsAction(club.id, weekStart, weekEnd),
-      ]),
-      getBaseBookingRulesForWeek(club.id, weekDays),
-    ])
-
-  const weekData: Record<string, DayGridData> = {}
-  weekDays.forEach((day, i) => {
-    const dayOfWeek = new Date(`${day}T00:00:00.000Z`).getUTCDay()
-    const rule = baseRules[i] ?? null
-    const { courtColumns, baseStart, baseEnd } = prepareGridData(
-      allCourts,
-      clubRules,
-      rule,
-      dayOfWeek
-    )
-    weekData[day] = {
-      courtColumns,
-      baseStart,
-      baseEnd,
-      baseBookingRule: rule
-        ? { startTime: rule.startTime, endTime: rule.endTime, price: rule.price }
-        : null,
-    }
-  })
+  const [{ courts: allCourts, clubRules }, conflicts, initialBookings] = await Promise.all([
+    getCourtsByClubId(clubId),
+    getConflictBookings(clubId),
+    fetchBookingsAction(clubId, weekStart, weekEnd),
+  ])
 
   return (
-    <Suspense>
+    <CourtsProvider
+      allCourts={allCourts}
+      clubRules={clubRules}
+      conflicts={conflicts.map((c) => ({ id: c.id, dateStr: c.dateStr }))}
+    >
       <BookingsClient
-        key={weekStart}
         initialBookings={initialBookings}
-        clubId={club.id}
-        clubName={club.name}
-        weekStart={weekStart}
-        initialSelectedDate={selectedDate}
-        weekData={weekData}
-        conflicts={conflicts.map((c) => ({ id: c.id, dateStr: c.dateStr }))}
+        initialWeekStart={weekStart}
+        clubId={clubId}
         highlightBookingId={highlightParam}
       />
-    </Suspense>
+    </CourtsProvider>
   )
 }

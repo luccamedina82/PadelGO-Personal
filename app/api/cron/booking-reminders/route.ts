@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { sendBookingReminder } from '@/lib/email'
-import { argTodayStr } from '@/lib/date'
+import { argTodayStr, argToday } from '@/lib/date'
 
 /**
  * Vercel Cron: Send booking reminders 2 hours before each match
@@ -26,6 +26,30 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
     const today = argTodayStr()
+
+    // ── Auto-complete past bookings (CONFIRMED → COMPLETED) ────────────────────
+    const argMinutes = ((now.getUTCHours() - 3 + 24) % 24) * 60 + now.getUTCMinutes()
+    await prisma.booking.updateMany({
+      where: { status: 'CONFIRMED', date: { lt: argToday() } },
+      data: { status: 'COMPLETED' },
+    })
+    const todayConfirmed = await prisma.booking.findMany({
+      where: { status: 'CONFIRMED', date: argToday() },
+      select: { id: true, startTime: true, durationMinutes: true },
+    })
+    const pastTodayIds = todayConfirmed
+      .filter((b) => {
+        const [h = '0', m = '0'] = b.startTime.split(':')
+        return parseInt(h) * 60 + parseInt(m) + b.durationMinutes <= argMinutes
+      })
+      .map((b) => b.id)
+    if (pastTodayIds.length > 0) {
+      await prisma.booking.updateMany({
+        where: { id: { in: pastTodayIds } },
+        data: { status: 'COMPLETED' },
+      })
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     // Fetch today's bookings
     const todayDate = new Date(`${today}T00:00:00.000Z`)

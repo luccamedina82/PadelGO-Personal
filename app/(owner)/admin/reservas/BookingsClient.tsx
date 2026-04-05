@@ -1,21 +1,20 @@
 'use client'
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { addDays } from '@/lib/date'
+import { minutesToTime, timeToMinutes, type BookingRuleInput } from '@/lib/availability'
+import { prepareGridData } from '@/lib/utils/gridHelpers'
+import { SLOT_HEIGHT } from '@/features/reservas/components/booking-grid/helpers/bookingGrid.helpers'
 import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
 import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import type { PendingCreate } from '@/features/reservas/components/booking-grid/hooks/useBookingDragCreate'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import ReservasShell from './ReservasShell'
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { minutesToTime, timeToMinutes } from '@/lib/availability'
-import { toast } from 'sonner'
 import FloatingBookingForm from '@/features/reservas/components/floating-booking-form/FloatingBookingForm'
-import { SLOT_HEIGHT } from '@/features/reservas/components/booking-grid/helpers/bookingGrid.helpers'
 import { useBookingFormStore } from '@/store/useBookingFormStore'
-import DateHeader from './ui/DateHeader/DateHeader'
-import NuevaReservaButton from './ui/NuevaReservaButton'
-import { addDays, getWeekStart } from '@/lib/date'
-import type { DayGridData } from './page'
+import { useBookingsContext, useCourtsContext } from './BookingsContext'
 
 export type FloatingFormInitialData = {
   date: string
@@ -25,31 +24,55 @@ export type FloatingFormInitialData = {
   mode: 'full' | 'quick'
 }
 
+type DayGridData = {
+  courtColumns: CourtColumn[]
+  baseStart: number
+  baseEnd: number
+  baseBookingRule: { startTime: string; endTime: string; price: number | null } | null
+}
+
+// Replicates getBaseBookingRulesForWeek logic on the client.
+// clubRules already contains all global booking rules (no courtIds);
+// we filter for priority-0 to find the "base" display rule per day.
+function findBaseRuleForDay(clubRules: BookingRuleInput[], dayStr: string) {
+  const dayStart = new Date(`${dayStr}T00:00:00.000Z`)
+  const dayEnd = new Date(`${dayStr}T23:59:59.999Z`)
+  const baseRules = clubRules
+    .filter((r) => r.priority === 0)
+    .sort((a, b) => {
+      // More-specific (later activeFrom) rules win, same as server ORDER BY activeFrom DESC
+      const at = a.activeFrom ? new Date(a.activeFrom).getTime() : 0
+      const bt = b.activeFrom ? new Date(b.activeFrom).getTime() : 0
+      return bt - at
+    })
+  return (
+    baseRules.find((r) => {
+      const from = r.activeFrom ? new Date(r.activeFrom) : null
+      const until = r.activeUntil ? new Date(r.activeUntil) : null
+      return (from == null || from <= dayEnd) && (until == null || until >= dayStart)
+    }) ?? null
+  )
+}
+
 interface BookingClientProps {
   initialBookings: BookingBlock[]
+  /** The weekStart that was rendered on SSR — used to scope initialData. */
+  initialWeekStart: string
   clubId: string
-  clubName: string
-  weekStart: string
-  initialSelectedDate: string
-  weekData: Record<string, DayGridData>
   highlightBookingId?: string
-  conflicts?: { id: string; dateStr: string }[]
 }
 
 export default function BookingsClient({
   initialBookings,
+  initialWeekStart,
   clubId,
-  clubName,
-  weekStart,
-  initialSelectedDate,
-  weekData,
-  conflicts = [],
   highlightBookingId,
 }: BookingClientProps) {
-  const [selectedDate, setSelectedDate] = useState(initialSelectedDate)
+  const { selectedDate, weekStart } = useBookingsContext()
+  const { allCourts, clubRules, conflicts } = useCourtsContext()
+
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
   const [show24Hours, setShow24Hours] = useState(false)
-  const [isPending, startTransition] = useTransition()
   const router = useRouter()
   const queryClient = useQueryClient()
   const prevDateRef = useRef('')
@@ -58,29 +81,41 @@ export default function BookingsClient({
   const dragCancelRef = useRef<(() => void) | null>(null)
   const dragCreatedRef = useRef<((bookingId?: string) => void) | null>(null)
 
-  // ── Derived grid data for selected day ──────────────────────────────────
+  // ── Compute weekData client-side from stable courts/rules in context ────────
+  // Runs synchronously on week change — no server round-trip needed.
+  const weekData = useMemo<Record<string, DayGridData>>(() => {
+    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    const data: Record<string, DayGridData> = {}
+    weekDays.forEach((day) => {
+      const dayOfWeek = new Date(`${day}T00:00:00.000Z`).getUTCDay()
+      const rule = findBaseRuleForDay(clubRules, day)
+      const { courtColumns, baseStart, baseEnd } = prepareGridData(allCourts, clubRules, rule, dayOfWeek)
+      data[day] = {
+        courtColumns,
+        baseStart,
+        baseEnd,
+        baseBookingRule: rule
+          ? { startTime: rule.startTime, endTime: rule.endTime, price: rule.price }
+          : null,
+      }
+    })
+    return data
+  }, [weekStart, allCourts, clubRules])
+
   const { courtColumns: courts, baseStart, baseEnd, baseBookingRule } =
     weekData[selectedDate] ?? weekData[weekStart]
 
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
 
-  // ── Day navigation ───────────────────────────────────────────────────────
-  function handleDayChange(newDate: string) {
-    const newWeekStart = getWeekStart(newDate)
-    if (newWeekStart === weekStart) {
-      setSelectedDate(newDate)
-      window.history.replaceState(null, '', `/admin/reservas?date=${newDate}`)
-    } else {
-      startTransition(() => router.push(`/admin/reservas?date=${newDate}`))
-    }
-  }
-
-  // ── React Query — week-level cache ───────────────────────────────────────
+  // ── React Query — week-level cache ──────────────────────────────────────────
+  // initialData only applies to the SSR week; other weeks fetch from the server.
+  // keepPreviousData means week-change shows old data (filtered to empty by date)
+  // while new bookings load — grid structure stays visible, progress bar shows.
   const { data: allWeekBookings, isFetching } = useQuery({
     queryKey: ['bookings', clubId, 'week', weekStart],
     queryFn: () => fetchBookingsAction(clubId, weekStart, weekEnd),
-    initialData: initialBookings,
-    initialDataUpdatedAt: initialDataTimestamp,
+    initialData: weekStart === initialWeekStart ? initialBookings : undefined,
+    initialDataUpdatedAt: weekStart === initialWeekStart ? initialDataTimestamp : undefined,
     refetchInterval: 30_000,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -88,13 +123,11 @@ export default function BookingsClient({
   })
 
   const bookings = useMemo(
-    () => allWeekBookings.filter((b) => b.date === selectedDate),
+    () => (allWeekBookings ?? []).filter((b) => b.date === selectedDate),
     [allWeekBookings, selectedDate]
   )
 
-  // ── Prefetch adjacent weeks ──────────────────────────────────────────────
-  // Runs once per week change. prefetchQuery respects staleTime: if data is
-  // already fresh in cache it's a no-op — no extra network request.
+  // ── Prefetch adjacent weeks ─────────────────────────────────────────────────
   useEffect(() => {
     const prevStart = addDays(weekStart, -7)
     const nextStart = addDays(weekStart, 7)
@@ -110,7 +143,7 @@ export default function BookingsClient({
     })
   }, [weekStart, clubId, queryClient])
 
-  // ── Conflict counts ──────────────────────────────────────────────────────
+  // ── Conflict counts ─────────────────────────────────────────────────────────
   const conflictIds = useMemo(() => new Set(conflicts.map((c) => c.id)), [conflicts])
   const todayConflictCount = useMemo(
     () => conflicts.filter((c) => c.dateStr === selectedDate).length,
@@ -140,7 +173,7 @@ export default function BookingsClient({
     return () => clearTimeout(timer)
   }, [eventHighlightBookingId])
 
-  // ── Floating form handlers ───────────────────────────────────────────────
+  // ── Floating form handlers ──────────────────────────────────────────────────
   function handleFormCreated(bookingId?: string) {
     dragCreatedRef.current?.(bookingId)
     dragCreatedRef.current = null
@@ -176,7 +209,7 @@ export default function BookingsClient({
     )
   }
 
-  // ── Grid bounds ──────────────────────────────────────────────────────────
+  // ── Grid bounds ─────────────────────────────────────────────────────────────
   const gridStart = show24Hours ? 0 : (baseStart ?? 8 * 60)
   const gridEnd = show24Hours ? 1440 : (baseEnd ?? 23 * 60)
   const handleToggle24Hours = useCallback(() => setShow24Hours((v) => !v), [])
@@ -202,39 +235,16 @@ export default function BookingsClient({
     [show24Hours, baseStart, baseEnd, bookings]
   )
 
-  const dateLabel = useMemo(() => {
-    const d = new Date(`${selectedDate}T00:00:00.000Z`)
-    return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
-  }, [selectedDate])
-
   return (
-    <div className="h-screen bg-bg flex flex-col">
-      {/* ── Sticky header ──────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-surface border-b border-border print:static print:border-0">
-        <div className="pl-4 pr-4 py-2.5 flex items-center gap-3 print:hidden">
-          <DateHeader
-            selectedDate={selectedDate}
-            clubId={clubId}
-            onDayChange={handleDayChange}
-            isPending={isPending}
-          />
-          <div className="flex-1" />
-          <NuevaReservaButton date={selectedDate} />
-        </div>
-        <div className="hidden print:block px-5 py-3">
-          <h1 className="text-lg font-bold capitalize">{dateLabel}</h1>
-          <p className="text-sm text-gray-600">{clubName}</p>
-        </div>
-      </div>
-
-      {/* ── Fetch progress bar ──────────────────────────────────────────── */}
+    <>
+      {/* ── Fetch progress bar ─────────────────────────────────────────────── */}
       {isFetching && (
         <div className="h-0.5 overflow-hidden">
           <div className="h-full bg-accent animate-[loading-bar_1.2s_ease-in-out_infinite]" />
         </div>
       )}
 
-      {/* ── Grid ───────────────────────────────────────────────────────── */}
+      {/* ── Grid ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0 print:overflow-visible print:h-auto">
         <ReservasShell
           bookings={bookings}
@@ -259,7 +269,7 @@ export default function BookingsClient({
         />
       </div>
 
-      {/* ── FloatingBookingForm ─────────────────────────────────────────── */}
+      {/* ── FloatingBookingForm ─────────────────────────────────────────────── */}
       {isOpen && initialData && (
         <FloatingBookingForm
           anchorEl={anchorEl}
@@ -279,6 +289,6 @@ export default function BookingsClient({
           onCreated={handleFormCreated}
         />
       )}
-    </div>
+    </>
   )
 }
