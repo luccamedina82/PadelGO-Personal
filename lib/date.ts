@@ -122,3 +122,25 @@ export function argDaysAgo(days: number): Date {
   return d
 }
 
+/**
+ * Returns the Monday of the ISO week containing `dateStr` as "YYYY-MM-DD".
+ * Uses UTC to stay consistent with how Booking.date is stored (UTC midnight).
+ */
+export function getWeekStart(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`)
+  const day = d.getUTCDay() // 0 = Sunday, 1 = Monday, …6 = Saturday
+  const daysToMonday = day === 0 ? -6 : 1 - day
+  d.setUTCDate(d.getUTCDate() + daysToMonday)
+  return toUtcDateStr(d)
+}
+
+/**
+ * Returns a new "YYYY-MM-DD" string that is `days` days after `dateStr`.
+ * Negative values go backwards. Uses UTC arithmetic.
+ */
+export function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00.000Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return toUtcDateStr(d)
+}
+

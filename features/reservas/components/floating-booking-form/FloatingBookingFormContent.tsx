@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { calcBookingPrice, formatPrice, timeToMinutes } from '@/lib/availability'
+import { getWeekStart } from '@/lib/date'
 import { createManualBooking } from '@/features/reservas/actions/bookings'
 import {
   getFloatingFormDataAction,
@@ -216,7 +217,8 @@ export default function FloatingBookingFormContent({
       if (result.success && result.data) {
         const bookingId = result.data.bookingId
         toast.success('Reserva creada', { position: 'bottom-right' })
-        queryClient.invalidateQueries({ queryKey: ['bookings', clubId, payload.date] })
+        const bookingWeekStart = getWeekStart(payload.date)
+        queryClient.invalidateQueries({ queryKey: ['bookings', clubId, 'week', bookingWeekStart] })
         // ── Optimistic UI ─────────────────────────────────────────────────
         const optimisticBooking: BookingBlock = {
           id: bookingId,
@@ -237,9 +239,9 @@ export default function FloatingBookingFormContent({
         }
 
         if (payload.date === initialData.date) {
-          // Same day: inject optimistically and refresh in background
+          // Same day/week: inject optimistically and refresh in background
           queryClient.setQueryData(
-            ['bookings', clubId, payload.date],
+            ['bookings', clubId, 'week', bookingWeekStart],
             (old: BookingBlock[] | undefined) => [...(old ?? []), optimisticBooking]
           )
           onCreated(bookingId)

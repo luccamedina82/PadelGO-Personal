@@ -4,10 +4,10 @@ import { useSearchParams } from 'next/navigation'
 import { argTodayStr } from '@/lib/date'
 import { useBookingFormStore } from '@/store/useBookingFormStore'
 
-export default function NuevaReservaButton() {
+export default function NuevaReservaButton({ date }: { date?: string }) {
   const openForm = useBookingFormStore((state) => state.openForm)
   const searchParams = useSearchParams()
-  const currentDate = searchParams.get('date') || argTodayStr()
+  const currentDate = date || searchParams.get('date') || argTodayStr()
 
   return (
     <button

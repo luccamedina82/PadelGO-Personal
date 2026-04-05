@@ -1,20 +1,22 @@
-import { argTodayStr } from '@/lib/date'
-import NuevaReservaButton from './ui/NuevaReservaButton'
+import { argTodayStr, getWeekStart, addDays } from '@/lib/date'
 import { getAdminContext } from '@/lib/dal/admin'
 import { getBaseBookingRule, getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getConflictBookings } from '@/features/reservas/dal/conflicts'
-import DateHeader from './ui/DateHeader/DateHeader'
 import BookingsClient from './BookingsClient'
 import { Suspense } from 'react'
 import { prepareGridData } from '@/lib/utils/gridHelpers'
-import { fetchBookingsByDateAction } from '@/actions/owner/bookings'
+import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
+import type { CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 
-interface Props {
-  searchParams: Promise<{ date?: string; new?: string; highlight?: string }>
+export type DayGridData = {
+  courtColumns: CourtColumn[]
+  baseStart: number
+  baseEnd: number
+  baseBookingRule: { startTime: string; endTime: string; price: number | null } | null
 }
 
-function todayStr() {
-  return argTodayStr()
+interface Props {
+  searchParams: Promise<{ date?: string; highlight?: string }>
 }
 
 export default async function ReservasPage({ searchParams }: Props) {
@@ -24,63 +26,60 @@ export default async function ReservasPage({ searchParams }: Props) {
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
   }
-  
-  const selectedDate = (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) ? dateParam : todayStr()
-  const dateObj = new Date(`${selectedDate}T00:00:00.000Z`)
-  const dayOfWeek = dateObj.getUTCDay()
 
-  const [{ courts: allCourts, clubRules }, conflicts, baseBookingRule, initialBookings] = await Promise.all([
-    getCourtsByClubId(club.id),
-    getConflictBookings(club.id),
-    getBaseBookingRule(club.id, selectedDate),
-    fetchBookingsByDateAction(club.id, selectedDate)
-  ])
+  const selectedDate =
+    dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : argTodayStr()
 
-  const { courtColumns, baseStart, baseEnd } = prepareGridData(allCourts, clubRules, baseBookingRule, dayOfWeek)
-  const dateLabel = dateObj.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC',
+  const weekStart = getWeekStart(selectedDate)
+  const weekEnd = addDays(weekStart, 6)
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+
+  const [[{ courts: allCourts, clubRules }, conflicts, initialBookings], baseRules] =
+    await Promise.all([
+      Promise.all([
+        getCourtsByClubId(club.id),
+        getConflictBookings(club.id),
+        fetchBookingsAction(club.id, weekStart, weekEnd),
+      ]),
+      Promise.all(weekDays.map((day) => getBaseBookingRule(club.id, day))),
+    ])
+
+  const weekData: Record<string, DayGridData> = {}
+  weekDays.forEach((day, i) => {
+    const dayOfWeek = new Date(`${day}T00:00:00.000Z`).getUTCDay()
+    const rule = baseRules[i] ?? null
+    const { courtColumns, baseStart, baseEnd } = prepareGridData(
+      allCourts,
+      clubRules,
+      rule,
+      dayOfWeek
+    )
+    weekData[day] = {
+      courtColumns,
+      baseStart,
+      baseEnd,
+      baseBookingRule: rule
+        ? { startTime: rule.startTime, endTime: rule.endTime, price: rule.price }
+        : null,
+    }
   })
+
   return (
-    <div className="h-screen bg-bg flex flex-col">
-      {/* ── Sticky header ──────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-surface border-b border-border print:static print:border-0">
-        <div className="pl-4 pr-4 py-2.5 flex items-center gap-3 print:hidden">
-          {/* Navegación de fecha */}
-          <DateHeader selectedDate={selectedDate} clubId={club.id} />
-
-          {/* Spacer */}
-          <div className="flex-1" />
-
-          {/* Nueva reserva */}
-          <NuevaReservaButton key={selectedDate}/>
-        </div>
-
-        {/* Print-only header */}
-        <div className="hidden print:block px-5 py-3">
-          <h1 className="text-lg font-bold capitalize">{dateLabel}</h1>
-          <p className="text-sm text-gray-600">{club.name}</p>
-        </div>
-      </div>
-
-      {/* ── Grid ───────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-hidden flex flex-col min-h-0 print:overflow-visible print:h-auto">
-        <Suspense fallback={<p className="p-8 text-center text-muted text-sm">Sincronizando calendario...</p>}>
-          <BookingsClient
-            initialBookings={initialBookings}
-            clubId={club.id}
-            date={selectedDate}
-            courts={courtColumns}
-            baseStart={baseStart}
-            baseEnd={baseEnd}
-            conflicts={conflicts.map((c) => ({ id: c.id, dateStr: c.dateStr }))}
-            highlightBookingId={highlightParam}
-            baseBookingRule={baseBookingRule}
-          />
-        </Suspense>
-      </div>
-    </div>
+    <Suspense
+      fallback={
+        <p className="p-8 text-center text-muted text-sm">Sincronizando calendario...</p>
+      }
+    >
+      <BookingsClient
+        initialBookings={initialBookings}
+        clubId={club.id}
+        clubName={club.name}
+        weekStart={weekStart}
+        initialSelectedDate={selectedDate}
+        weekData={weekData}
+        conflicts={conflicts.map((c) => ({ id: c.id, dateStr: c.dateStr }))}
+        highlightBookingId={highlightParam}
+      />
+    </Suspense>
   )
 }
