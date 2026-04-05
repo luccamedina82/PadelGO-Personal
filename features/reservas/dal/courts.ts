@@ -78,3 +78,50 @@ export async function getBaseBookingRule(clubId: string, selectedDate: string) {
     select: RULE_SELECT,
   })
 }
+
+/**
+ * Fetches base booking rules for a week in a single query.
+ * Replaces 7 individual getBaseBookingRule calls with 1 DB roundtrip.
+ * Returns a map of dateStr → rule (or null if none applies).
+ */
+export async function getBaseBookingRulesForWeek(
+  clubId: string,
+  weekDays: string[]
+) {
+  'use cache'
+  cacheLife('days')
+  cacheTag(`courts-${clubId}`)
+  cacheTag(`rules-${clubId}`)
+
+  const weekStart = new Date(`${weekDays[0]}T00:00:00.000Z`)
+  const weekEnd = new Date(`${weekDays[weekDays.length - 1]}T23:59:59.999Z`)
+
+  // Fetch all candidate base rules that overlap this week at all
+  const candidates = await prisma.bookingRule.findMany({
+    where: {
+      clubId,
+      priority: 0,
+      isActive: true,
+      courtIds: { isEmpty: true },
+      AND: [
+        { OR: [{ activeFrom: null }, { activeFrom: { lte: weekEnd } }] },
+        { OR: [{ activeUntil: null }, { activeUntil: { gte: weekStart } }] },
+      ],
+    },
+    orderBy: { activeFrom: 'desc' },
+    select: RULE_SELECT,
+  })
+
+  // For each day, resolve which rule applies (same logic as getBaseBookingRule, in JS)
+  return weekDays.map((day) => {
+    const dayStart = new Date(`${day}T00:00:00.000Z`)
+    const dayEnd = new Date(`${day}T23:59:59.999Z`)
+    return (
+      candidates.find((r) => {
+        const fromOk = r.activeFrom == null || r.activeFrom <= dayEnd
+        const untilOk = r.activeUntil == null || r.activeUntil >= dayStart
+        return fromOk && untilOk
+      }) ?? null
+    )
+  })
+}

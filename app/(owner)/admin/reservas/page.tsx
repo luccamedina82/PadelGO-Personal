@@ -1,6 +1,6 @@
 import { argTodayStr, getWeekStart, addDays } from '@/lib/date'
 import { getAdminContext } from '@/lib/dal/admin'
-import { getBaseBookingRule, getCourtsByClubId } from '@/features/reservas/dal/courts'
+import { getBaseBookingRulesForWeek, getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getConflictBookings } from '@/features/reservas/dal/conflicts'
 import BookingsClient from './BookingsClient'
 import { Suspense } from 'react'
@@ -41,7 +41,7 @@ export default async function ReservasPage({ searchParams }: Props) {
         getConflictBookings(club.id),
         fetchBookingsAction(club.id, weekStart, weekEnd),
       ]),
-      Promise.all(weekDays.map((day) => getBaseBookingRule(club.id, day))),
+      getBaseBookingRulesForWeek(club.id, weekDays),
     ])
 
   const weekData: Record<string, DayGridData> = {}
@@ -65,11 +65,7 @@ export default async function ReservasPage({ searchParams }: Props) {
   })
 
   return (
-    <Suspense
-      fallback={
-        <p className="p-8 text-center text-muted text-sm">Sincronizando calendario...</p>
-      }
-    >
+    <Suspense>
       <BookingsClient
         key={weekStart}
         initialBookings={initialBookings}
