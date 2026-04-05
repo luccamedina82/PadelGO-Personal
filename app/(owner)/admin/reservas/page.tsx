@@ -71,6 +71,7 @@ export default async function ReservasPage({ searchParams }: Props) {
       }
     >
       <BookingsClient
+        key={weekStart}
         initialBookings={initialBookings}
         clubId={club.id}
         clubName={club.name}
