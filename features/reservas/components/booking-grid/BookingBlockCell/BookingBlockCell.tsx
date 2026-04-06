@@ -25,9 +25,6 @@ interface BookingBlockCellProps {
   ) => void
   onResizeStart: (booking: BookingBlock, e: ReactPointerEvent<HTMLDivElement>) => void
   onSelect: (x: number, y: number) => void
-  onTooltipEnter: (x: number, y: number) => void
-  onTooltipMove: (x: number, y: number) => void
-  onTooltipLeave: () => void
   isFormOpen?: boolean
 }
 
@@ -53,9 +50,6 @@ export default function BookingBlockCell({
   onDragStart,
   onResizeStart,
   onSelect,
-  onTooltipEnter,
-  onTooltipMove,
-  onTooltipLeave,
   isFormOpen,
 }: BookingBlockCellProps) {
   const startMin = timeToMinutes(b.startTime)
@@ -102,9 +96,6 @@ export default function BookingBlockCell({
         height: Math.max(height, 22),
       }}
       onPointerDown={handlePointerDown}
-      onMouseEnter={(e) => !isDragging && !isFormOpen && onTooltipEnter(e.clientX, e.clientY)}
-      onMouseMove={(e) => !isDragging && !isFormOpen && onTooltipMove(e.clientX, e.clientY)}
-      onMouseLeave={onTooltipLeave}
     >
       {/* Conflict badge */}
       {isConflict && (

@@ -8,7 +8,6 @@ import BookingGridFilterBar from './BookingGridFilterBar/BookingGridFilterBar'
 import BookingGridHeader from './BookingGridHeader/BookingGridHeader'
 import BookingGridTimeColumn from './BookingGridTimeColumn/BookingGridTimeColumn'
 import BookingBlockCell from './BookingBlockCell/BookingBlockCell'
-import BookingGridTooltips from './BookingGridTooltips/BookingGridTooltips'
 import BookingGridSkeleton from './BookingGridSkeleton/BookingGridSkeleton'
 import { useBookingDragResize } from './hooks/useBookingDragResize'
 import { useBookingDragCreate } from './hooks/useBookingDragCreate'
@@ -29,7 +28,6 @@ import {
   type SourceFilterKey,
 } from './helpers/bookingGrid.helpers'
 import { toast } from 'sonner'
-import { useTooltipStore } from '@/store/useTooltipStore'
 
 export type { BookingBlock, CourtColumn, UpdateBookingData }
 
@@ -83,11 +81,6 @@ export default function BookingGrid({
     y: number
   } | null>(null)
   const [highlightId, setHighlightId] = useState<string | undefined>(highlightBookingId)
-  const { 
-  setBookingTooltipStart,
-  updateBookingTooltipPos,
-  clearBookingTooltip 
-} = useTooltipStore()
 
 
   const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
@@ -229,24 +222,23 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
   }, [visibleCourtCount])
 
   const handleEmptyClick = useCallback((courtId: string, slotMinutes: number) => {
-    const court = visibleCourts.find((c) => c.id === courtId)
-    const courtClose = court?.closeTimeMinutes ?? gridEnd
     const occupied = occupiedSlotsByCourt.get(courtId)
     const courtMinDuration = 60
-    let availableMinutes = courtClose - slotMinutes
+    // Use gridEnd as the cap so slots after court hours can still be booked by admins
+    let availableMinutes = gridEnd - slotMinutes
     if (occupied) {
-      for (let m = slotMinutes + 30; m < courtClose; m += 30) {
+      for (let m = slotMinutes + 30; m < gridEnd; m += 30) {
         if (occupied.has(m)) { availableMinutes = m - slotMinutes; break }
       }
     }
     if (availableMinutes < courtMinDuration) {
       toast.warning(`Espacio insuficiente. El mínimo para esta cancha es de ${courtMinDuration} minutos.`)
-      clickedCellRectRef.current = null 
-      return 
+      clickedCellRectRef.current = null
+      return
     }
     onCellClick?.(courtId, slotMinutes, clickedCellRectRef.current ?? undefined, availableMinutes)
     clickedCellRectRef.current = null
-  }, [visibleCourts, gridEnd, occupiedSlotsByCourt, onCellClick])
+  }, [gridEnd, occupiedSlotsByCourt, onCellClick])
 
 
   const {
@@ -524,16 +516,6 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                       onDragStart={handleDragStart}
                       onResizeStart={handleResizeStart}
                       onSelect={(x, y) => setQuickPopover({ booking: b, courtName: court.name, x, y })}
-                      onTooltipEnter={(x, y) => {
-                        if (draggingId || isFormOpen) return
-                        setBookingTooltipStart(b, x, y)
-                      }}
-                      onTooltipMove={(x, y) => {
-                        if (draggingId || isFormOpen) return
-                        updateBookingTooltipPos(x, y)
-                        }
-                      } 
-                      onTooltipLeave={clearBookingTooltip}
                       isFormOpen={isFormOpen}
                     />
                   )
@@ -709,12 +691,6 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
           closeTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.closeTimeMinutes}
           openTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.openTimeMinutes}
           defaultEditing={openInEditMode}
-        />
-      )}
-
-      {gridReady && (
-        <BookingGridTooltips
-          selectedBooking={selectedBooking}
         />
       )}
 

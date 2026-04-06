@@ -99,28 +99,38 @@ export function useBookingDragCreate({
       document.body.style.cursor = 'crosshair'
 
       const courtMinDuration = courtMinDurations.get(info.courtId) ?? 60
-      const minSlots = courtMinDuration / 30
-      const deltaSlots = Math.max(0, Math.round(deltaY / SLOT_HEIGHT))
-      const rawDuration = (deltaSlots + minSlots) * 30
-      const court = visibleCourts[info.courtIndex]
-      const courtCloseMin = Math.min(court?.closeTimeMinutes ?? gridEnd, gridEnd)
-      // Cap at court close and first collision
+
+      // Compute cursor slot from absolute grid position.
+      // getBoundingClientRect().top already reflects scroll, so no need to add scrollTop.
+      const gridBodyEl = gridBodyRef.current
+      let cursorSlotMin = info.startMin
+      if (gridBodyEl) {
+        const gridBodyRect = gridBodyEl.getBoundingClientRect()
+        const yInGrid = e.clientY - gridBodyRect.top
+        const slotIndex = Math.floor(yInGrid / SLOT_HEIGHT)
+        cursorSlotMin = gridStart + slotIndex * 30
+      }
+
+      // End snaps to the END of the cursor's slot; enforces minimum duration
+      const minEnd = info.startMin + courtMinDuration
+      const rawEnd = cursorSlotMin + 30
+      const desiredEnd = Math.max(minEnd, rawEnd)
+
+      // Cap at gridEnd and first collision (admin can book outside court hours)
       const occupied = occupiedSlots.get(info.courtId)
-      let maxDuration = courtCloseMin - info.startMin
+      let maxEnd = gridEnd
       if (occupied) {
-        for (let m = info.startMin + 30; m < courtCloseMin; m += 30) {
-          if (occupied.has(m)) {
-            maxDuration = m - info.startMin
-            break
-          }
+        for (let m = info.startMin + 30; m < gridEnd; m += 30) {
+          if (occupied.has(m)) { maxEnd = m; break }
         }
       }
-      const durationMinutes = Math.min(rawDuration, maxDuration)
+
+      const durationMinutes = Math.min(desiredEnd, maxEnd) - info.startMin
 
       setCreateGhost({
         courtIndex: info.courtIndex,
         startMin: info.startMin,
-        durationMinutes,
+        durationMinutes: Math.max(durationMinutes, 30),
       })
     }
 
@@ -175,7 +185,7 @@ export function useBookingDragCreate({
       window.removeEventListener('pointerup', onPointerUp)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleCourts, gridStart, gridEnd, colWidth, onEmptyClick, occupiedSlots, courtMinDurations])
+  }, [visibleCourts, gridStart, gridEnd, colWidth, onEmptyClick, occupiedSlots, courtMinDurations, gridBodyRef, containerRef])
 
   function handleCancelCreate() {
     dragInfoRef.current = null

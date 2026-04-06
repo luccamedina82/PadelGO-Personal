@@ -11,8 +11,12 @@ import { SLOT_HEIGHT } from '@/features/reservas/components/booking-grid/helpers
 import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
 import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import type { PendingCreate } from '@/features/reservas/components/booking-grid/hooks/useBookingDragCreate'
+import dynamic from 'next/dynamic'
 import ReservasShell from './ReservasShell'
-import FloatingBookingForm from '@/features/reservas/components/floating-booking-form/FloatingBookingForm'
+const FloatingBookingForm = dynamic(
+  () => import('@/features/reservas/components/floating-booking-form/FloatingBookingForm'),
+  { ssr: false }
+)
 import { useBookingFormStore } from '@/store/useBookingFormStore'
 import { useBookingsContext, useCourtsContext } from './BookingsContext'
 
