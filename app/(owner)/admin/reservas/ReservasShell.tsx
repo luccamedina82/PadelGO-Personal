@@ -24,6 +24,9 @@ interface ReservasShellProps {
   onDragCreateReady?: (pending: PendingCreate, cancel: () => void, created: (bookingId?: string) => void) => void
   isFormOpen?: boolean
   activeDraft?: { courtId: string; startMin: number; durationMinutes: number } | null
+  focusCourtIds?: string[]
+  onCourtToggle?: (id: string) => void
+  onClearCourts?: () => void
 }
 
 export default function ReservasShell({
@@ -46,6 +49,9 @@ export default function ReservasShell({
   onDragCreateReady,
   isFormOpen,
   activeDraft,
+  focusCourtIds,
+  onCourtToggle,
+  onClearCourts,
 }: ReservasShellProps) {
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -69,6 +75,9 @@ export default function ReservasShell({
         onDragCreateReady={onDragCreateReady}
         isFormOpen={isFormOpen}
         activeDraft={activeDraft}
+        focusCourtIds={focusCourtIds}
+        onCourtToggle={onCourtToggle}
+        onClearCourts={onClearCourts}
       />
     </div>
   )

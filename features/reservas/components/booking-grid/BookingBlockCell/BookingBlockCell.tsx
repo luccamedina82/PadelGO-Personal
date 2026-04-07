@@ -28,15 +28,6 @@ interface BookingBlockCellProps {
   isFormOpen?: boolean
 }
 
-function IconCheck({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 12 12" fill="none">
-      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-
 export default function BookingBlockCell({
   booking: b,
   gridStart,
@@ -63,11 +54,19 @@ export default function BookingBlockCell({
   if (top < 0 || top > gridHeight) return null
 
   const isPaid = b.paymentStatus === 'PAID'
+  const isManualPaid = b.paymentStatus === 'MANUAL'
+  const isEffectivelyPaid = isPaid || isManualPaid
   const isCancelled = b.status === 'CANCELLED'
   const isBlock = isBlockSource(b.source)
   const showPaymentRow = height > 52 && !isBlock && !isCancelled
-  const showPaidBadge = !showPaymentRow && isPaid && !isBlock && !isCancelled
   const isActive = !isCancelled
+
+  const typeLabel = (() => {
+    if (isBlock) return b.recurringBookingId ? 'FIJO' : 'BLOQUEO'
+    if (b.recurringBookingId) return 'FIJO'
+    if (b.source === 'ONLINE') return 'ONLINE'
+    return 'MANUAL'
+  })()
 
   function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (!isActive) return
@@ -111,49 +110,37 @@ export default function BookingBlockCell({
         </div>
       )}
 
-      {/* Online dot — top-right indicator for ONLINE bookings */}
-      {b.source === 'ONLINE' && !isCancelled && !isConflict && (
-        <div
-          className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full opacity-70"
-          style={{ background: '#5090f0' }}
-          title="Reserva online"
-        />
-      )}
-
       {/* Name */}
       <div className="flex items-start gap-1 min-w-0">
         <p className="text-[13px] font-bold leading-tight line-clamp-2 flex-1">{b.displayName}</p>
       </div>
 
-      {/* Time range + compact payment dot */}
+      {/* Time range */}
       {height > 34 && (
-        <div className="flex items-center gap-1">
-          <p className="text-[11px] font-mono leading-tight opacity-70 flex-1">
-            {b.startTime} – {endTime}
-          </p>
-          {showPaidBadge && (
-            <IconCheck className="w-3 h-3 opacity-50 shrink-0" />
-          )}
-        </div>
+        <p className="text-[11px] font-mono leading-tight opacity-70">
+          {b.startTime} – {endTime}
+        </p>
       )}
 
-      {/* Price + payment indicator (full row, taller slots) */}
+      {/* Price (colored) + source type label */}
       {showPaymentRow && (
         <div className="flex items-center justify-between mt-auto gap-1">
-          <p className="text-[14px] font-bold opacity-85">
+          <p className={`text-[14px] font-bold ${isEffectivelyPaid ? 'text-green-400' : 'text-red-400'}`}>
             {formatPrice(b.totalPrice)}
           </p>
-          {isPaid && <IconCheck className="w-3.5 h-3.5 opacity-50 shrink-0" />}
+          <span className="text-[9px] font-bold uppercase tracking-[0.06em] opacity-50 shrink-0">
+            {typeLabel}
+          </span>
         </div>
       )}
 
-      {/* Resize handle — only shown on hover at bottom of card */}
+      {/* Resize handle */}
       {isActive && !isDragging && (
         <div
           className="absolute bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full bg-current opacity-0 group-hover:opacity-25 transition-opacity cursor-ns-resize"
           onPointerDown={(e) => {
-            e.stopPropagation();
-            onResizeStart(b, e);
+            e.stopPropagation()
+            onResizeStart(b, e)
           }}
         />
       )}

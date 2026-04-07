@@ -72,4 +72,8 @@ export interface BookingGridProps {
   isFormOpen?: boolean
   /** Synthetic ghost for a click-created draft (not drag) */
   activeDraft?: { courtId: string; startMin: number; durationMinutes: number } | null
+  /** Lifted from BookingGrid so the sidebar can also control court visibility */
+  focusCourtIds?: string[]
+  onCourtToggle?: (id: string) => void
+  onClearCourts?: () => void
 }

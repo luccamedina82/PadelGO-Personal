@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { COURT_COLORS, SOURCE_FILTERS, type SourceFilterKey } from '../helpers/bookingGrid.helpers'
-import type { CourtColumn } from '../types/bookingGrid.types'
+import { SOURCE_FILTERS, type SourceFilterKey } from '../helpers/bookingGrid.helpers'
 
 const SOURCE_COLOR_VAR: Record<string, string> = {
   ONLINE:    'var(--booking-unified-bar)',
@@ -17,16 +16,10 @@ const FILTER_CATEGORIES: { label: string; keys: Array<SourceFilterKey> }[] = [
 ]
 
 interface BookingGridFilterBarProps {
-  courts: CourtColumn[]
-  focusCourtIds: string[]
   typeFilter: SourceFilterKey
   paymentFilter: 'PAID' | 'UNPAID' | null
-  unpaidCount: number
-  onCourtToggle: (id: string) => void
-  onClearCourts: () => void
   onTypeFilterChange: (key: SourceFilterKey) => void
   onPaymentFilterChange: (key: 'PAID' | 'UNPAID' | null) => void
-  // Right-side controls (owned by BookingsClient, threaded down)
   show24Hours: boolean
   onToggle24Hours: () => void
   hasHiddenBookings: boolean
@@ -36,20 +29,9 @@ interface BookingGridFilterBarProps {
   onToggleCompact: () => void
 }
 
-function courtLabel(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  const last = parts[parts.length - 1] ?? name
-  return last.length <= 3 ? last : last.slice(0, 2)
-}
-
 export default function BookingGridFilterBar({
-  courts,
-  focusCourtIds,
   typeFilter,
   paymentFilter,
-  unpaidCount,
-  onCourtToggle,
-  onClearCourts,
   onTypeFilterChange,
   onPaymentFilterChange,
   show24Hours,
@@ -135,7 +117,6 @@ export default function BookingGridFilterBar({
           ref={dropdownRef}
           className="absolute top-full left-3 mt-1 z-[100] bg-card border border-border rounded-xl shadow-xl p-2 w-[200px] animate-in fade-in zoom-in-95 duration-100"
         >
-          {/* Clear / All */}
           <button
             onClick={() => { onTypeFilterChange(null); setFiltersOpen(false) }}
             className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[12px] font-semibold transition-colors
@@ -182,7 +163,7 @@ export default function BookingGridFilterBar({
         </div>
       )}
 
-      {/* ── Quick filters ────────────────────────────────── */}
+      {/* ── Quick payment filters ─────────────────────────── */}
       <div className="w-px h-4 bg-border shrink-0" />
       <button
         onClick={() => onPaymentFilterChange(paymentFilter === 'UNPAID' ? null : 'UNPAID')}
@@ -207,68 +188,10 @@ export default function BookingGridFilterBar({
         Cobradas
       </button>
 
-      {/* ── Divisor ─────────────────────────────────────── */}
-      {courts.length > 1 && <div className="w-px h-4 bg-border shrink-0" />}
-
-      {/* ── Canchas ─────────────────────────────────────── */}
-      {courts.length > 1 && (
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-muted uppercase tracking-wider select-none">Cancha</span>
-          <button
-            onClick={onClearCourts}
-            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
-              ${focusCourtIds.length === 0
-                ? 'bg-accent/10 border-accent/40 text-accent'
-                : 'bg-card border-border text-muted hover:text-text hover:border-border-hover'
-              }`}
-          >
-            Todas
-          </button>
-          {courts.map((court, idx) => {
-            const isActive = focusCourtIds.includes(court.id)
-            const color = COURT_COLORS[idx % COURT_COLORS.length]!
-            return (
-              <button
-                key={court.id}
-                onClick={() => onCourtToggle(court.id)}
-                title={court.name}
-                className="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none"
-                style={isActive ? {
-                  background: color.bg,
-                  borderColor: `color-mix(in srgb, ${color.bar} 50%, transparent)`,
-                  color: color.text,
-                } : {
-                  background: 'var(--card)',
-                  borderColor: 'var(--border)',
-                  color: 'var(--muted)',
-                }}
-              >
-                {courtLabel(court.name)}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
       <div className="flex-1" />
 
       {/* ── Right-side controls ──────────────────────────── */}
       <div className="flex items-center gap-2">
-
-        {/* KPI: unpaid count */}
-        {unpaidCount > 0 ? (
-          <span className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
-            {unpaidCount} sin cobrar
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-            Al día
-          </span>
-        )}
-
-        <div className="w-px h-4 bg-border shrink-0" />
 
         {/* OOB indicator */}
         {hasHiddenBookings && (
@@ -319,7 +242,6 @@ export default function BookingGridFilterBar({
 
         {/* Segmented 24h control */}
         <div className="flex items-center h-[26px] rounded-lg border border-border overflow-hidden bg-bg">
-
           <button
             type="button"
             onClick={() => { if (show24Hours) onToggle24Hours() }}

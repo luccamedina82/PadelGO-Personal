@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Wrench } from 'lucide-react'
-import BookingDetailModal from './BookingDetailModal/BookingDetailModal'
+import BookingDetailDrawer from './BookingDetailDrawer/BookingDetailDrawer'
 import BookingQuickPopover from './BookingQuickPopover/BookingQuickPopover'
 import BookingGridFilterBar from './BookingGridFilterBar/BookingGridFilterBar'
 import BookingGridHeader from './BookingGridHeader/BookingGridHeader'
@@ -54,6 +54,9 @@ export default function BookingGrid({
   onDragCreateReady,
   isFormOpen = false,
   activeDraft,
+  focusCourtIds: focusCourtIdsProp,
+  onCourtToggle,
+  onClearCourts,
 }: BookingGridProps) {
   const [compactMode, setCompactMode] = useState(false)
   const slotHeight = compactMode ? COMPACT_SLOT_HEIGHT : SLOT_HEIGHT
@@ -87,7 +90,11 @@ export default function BookingGrid({
   const [highlightId, setHighlightId] = useState<string | undefined>(highlightBookingId)
 
 
-  const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
+  // focusCourtIds: controlled from BookingsClient (lifted) so sidebar can also toggle courts
+  const [localFocusCourtIds, setLocalFocusCourtIds] = useState<string[]>([])
+  const focusCourtIds = focusCourtIdsProp ?? localFocusCourtIds
+  const toggleCourtFilter = onCourtToggle ?? ((id: string) => setLocalFocusCourtIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+  const clearCourts = onClearCourts ?? (() => setLocalFocusCourtIds([]))
   const [typeFilter, setTypeFilter] = useState<SourceFilterKey>(null)
   const [paymentFilter, setPaymentFilter] = useState<'PAID' | 'UNPAID' | null>(null)
 
@@ -117,12 +124,6 @@ export default function BookingGrid({
     () => (focusCourtIds.length > 0 ? courts.filter((c) => focusCourtIds.includes(c.id)) : courts),
     [courts, focusCourtIds]
   )
-
-  function toggleCourtFilter(id: string) {
-    setFocusCourtIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
-  }
 
   const visibleCourtCount = visibleCourts.length
 
@@ -217,7 +218,9 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
       for (const entry of entries) {
         const totalWidth = entry.contentRect.width - TIME_COL_WIDTH
         const natural = Math.floor(totalWidth / Math.max(visibleCourtCount, 1))
-        const w = Math.max(120, Math.min(160, natural))
+        // No upper cap — courts fill all available horizontal space.
+        // Lower cap 120px ensures the grid stays scrollable when many courts are visible.
+        const w = Math.max(120, natural)
         setColWidth(w)
         setGridReady(true)
       }
@@ -399,13 +402,8 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
       {draggingId && <style>{`* { cursor: grabbing !important; } body { user-select: none; }`}</style>}
       {resizingId && <style>{`* { cursor: ns-resize !important; } body { user-select: none; }`}</style>}
       <BookingGridFilterBar
-        courts={courts}
-        focusCourtIds={focusCourtIds}
         typeFilter={typeFilter}
         paymentFilter={paymentFilter}
-        unpaidCount={unpaidCount}
-        onCourtToggle={toggleCourtFilter}
-        onClearCourts={() => setFocusCourtIds([])}
         onTypeFilterChange={setTypeFilter}
         onPaymentFilterChange={setPaymentFilter}
         show24Hours={show24Hours}
@@ -422,7 +420,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
         {!gridReady ? (
           <BookingGridSkeleton courts={visibleCourts} gridStart={gridStart} gridEnd={gridEnd} />
         ) : (
-        <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 160}px` }}>
+        <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 120}px` }}>
           <BookingGridHeader courts={courts} visibleCourts={visibleCourts} colWidth={colWidth} />
 
           <div ref={gridBodyRef} className="relative flex">
@@ -687,16 +685,13 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
         />
       )}
 
-      {gridReady && selectedBooking && (
-        <BookingDetailModal
-          key={selectedBooking.id}
-          booking={selectedBooking}
-          onClose={() => setSelectedBooking(null)}
-          closeTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.closeTimeMinutes}
-          openTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.openTimeMinutes}
-          defaultEditing={false}
-        />
-      )}
+      <BookingDetailDrawer
+        booking={selectedBooking ?? null}
+        onClose={() => setSelectedBooking(null)}
+        closeTimeMinutes={selectedBooking ? courts.find(c => c.id === selectedBooking.courtId)?.closeTimeMinutes : undefined}
+        openTimeMinutes={selectedBooking ? courts.find(c => c.id === selectedBooking.courtId)?.openTimeMinutes : undefined}
+        defaultEditing={false}
+      />
 
     </>
   )

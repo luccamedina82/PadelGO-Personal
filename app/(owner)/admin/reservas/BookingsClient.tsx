@@ -19,6 +19,8 @@ const FloatingBookingForm = dynamic(
 )
 import { useBookingFormStore } from '@/store/useBookingFormStore'
 import { useBookingsContext, useCourtsContext } from './BookingsContext'
+import { useReservasSidebarStore } from '@/store/reservasSidebarStore'
+import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 
 export type FloatingFormInitialData = {
   date: string
@@ -72,11 +74,12 @@ export default function BookingsClient({
   clubId,
   highlightBookingId,
 }: BookingClientProps) {
-  const { selectedDate, weekStart } = useBookingsContext()
+  const { selectedDate, weekStart, handleDayChange } = useBookingsContext()
   const { allCourts, clubRules, conflicts } = useCourtsContext()
 
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
   const [show24Hours, setShow24Hours] = useState(false)
+  const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
   const router = useRouter()
   const queryClient = useQueryClient()
   const prevDateRef = useRef('')
@@ -147,6 +150,60 @@ export default function BookingsClient({
     })
   }, [weekStart, clubId, queryClient])
 
+  // ── Court visibility (lifted so sidebar can also toggle) ────────────────────
+  const toggleCourt = useCallback((id: string) => {
+    setFocusCourtIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }, [])
+  const clearCourts = useCallback(() => setFocusCourtIds([]), [])
+
+  // Keep refs stable so sidebar store closure never goes stale
+  const toggleCourtRef = useRef(toggleCourt)
+  const clearCourtsRef = useRef(clearCourts)
+  const handleDayChangeRef = useRef(handleDayChange)
+  toggleCourtRef.current = toggleCourt
+  clearCourtsRef.current = clearCourts
+  handleDayChangeRef.current = handleDayChange
+
+  // ── Sidebar slot wiring ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const store = useReservasSidebarStore.getState()
+    store.activate()
+    store.syncHandlers(
+      (d) => handleDayChangeRef.current(d),
+      (id) => toggleCourtRef.current(id),
+      () => clearCourtsRef.current(),
+    )
+    return () => useReservasSidebarStore.getState().deactivate()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    useReservasSidebarStore.getState().syncDate(selectedDate)
+  }, [selectedDate])
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const courts = allCourts.map((c: any, i: number) => ({
+      id: c.id,
+      name: c.name,
+      colorIndex: i,
+      isUnderMaintenance: c.isUnderMaintenance ?? false,
+    }))
+    useReservasSidebarStore.getState().syncCourts(courts)
+
+    // Maintenance courts off by default — only when user hasn't customized yet
+    const hasMaintenance = courts.some(c => c.isUnderMaintenance)
+    if (hasMaintenance) {
+      setFocusCourtIds(prev => {
+        if (prev.length > 0) return prev
+        return courts.filter(c => !c.isUnderMaintenance).map(c => c.id)
+      })
+    }
+  }, [allCourts])
+
+  useEffect(() => {
+    useReservasSidebarStore.getState().syncFocusCourtIds(focusCourtIds)
+  }, [focusCourtIds])
+
   // ── Conflict counts ─────────────────────────────────────────────────────────
   const conflictIds = useMemo(() => new Set(conflicts.map((c) => c.id)), [conflicts])
   const todayConflictCount = useMemo(
@@ -213,6 +270,20 @@ export default function BookingsClient({
     )
   }
 
+  // ── Sidebar stats sync ───────────────────────────────────────────────────────
+  const todayUnpaid = useMemo(
+    () => bookings.filter(b =>
+      b.status !== 'CANCELLED' &&
+      !BLOCK_SOURCES.has(b.source) &&
+      b.paymentStatus !== 'PAID' &&
+      b.paymentStatus !== 'MANUAL'
+    ).length,
+    [bookings]
+  )
+  useEffect(() => {
+    useReservasSidebarStore.getState().syncStats(bookings.length, todayUnpaid)
+  }, [bookings.length, todayUnpaid])
+
   // ── Grid bounds ─────────────────────────────────────────────────────────────
   const gridStart = show24Hours ? 0 : (baseStart ?? 8 * 60)
   const gridEnd = show24Hours ? 1440 : (baseEnd ?? 23 * 60)
@@ -270,6 +341,9 @@ export default function BookingsClient({
           onDragCreateReady={handleDragCreateReady}
           isFormOpen={isOpen}
           activeDraft={activeDraft}
+          focusCourtIds={focusCourtIds}
+          onCourtToggle={toggleCourt}
+          onClearCourts={clearCourts}
         />
       </div>
 

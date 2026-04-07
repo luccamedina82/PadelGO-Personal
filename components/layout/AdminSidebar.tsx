@@ -7,6 +7,10 @@ import { clsx } from 'clsx'
 import ThemeToggle from './ThemeToggle'
 import type { Role } from '@/types'
 import { useSidebarStore } from '@/store/sidebarStore'
+import { useReservasSidebarStore } from '@/store/reservasSidebarStore'
+import dynamic from 'next/dynamic'
+
+const ReservasSidebarSlot = dynamic(() => import('./ReservasSidebarSlot'), { ssr: false })
 
 type NavItem = { href: string; label: string; icon: ReactNode; exact?: boolean }
 
@@ -276,7 +280,9 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ role }: AdminSidebarProps) {
   const pathname = usePathname()
   const { collapsed, toggle } = useSidebarStore()
+  const isReservasActive = useReservasSidebarStore(s => s.isActive)
   const items = role === 'OWNER' ? [...SHARED_ITEMS, ...OWNER_ONLY_ITEMS] : SHARED_ITEMS
+  const showSlot = isReservasActive && pathname.startsWith('/admin/reservas') && !collapsed
 
   return (
     <aside
@@ -314,7 +320,7 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className={clsx('flex-1 py-4 overflow-y-auto', collapsed ? 'px-1.5' : 'px-3')}>
+      <nav className={clsx(showSlot ? 'py-3' : 'flex-1 py-4', 'overflow-y-auto', collapsed ? 'px-1.5' : 'px-3')}>
         <ul className="space-y-1">
           {items.map((item) => {
             const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href)
@@ -346,6 +352,13 @@ export default function AdminSidebar({ role }: AdminSidebarProps) {
           })}
         </ul>
       </nav>
+
+      {/* Contextual slot: calendar + courts + stats (solo en /admin/reservas, expandido) */}
+      {showSlot && (
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <ReservasSidebarSlot />
+        </div>
+      )}
 
       {/* Footer: home link + theme */}
       <div className={clsx('border-t border-border', collapsed ? 'py-3 flex flex-col items-center gap-3' : 'px-4 py-4 space-y-2')}>
