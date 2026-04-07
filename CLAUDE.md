@@ -159,4 +159,8 @@ Keep components under ~200 lines. When a component grows beyond that, extract su
 - **Optimistic UI First:** When modifying interactive components (like the booking grid or date changes), always implement Optimistic UI patterns. Show the immediate visual change or loading state (spinner) *before* awaiting the server response to prevent the UI from feeling frozen.
 - **Component Modifications:** When fixing UI bugs (e.g., overlapping hover states in drag-and-drop, or popover cancel buttons), ensure the fix remains within the ~200 lines limit convention.
 - **Cache Invalidation:** Pay special attention to cross-domain cache. If modifying `features/canchas`, ensure `revalidateTag('bookings-${clubId}')` is called so the booking grid updates immediately.
+
+## Tech Debt
+
+- **Auto-complete de reservas vía cron:** Las reservas no pasan automáticamente a `COMPLETED` cuando su horario termina. La transición `CONFIRMED → COMPLETED` (y `PENDING → COMPLETED` si el jugador pagó al retirarse) debería hacerla un cron job periódico que corra cada hora. Por ahora `status` tiene valor informativo solamente y las reservas pasadas quedan en `PENDING`/`CONFIRMED` indefinidamente. Implementar como un endpoint `/api/cron/booking-auto-complete` similar al patrón de los crons existentes.
 - **Toasts:** Any new or modified success/error notifications must be unified to appear in the bottom-right corner.

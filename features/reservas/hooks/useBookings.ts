@@ -8,6 +8,7 @@ import {
   updateBookingPlayers,
   createManualBooking,
   convertBookingToOpenMatch,
+  approveBookingException,
   type CreateManualBookingInput,
   type UpdateBookingInput,
   type ConvertToOpenMatchInput,
@@ -123,8 +124,21 @@ export function useBookingMutations(clubId: string) {
     onSuccess: async (res) => {
       if (res.success) {
         await invalidateBookings()
-        // Si abrís un partido, también refrescamos la lista de Open Matches
         queryClient.invalidateQueries({ queryKey: ['open-matches', clubId] })
+      }
+    },
+  })
+
+  const approveException = useMutation({
+    mutationFn: (id: string) => approveBookingException(id),
+    onSuccess: async (res, id) => {
+      if (res.success) {
+        patchBookingsCache((booking) =>
+          booking.id === id
+            ? { ...booking, exceptionApprovedAt: new Date().toISOString() }
+            : booking
+        )
+        await invalidateBookings()
       }
     },
   })
@@ -137,5 +151,6 @@ export function useBookingMutations(clubId: string) {
     updateTime,
     updatePlayers,
     convertToOpenMatch,
+    approveException,
   }
 }

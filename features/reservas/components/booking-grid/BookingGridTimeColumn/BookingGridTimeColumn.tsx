@@ -1,11 +1,12 @@
 import { minutesToTime } from '@/lib/availability'
-import { SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
+import { TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
 
 interface BookingGridTimeColumnProps {
   gridStart: number
   gridEnd: number
   currentMinutes: number | null
   isViewingPast: boolean
+  slotHeight: number
 }
 
 export default function BookingGridTimeColumn({
@@ -13,9 +14,10 @@ export default function BookingGridTimeColumn({
   gridEnd,
   currentMinutes,
   isViewingPast,
+  slotHeight,
 }: BookingGridTimeColumnProps) {
   const totalSlots = (gridEnd - gridStart) / 30
-  const gridHeight = totalSlots * SLOT_HEIGHT
+  const gridHeight = totalSlots * slotHeight
 
   return (
     <div
@@ -34,8 +36,8 @@ export default function BookingGridTimeColumn({
                         ${isPast ? 'opacity-35' : ''}
                         ${isHour ? 'border-b border-border-hover' : 'border-b border-border/40'}`}
             style={{
-              top: i * SLOT_HEIGHT,
-              height: SLOT_HEIGHT,
+              top: i * slotHeight,
+              height: slotHeight,
               background: isHour ? 'var(--grid-row-alt)' : 'transparent',
             }}
           >

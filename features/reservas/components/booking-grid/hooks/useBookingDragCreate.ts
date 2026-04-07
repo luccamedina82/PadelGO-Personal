@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, type RefObject, type PointerEvent as ReactPointerEvent } from 'react'
-import { SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
+import { TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
 import type { CourtColumn } from '../types/bookingGrid.types'
 import { toast } from 'sonner'
 
@@ -23,6 +23,7 @@ interface Props {
   gridEnd: number
   visibleCourts: CourtColumn[]
   colWidth: number
+  slotHeight: number
   containerRef: RefObject<HTMLDivElement | null>
   gridBodyRef: RefObject<HTMLDivElement | null>
   onEmptyClick: (courtId: string, slotMin: number) => void
@@ -50,6 +51,7 @@ export function useBookingDragCreate({
   gridEnd,
   visibleCourts,
   colWidth,
+  slotHeight,
   containerRef,
   gridBodyRef,
   onEmptyClick,
@@ -107,7 +109,7 @@ export function useBookingDragCreate({
       if (gridBodyEl) {
         const gridBodyRect = gridBodyEl.getBoundingClientRect()
         const yInGrid = e.clientY - gridBodyRect.top
-        const slotIndex = Math.floor(yInGrid / SLOT_HEIGHT)
+        const slotIndex = Math.floor(yInGrid / slotHeight)
         cursorSlotMin = gridStart + slotIndex * 30
       }
 
@@ -166,9 +168,9 @@ export function useBookingDragCreate({
         if (containerEl) {
           const rect = containerEl.getBoundingClientRect()
           ghostLeft = rect.left + TIME_COL_WIDTH + ghost.courtIndex * colWidth
-          ghostTop = rect.top + ((ghost.startMin - gridStart) / 30) * SLOT_HEIGHT - containerEl.scrollTop
+          ghostTop = rect.top + ((ghost.startMin - gridStart) / 30) * slotHeight - containerEl.scrollTop
         }
-        const ghostHeight = (ghost.durationMinutes / 30) * SLOT_HEIGHT
+        const ghostHeight = (ghost.durationMinutes / 30) * slotHeight
         setPendingCreate({
           ghost,
           courtId: info.courtId,

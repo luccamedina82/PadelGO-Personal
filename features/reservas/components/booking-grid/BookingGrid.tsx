@@ -21,6 +21,7 @@ import { minutesToTime, timeToMinutes } from '@/lib/availability'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import {
   SLOT_HEIGHT,
+  COMPACT_SLOT_HEIGHT,
   TIME_COL_WIDTH,
   getBlockClass,
   getLocalDateStr,
@@ -54,6 +55,9 @@ export default function BookingGrid({
   isFormOpen = false,
   activeDraft,
 }: BookingGridProps) {
+  const [compactMode, setCompactMode] = useState(false)
+  const slotHeight = compactMode ? COMPACT_SLOT_HEIGHT : SLOT_HEIGHT
+
   const containerRef = useRef<HTMLDivElement>(null)
   const gridBodyRef = useRef<HTMLDivElement>(null)
   const scrolledHighlightRef = useRef<string | null>(null)
@@ -63,7 +67,7 @@ export default function BookingGrid({
   const scrollAnchorRef = useRef<{ topMinutes: number } | null>(null)
   if (prevGridStartRef.current !== gridStart) {
     if (containerRef.current && scrollAnchorRef.current === null) {
-      const minutesFromStart = (containerRef.current.scrollTop / SLOT_HEIGHT) * 30
+      const minutesFromStart = (containerRef.current.scrollTop / slotHeight) * 30
       scrollAnchorRef.current = { topMinutes: prevGridStartRef.current + minutesFromStart }
     }
     prevGridStartRef.current = gridStart
@@ -86,7 +90,6 @@ export default function BookingGrid({
   const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<SourceFilterKey>(null)
   const [paymentFilter, setPaymentFilter] = useState<'PAID' | 'UNPAID' | null>(null)
-  const [openInEditMode, setOpenInEditMode] = useState(false)
 
 
   const isViewingToday = clientTodayStr ? date === clientTodayStr : false
@@ -152,6 +155,7 @@ export default function BookingGrid({
     gridEnd,
     visibleCourts,
     colWidth,
+    slotHeight,
     containerRef,
     gridBodyRef,
   })
@@ -212,7 +216,8 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const totalWidth = entry.contentRect.width - TIME_COL_WIDTH
-        const w = Math.max(160, Math.floor(totalWidth / Math.max(visibleCourtCount, 1)))
+        const natural = Math.floor(totalWidth / Math.max(visibleCourtCount, 1))
+        const w = Math.max(120, Math.min(160, natural))
         setColWidth(w)
         setGridReady(true)
       }
@@ -251,6 +256,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     gridEnd,
     visibleCourts,
     colWidth,
+    slotHeight,
     containerRef,
     gridBodyRef,
     onEmptyClick: handleEmptyClick,
@@ -265,15 +271,15 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     const relativeY = e.clientY - rect.top
     
     // Calculamos el slot exacto basado en la posición Y
-    const slotIndex = Math.floor(relativeY / SLOT_HEIGHT)
+    const slotIndex = Math.floor(relativeY / slotHeight)
     const slotMinutes = gridStart + (slotIndex * 30)
 
     // Seteamos la ref del rect para el formulario flotante (usando la posición de la celda calculada)
     clickedCellRectRef.current = {
       left: rect.left,
-      top: rect.top + (slotIndex * SLOT_HEIGHT),
+      top: rect.top + (slotIndex * slotHeight),
       width: rect.width,
-      height: SLOT_HEIGHT,
+      height: slotHeight,
     } as DOMRect
 
     // Iniciamos el drag-to-create
@@ -320,7 +326,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     if (scrolledHighlightRef.current === highlightId) return
     const targetMin = timeToMinutes(highlightedBooking.startTime)
     if (targetMin < gridStart || targetMin > gridEnd) return
-    const top = ((targetMin - gridStart) / 30) * SLOT_HEIGHT
+    const top = ((targetMin - gridStart) / 30) * slotHeight
     containerRef.current.scrollTo({ top: Math.max(0, top - 120), behavior: 'smooth' })
     scrolledHighlightRef.current = highlightId
   }, [highlightId, highlightedBooking, gridStart, gridEnd])
@@ -333,7 +339,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     const container = containerRef.current
     if (!anchor || !container) return
     scrollAnchorRef.current = null
-    const newScrollTop = ((anchor.topMinutes - gridStart) / 30) * SLOT_HEIGHT
+    const newScrollTop = ((anchor.topMinutes - gridStart) / 30) * slotHeight
     container.scrollTop = Math.max(0, newScrollTop)
   }, [gridStart])
 
@@ -342,7 +348,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     const now = new Date()
     const targetMin = now.getHours() * 60 + now.getMinutes()
     if (targetMin < gridStart || targetMin > gridEnd) return
-    const top = ((targetMin - gridStart) / 30) * SLOT_HEIGHT
+    const top = ((targetMin - gridStart) / 30) * slotHeight
     containerRef.current.scrollTo({ top: Math.max(0, top - 120), behavior: 'smooth' })
   }, [gridStart, gridEnd])
 
@@ -357,7 +363,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
         return !occupiedSlotsByCourt.get(court.id)?.has(slotMin)
       })
       if (hasFree) {
-        const top = ((slotMin - gridStart) / 30) * SLOT_HEIGHT
+        const top = ((slotMin - gridStart) / 30) * slotHeight
         containerRef.current.scrollTo({ top: Math.max(0, top - 120), behavior: 'smooth' })
         return
       }
@@ -373,11 +379,11 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
   }, [highlightId, isViewingToday, gridStart, gridEnd, date, gridReady, scrollToNow])
 
   const totalSlots = (gridEnd - gridStart) / 30
-  const gridHeight = totalSlots * SLOT_HEIGHT
+  const gridHeight = totalSlots * slotHeight
 
   const currentLineTop =
     currentMinutes !== null && currentMinutes >= gridStart && currentMinutes <= gridEnd
-      ? ((currentMinutes - gridStart) / 30) * SLOT_HEIGHT
+      ? ((currentMinutes - gridStart) / 30) * slotHeight
       : null
 
   // ── Ghost block class (same visual style as source booking) ──────────
@@ -407,6 +413,8 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
         hasHiddenBookings={hasHiddenBookings}
         todayConflictCount={todayConflictCount}
         totalConflictCount={totalConflictCount}
+        compactMode={compactMode}
+        onToggleCompact={() => setCompactMode((m) => !m)}
       />
 
       <div className="grow min-h-0 relative overflow-hidden">
@@ -423,6 +431,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
               gridEnd={gridEnd}
               currentMinutes={currentMinutes}
               isViewingPast={isViewingPast}
+              slotHeight={slotHeight}
             />
 
             {visibleCourts.map((court, courtIndex) => {
@@ -470,7 +479,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                         className={`absolute left-0 right-0 
                           ${isHour ? 'bg-(--grid-row-alt) border-b border-zinc-800/60' : 'border-b border-zinc-800/25'}
                           ${isPast ? 'opacity-40' : 'group'}`} // Usamos group para el hover CSS
-                        style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
+                        style={{ top: i * slotHeight, height: slotHeight }}
                       >
                         {isOutOfBounds && <span className="absolute inset-0 bg-zinc-500/[0.11]" />}
                         
@@ -497,7 +506,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                     const visibleEnd = Math.min(bookingEndMin, gridEnd)
                     const visibleDuration = visibleEnd - Math.max(bookingStartMin, gridStart)
                     const clampedHeight = bookingEndMin > gridEnd
-                      ? Math.max((visibleDuration / 30) * SLOT_HEIGHT - 3, 22)
+                      ? Math.max((visibleDuration / 30) * slotHeight - 3, 22)
                       : undefined
 
                     const isBookingPast = isViewingPast || (isViewingToday && currentMinutes !== null && bookingEndMin <= currentMinutes)
@@ -513,6 +522,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                       isResizing={resizingId === b.id}
                       heightOverride={resizingId === b.id ? (resizeHeightPx ?? undefined) : clampedHeight}
                       isPast={isBookingPast}
+                      slotHeight={slotHeight}
                       onDragStart={handleDragStart}
                       onResizeStart={handleResizeStart}
                       onSelect={(x, y) => setQuickPopover({ booking: b, courtName: court.name, x, y })}
@@ -530,7 +540,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
             {ghostPos && draggingId && ghostBooking && (() => {
               const ghostEndTime = minutesToTime(ghostPos.startMin + ghostPos.durationMinutes)
               const ghostStartTime = minutesToTime(ghostPos.startMin)
-              const ghostHeight = Math.max((ghostPos.durationMinutes / 30) * SLOT_HEIGHT - 3, 22)
+              const ghostHeight = Math.max((ghostPos.durationMinutes / 30) * slotHeight - 3, 22)
               const isPaid = ghostBooking.paymentStatus === 'PAID'
               const isManualPaid = ghostBooking.paymentStatus === 'MANUAL'
               const isUnpaid = !isPaid && !isManualPaid && !isBlockSource(ghostBooking.source)
@@ -539,7 +549,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                   className={`booking-block ${ghostBlockCls} pointer-events-none opacity-70 border-2 border-dashed`}
                   style={{
                     position: 'absolute',
-                    top: ((ghostPos.startMin - gridStart) / 30) * SLOT_HEIGHT + 2,
+                    top: ((ghostPos.startMin - gridStart) / 30) * slotHeight + 2,
                     left: TIME_COL_WIDTH + ghostPos.courtIndex * colWidth + 5,
                     width: colWidth - 10,
                     height: ghostHeight,
@@ -566,10 +576,10 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
               <div
                 className={`booking-block-create-preview absolute${pendingCreate ? ' is-pending' : ''}`}
                 style={{
-                  top: ((createGhost.startMin - gridStart) / 30) * SLOT_HEIGHT + 2,
+                  top: ((createGhost.startMin - gridStart) / 30) * slotHeight + 2,
                   left: TIME_COL_WIDTH + createGhost.courtIndex * colWidth + 5,
                   width: colWidth - 10,
-                  height: Math.max((createGhost.durationMinutes / 30) * SLOT_HEIGHT - 3, 22),
+                  height: Math.max((createGhost.durationMinutes / 30) * slotHeight - 3, 22),
                   padding: '8px 10px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -592,10 +602,10 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                 <div
                   className="booking-block-create-preview absolute is-pending"
                   style={{
-                    top: ((activeDraft.startMin - gridStart) / 30) * SLOT_HEIGHT + 2,
+                    top: ((activeDraft.startMin - gridStart) / 30) * slotHeight + 2,
                     left: TIME_COL_WIDTH + draftCourtIdx * colWidth + 5,
                     width: colWidth - 10,
-                    height: Math.max((dur / 30) * SLOT_HEIGHT - 3, 22),
+                    height: Math.max((dur / 30) * slotHeight - 3, 22),
                     padding: '8px 10px',
                     display: 'flex',
                     flexDirection: 'column',
@@ -671,12 +681,6 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
           anchorY={quickPopover.y}
           onClose={() => setQuickPopover(null)}
           onOpenDetail={() => {
-            setOpenInEditMode(false)
-            setSelectedBooking(quickPopover.booking)
-            setQuickPopover(null)
-          }}
-          onOpenEdit={() => {
-            setOpenInEditMode(true)
             setSelectedBooking(quickPopover.booking)
             setQuickPopover(null)
           }}
@@ -685,12 +689,12 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
 
       {gridReady && selectedBooking && (
         <BookingDetailModal
-          key={`${selectedBooking.id}-${openInEditMode}`}
+          key={selectedBooking.id}
           booking={selectedBooking}
-          onClose={() => { setSelectedBooking(null); setOpenInEditMode(false) }}
+          onClose={() => setSelectedBooking(null)}
           closeTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.closeTimeMinutes}
           openTimeMinutes={courts.find(c => c.id === selectedBooking.courtId)?.openTimeMinutes}
-          defaultEditing={openInEditMode}
+          defaultEditing={false}
         />
       )}
 

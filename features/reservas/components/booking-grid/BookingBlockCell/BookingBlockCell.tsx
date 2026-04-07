@@ -1,7 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { timeToMinutes, minutesToTime, formatPrice } from '@/lib/availability'
 import {
-  SLOT_HEIGHT,
   getBlockClass,
   isBlockSource,
 } from '../helpers/bookingGrid.helpers'
@@ -17,6 +16,7 @@ interface BookingBlockCellProps {
   isResizing?: boolean
   heightOverride?: number
   isPast?: boolean
+  slotHeight: number
   onDragStart: (
     booking: BookingBlock,
     e: ReactPointerEvent<HTMLDivElement>,
@@ -47,6 +47,7 @@ export default function BookingBlockCell({
   isResizing,
   heightOverride,
   isPast,
+  slotHeight,
   onDragStart,
   onResizeStart,
   onSelect,
@@ -54,8 +55,8 @@ export default function BookingBlockCell({
 }: BookingBlockCellProps) {
   const startMin = timeToMinutes(b.startTime)
   const endTime = minutesToTime(startMin + b.durationMinutes)
-  const top = ((startMin - gridStart) / 30) * SLOT_HEIGHT
-  const baseHeight = (b.durationMinutes / 30) * SLOT_HEIGHT - 3
+  const top = ((startMin - gridStart) / 30) * slotHeight
+  const baseHeight = (b.durationMinutes / 30) * slotHeight - 3
   const height = heightOverride ?? baseHeight
   const blockCls = getBlockClass(b.source, b.status, b.recurringBookingId)
 
@@ -108,6 +109,15 @@ export default function BookingBlockCell({
             <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
         </div>
+      )}
+
+      {/* Online dot — top-right indicator for ONLINE bookings */}
+      {b.source === 'ONLINE' && !isCancelled && !isConflict && (
+        <div
+          className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full opacity-70"
+          style={{ background: '#5090f0' }}
+          title="Reserva online"
+        />
       )}
 
       {/* Name */}

@@ -17,6 +17,9 @@ export interface BookingBlock {
   playerDetails?: { id: string; name: string }[]
   paidPlayerIds?: string[]
   date: string // YYYY-MM-DD, populated in week view
+  isOpenMatch?: boolean
+  outOfHoursWarning?: boolean
+  exceptionApprovedAt?: string | null
 }
 
 export interface CourtColumn {

@@ -205,6 +205,37 @@ export async function cancelBooking(bookingId: string): Promise<ActionResult> {
   }
 }
 
+export async function approveBookingException(bookingId: string): Promise<ActionResult> {
+  const session = await requireRole(['OWNER', 'STAFF'])
+
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: { clubId: true, outOfHoursWarning: true },
+    })
+
+    if (!booking) return { success: false, error: 'Reserva no encontrada.' }
+    if (session.role === 'STAFF' && session.staffClubId !== booking.clubId) {
+      return { success: false, error: 'No tenés permisos para esta reserva.' }
+    }
+    if (!booking.outOfHoursWarning) {
+      return { success: false, error: 'Esta reserva no tiene una excepción pendiente.' }
+    }
+
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { exceptionApprovedAt: new Date() },
+    })
+    revalidateTag(`bookings-${booking.clubId}`, 'default')
+    revalidatePath('/admin/reservas')
+    revalidatePath('/admin')
+    return { success: true }
+  } catch (err) {
+    console.error('[approveBookingException]', err)
+    return { success: false, error: 'Error al aprobar la excepción.' }
+  }
+}
+
 export async function confirmBooking(bookingId: string): Promise<ActionResult> {
   const session = await requireRole(['OWNER', 'STAFF'])
 
@@ -273,7 +304,7 @@ export interface UpdateBookingInput {
 export async function updateBooking(
   bookingId: string,
   data: UpdateBookingInput
-): Promise<ActionResult> {
+): Promise<ActionResult<{ outOfHoursWarning: boolean }>> {
   const session = await requireRole(['OWNER', 'STAFF'])
 
   const { startTime, durationMinutes, manualName, manualPhone, courtId: newCourtId, date: newDateStr } = data
@@ -284,7 +315,7 @@ export async function updateBooking(
   }
 
   try {
-    const { clubId } = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const booking = await tx.booking.findUnique({
         where: { id: bookingId },
         select: { clubId: true, courtId: true, date: true, status: true, source: true },
@@ -330,13 +361,13 @@ export async function updateBooking(
         if (booking.source !== 'BLOCK') throw new Error('NO_AVAILABILITY')
       }
 
-      // 3. Verificamos horario de cierre (solo si hay reglas)
+      // 3. Verificamos horario de cierre (solo si hay reglas) — constraint suave para admins
+      let outOfHoursWarning = false
       if (rules.length > 0) {
+        const openMin  = Math.min(...rules.map(r => timeToMinutes(r.startTime)))
         const closeMin = Math.max(...rules.map(r => timeToMinutes(r.endTime)))
-        if (newEndMin > closeMin && booking.source !== 'BLOCK') {
-          // Acá podrías decidir si un Admin puede arrastrar fuera de horario o no.
-          // En tu versión anterior tiraba error, lo mantenemos:
-          throw new Error('EXCEEDS_CLOSE_TIME')
+        if (booking.source !== 'BLOCK' && (newEndMin > closeMin || newStartMin < openMin)) {
+          outOfHoursWarning = true
         }
 
         // Verificamos duración permitida (solo si no es bloqueo)
@@ -366,7 +397,13 @@ export async function updateBooking(
 
       if (conflict) throw new Error('SLOT_TAKEN')
 
-      const updateData: Record<string, unknown> = { startTime, durationMinutes }
+      const updateData: Record<string, unknown> = {
+        startTime,
+        durationMinutes,
+        outOfHoursWarning,
+      }
+      // Reset exception approval when the booking moves to a new out-of-hours time
+      if (outOfHoursWarning) updateData.exceptionApprovedAt = null
       if (newDateStr) updateData.date = targetDate
       if (newCourtId && newCourtId !== booking.courtId) updateData.courtId = newCourtId
       if (booking.source === 'MANUAL_STAFF') {
@@ -388,13 +425,13 @@ export async function updateBooking(
       }
 
       await tx.booking.update({ where: { id: bookingId }, data: updateData })
-      return { clubId: booking.clubId }
+      return { clubId: booking.clubId, outOfHoursWarning }
     })
 
-    revalidateTag(`bookings-${clubId}`, 'default')
+    revalidateTag(`bookings-${result.clubId}`, 'default')
     revalidatePath('/admin/reservas')
     revalidatePath('/admin')
-    return { success: true }
+    return { success: true, data: { outOfHoursWarning: result.outOfHoursWarning } }
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === 'NOT_FOUND') return { success: false, error: 'Reserva no encontrada.' }
@@ -404,8 +441,6 @@ export async function updateBooking(
         return { success: false, error: 'No se puede editar una reserva cancelada.' }
       if (err.message === 'SLOT_TAKEN')
         return { success: false, error: 'Ese horario ya está ocupado.' }
-      if (err.message === 'EXCEEDS_CLOSE_TIME')
-        return { success: false, error: 'La reserva excede el horario de cierre de la cancha.' }
       if (err.message === 'DURATION_NOT_ALLOWED')
         return { success: false, error: 'Esa duración no está habilitada para este club.' }
       if (err.message === 'INVALID_COURT')

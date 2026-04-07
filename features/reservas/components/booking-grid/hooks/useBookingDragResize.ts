@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, type RefObject, type PointerEvent as ReactPointerEvent } from 'react'
 import { toast } from 'sonner'
 import { minutesToTime, timeToMinutes } from '@/lib/availability'
-import { BLOCK_SOURCES, SLOT_HEIGHT, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
+import { BLOCK_SOURCES, TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
 import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
 import type { BookingBlock, CourtColumn } from '../types/bookingGrid.types'
 
@@ -45,6 +45,7 @@ interface Props {
   gridEnd: number
   visibleCourts: CourtColumn[]
   colWidth: number
+  slotHeight: number
   containerRef: RefObject<HTMLDivElement | null>
   gridBodyRef: RefObject<HTMLDivElement | null>
 }
@@ -72,6 +73,7 @@ export function useBookingDragResize({
   gridEnd,
   visibleCourts,
   colWidth,
+  slotHeight,
   containerRef,
   gridBodyRef,
 }: Props): DragResizeResult {
@@ -90,10 +92,10 @@ export function useBookingDragResize({
   const currentResizeDurationRef = useRef<number | null>(null)
 
   // Keep grid params fresh in event handler closures
-  const paramsRef = useRef({ gridStart, gridEnd, visibleCourts, colWidth })
+  const paramsRef = useRef({ gridStart, gridEnd, visibleCourts, colWidth, slotHeight })
   useEffect(() => {
-    paramsRef.current = { gridStart, gridEnd, visibleCourts, colWidth }
-  }, [gridStart, gridEnd, visibleCourts, colWidth])
+    paramsRef.current = { gridStart, gridEnd, visibleCourts, colWidth, slotHeight }
+  }, [gridStart, gridEnd, visibleCourts, colWidth, slotHeight])
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -143,31 +145,36 @@ export function useBookingDragResize({
             toast.error(res.error ?? 'Error al mover la reserva.')
           } else {
             setTimeout(() => removeOverride(drag.bookingId), 600)
-            toast(`Reserva movida a las ${newStartTime}.`, {
-              action: {
-                label: 'Deshacer',
-                onClick: () => {
-                  applyOverride(drag.bookingId, origStartTime, drag.durationMinutes, drag.origCourtId)
-                  updateTime.mutate(
-                    {
-                      id: drag.bookingId,
-                      data: {
-                        startTime: origStartTime,
-                        durationMinutes: drag.durationMinutes,
-                        courtId: drag.origCourtId !== newCourtId ? drag.origCourtId : undefined,
+            const ooh = res.data?.outOfHoursWarning
+            if (ooh) {
+              toast.warning(`Reserva movida a las ${newStartTime} (fuera del horario operativo).`, { duration: 5000 })
+            } else {
+              toast(`Reserva movida a las ${newStartTime}.`, {
+                action: {
+                  label: 'Deshacer',
+                  onClick: () => {
+                    applyOverride(drag.bookingId, origStartTime, drag.durationMinutes, drag.origCourtId)
+                    updateTime.mutate(
+                      {
+                        id: drag.bookingId,
+                        data: {
+                          startTime: origStartTime,
+                          durationMinutes: drag.durationMinutes,
+                          courtId: drag.origCourtId !== newCourtId ? drag.origCourtId : undefined,
+                        },
                       },
-                    },
-                    {
-                      onSuccess: (res) => {
-                        if (res.success) setTimeout(() => removeOverride(drag.bookingId), 600)
-                        else toast.error(res.error ?? 'Error al deshacer.')
-                      },
-                    }
-                  )
+                      {
+                        onSuccess: (res) => {
+                          if (res.success) setTimeout(() => removeOverride(drag.bookingId), 600)
+                          else toast.error(res.error ?? 'Error al deshacer.')
+                        },
+                      }
+                    )
+                  },
                 },
-              },
-              duration: 5000,
-            })
+                duration: 5000,
+              })
+            }
           }
         },
         onError: () => {
@@ -233,7 +240,7 @@ export function useBookingDragResize({
     if (!draggingId && !resizingId) return
 
     function onPointerMove(e: PointerEvent) {
-      const { gridStart: gs, gridEnd: ge, visibleCourts: courts, colWidth: cw } = paramsRef.current
+      const { gridStart: gs, gridEnd: ge, visibleCourts: courts, colWidth: cw, slotHeight: sh } = paramsRef.current
 
       if (activeDragRef.current) {
         const drag = activeDragRef.current
@@ -259,11 +266,11 @@ export function useBookingDragResize({
         )
 
         // Y → time slot (subtract offsetY so card top follows cursor)
+        // No clamping by court operational hours — admins can move bookings anywhere
+        // in the visible grid; backend will set outOfHoursWarning if needed.
         const rawY = e.clientY - gridBodyRect.top - drag.offsetY
-        const targetCourtCloseMin = courts[courtIndex]?.closeTimeMinutes ?? ge
-        const effectiveEnd = Math.min(targetCourtCloseMin, ge)
-        const maxSlot = (effectiveEnd - gs) / 30 - drag.durationMinutes / 30
-        const slotIndex = Math.max(0, Math.min(maxSlot, Math.round(rawY / SLOT_HEIGHT)))
+        const maxSlot = (ge - gs) / 30 - drag.durationMinutes / 30
+        const slotIndex = Math.max(0, Math.min(maxSlot, Math.round(rawY / sh)))
         const newStartMin = gs + slotIndex * 30
 
         const next: GhostPos = { courtIndex, startMin: newStartMin, durationMinutes: drag.durationMinutes }
@@ -276,7 +283,7 @@ export function useBookingDragResize({
 
       if (activeResizeRef.current) {
         const resize = activeResizeRef.current
-        const deltaSlots = Math.round((e.clientY - resize.startClientY) / SLOT_HEIGHT)
+        const deltaSlots = Math.round((e.clientY - resize.startClientY) / sh)
 
         const court = courts.find(c => c.id === resize.courtId)
         const minByCourt = 30 
@@ -286,7 +293,7 @@ export function useBookingDragResize({
         const upperLimit = isBlock ? maxByClose : Math.min(maxByCourt, maxByClose)
         const newDuration = Math.max(minByCourt, Math.min(upperLimit, resize.origDuration + deltaSlots * 30))
         currentResizeDurationRef.current = newDuration
-        setResizeHeightPx((newDuration / 30) * SLOT_HEIGHT - 3)
+        setResizeHeightPx((newDuration / 30) * sh - 3)
       }
     }
 
@@ -388,7 +395,7 @@ export function useBookingDragResize({
 
     currentResizeDurationRef.current = booking.durationMinutes
     setResizingId(booking.id)
-    setResizeHeightPx((booking.durationMinutes / 30) * SLOT_HEIGHT - 3)
+    setResizeHeightPx((booking.durationMinutes / 30) * slotHeight - 3)
   }
 
   return {

@@ -12,7 +12,6 @@ import {
 import type { BookingSource } from '@/app/generated/prisma/enums'
 import BookingDetailInfoSection from './BookingDetailInfoSection/BookingDetailInfoSection'
 import BookingDetailEditSection from './BookingDetailEditSection/BookingDetailEditSection'
-import BookingDetailPaymentSection from './BookingDetailPaymentSection/BookingDetailPaymentSection'
 import BookingDetailActionButtons from './BookingDetailActionButtons/BookingDetailActionButtons'
 
 interface BookingDetailProps {
@@ -31,27 +30,14 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
 
-  const [localPlayers, setLocalPlayers] = useState<{ id: string; name: string }[]>([])
-  const [localPaidIds, setLocalPaidIds] = useState<string[]>([])
-  const [playersDirty, setPlayersDirty] = useState(false)
-  const { cancel, updatePayment, updateTime, updatePlayers } = useBookingMutations(
-    booking?.clubId ?? ''
-  )
-  const loading =
-    cancel.isPending ||
-    updatePayment.isPending ||
-    updateTime.isPending ||
-    updatePlayers.isPending
+  const { cancel, updatePayment, updateTime } = useBookingMutations(booking?.clubId ?? '')
+  const loading = cancel.isPending || updatePayment.isPending || updateTime.isPending
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // Reset local editing state when the selected booking changes
-    setLocalPlayers(booking?.playerDetails ?? [])
-    setLocalPaidIds(booking?.paidPlayerIds ?? [])
-    setPlayersDirty(false)
     setError(null)
     setIsEditing(false)
-  }, [booking?.id, booking?.playerDetails, booking?.paidPlayerIds])
+  }, [booking?.id])
 
   // Open in edit mode if requested (runs after the reset above)
   useEffect(() => {
@@ -68,35 +54,6 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
 
   if (!booking) return null
   const activeBooking = booking
-
-  function togglePaid(playerId: string) {
-    setLocalPaidIds((prev) =>
-      prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]
-    )
-    setPlayersDirty(true)
-  }
-
-  function removePlayer(playerId: string) {
-    setLocalPlayers((prev) => prev.filter((p) => p.id !== playerId))
-    setLocalPaidIds((prev) => prev.filter((id) => id !== playerId))
-    setPlayersDirty(true)
-  }
-
-  async function handleSavePlayers() {
-    setError(null)
-    try {
-      const res = await updatePlayers.mutateAsync({
-        id: activeBooking.id,
-        playerIds: localPlayers.map((p) => p.id),
-        paidPlayerIds: localPaidIds,
-      })
-      if (!res.success) { setError(res.error ?? 'Error al guardar jugadores.'); return }
-      setPlayersDirty(false)
-      onClose()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al guardar jugadores.')
-    }
-  }
 
   async function handleCancel() {
     setError(null)
@@ -168,28 +125,28 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
           : 'Reserva manual'
 
   const statusLabel =
-    activeBooking.status === 'CONFIRMED'
-      ? 'Confirmada'
-      : activeBooking.status === 'CANCELLED'
-        ? 'Cancelada'
-        : 'Sin confirmar'
+    activeBooking.status === 'CONFIRMED' ? 'Confirmada'
+    : activeBooking.status === 'CANCELLED' ? 'Cancelada'
+    : activeBooking.status === 'COMPLETED' ? 'Completada'
+    : 'Pendiente'
 
   const statusColor =
-    activeBooking.status === 'CONFIRMED'
-      ? 'text-accent'
-      : activeBooking.status === 'CANCELLED'
-        ? 'text-red-400'
-        : 'text-muted'
+    activeBooking.status === 'CONFIRMED' ? 'text-green-400'
+    : activeBooking.status === 'CANCELLED' ? 'text-red-400'
+    : activeBooking.status === 'COMPLETED' ? 'text-muted'
+    : 'text-yellow-400'
 
   const payLabel =
-    activeBooking.paymentStatus === 'PAID'
-      ? 'Pagado'
-      : 'Sin cobrar'
+    activeBooking.paymentStatus === 'PAID'     ? 'Pagado'
+    : activeBooking.paymentStatus === 'MANUAL'   ? 'Cobrado (manual)'
+    : activeBooking.paymentStatus === 'REFUNDED' ? 'Reembolsado'
+    : 'Sin cobrar'
 
   const payColor =
-    activeBooking.paymentStatus === 'PAID'
-      ? 'text-green-400'
-      : 'text-orange-400'
+    activeBooking.paymentStatus === 'PAID'     ? 'text-green-400'
+    : activeBooking.paymentStatus === 'MANUAL'   ? 'text-lime-400'
+    : activeBooking.paymentStatus === 'REFUNDED' ? 'text-orange-400'
+    : 'text-red-400'
 
   return (
     <div
@@ -253,19 +210,6 @@ export default function BookingDetailModal({ booking, onClose, closeTimeMinutes,
             statusColor={statusColor}
             payLabel={payLabel}
             payColor={payColor}
-          />
-        )}
-
-        {/* Players/Payment */}
-        {!isBlockSource(activeBooking.source) && !isEditing && (
-          <BookingDetailPaymentSection
-            localPlayers={localPlayers}
-            localPaidIds={localPaidIds}
-            playersDirty={playersDirty}
-            loading={loading}
-            onTogglePaid={togglePaid}
-            onRemovePlayer={removePlayer}
-            onSavePlayers={handleSavePlayers}
           />
         )}
 

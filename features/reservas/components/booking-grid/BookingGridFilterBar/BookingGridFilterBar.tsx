@@ -32,6 +32,8 @@ interface BookingGridFilterBarProps {
   hasHiddenBookings: boolean
   todayConflictCount: number
   totalConflictCount: number
+  compactMode: boolean
+  onToggleCompact: () => void
 }
 
 function courtLabel(name: string): string {
@@ -55,6 +57,8 @@ export default function BookingGridFilterBar({
   hasHiddenBookings,
   todayConflictCount,
   totalConflictCount,
+  compactMode,
+  onToggleCompact,
 }: BookingGridFilterBarProps) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -273,7 +277,6 @@ export default function BookingGridFilterBar({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
             </span>
-            OOB
           </span>
         )}
 
@@ -295,6 +298,24 @@ export default function BookingGridFilterBar({
             {todayConflictCount > 0 ? todayConflictCount : totalConflictCount}
           </a>
         )}
+
+        {/* Compact mode toggle */}
+        <button
+          type="button"
+          onClick={onToggleCompact}
+          title={compactMode ? 'Vista normal' : 'Vista compacta'}
+          className={`h-[26px] px-2.5 rounded-lg border text-[10px] font-semibold transition-colors select-none
+            ${compactMode
+              ? 'bg-accent/10 border-accent/40 text-accent'
+              : 'bg-bg border-border text-muted hover:text-text hover:border-border-hover'
+            }`}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
 
         {/* Segmented 24h control */}
         <div className="flex items-center h-[26px] rounded-lg border border-border overflow-hidden bg-bg">

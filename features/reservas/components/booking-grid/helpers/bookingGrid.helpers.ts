@@ -1,7 +1,8 @@
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 export { BLOCK_SOURCES }
 
-export const SLOT_HEIGHT = 64 // px per 30-min row
+export const SLOT_HEIGHT = 64         // px per 30-min row (normal)
+export const COMPACT_SLOT_HEIGHT = 36  // px per 30-min row (compact mode)
 export const TIME_COL_WIDTH = 52 // px
 
 // Palette for court color indicators (cycles if more than 9 courts)

@@ -31,6 +31,9 @@ async function fetchBookingsFromDB(clubId: string, startDate: Date, endDate: Dat
       recurringBookingId: true,
       playerIds: true,
       paidPlayerIds: true,
+      isOpenMatch: true,
+      outOfHoursWarning: true,
+      exceptionApprovedAt: true,
       user: { select: { name: true } },
     },
   })
@@ -67,6 +70,9 @@ async function fetchBookingsFromDB(clubId: string, startDate: Date, endDate: Dat
     playerDetails: b.playerIds.map((id) => ({ id, name: playerMap.get(id) ?? 'Jugador' })),
     paidPlayerIds: b.paidPlayerIds,
     date: toUtcDateStr(b.date),
+    isOpenMatch: b.isOpenMatch,
+    outOfHoursWarning: b.outOfHoursWarning,
+    exceptionApprovedAt: b.exceptionApprovedAt?.toISOString() ?? null,
   }))
 }
 
@@ -104,6 +110,8 @@ export const getBookingsByDate = async (
       recurringBookingId: true,
       playerIds: true,
       paidPlayerIds: true,
+      isOpenMatch: true,
+      outOfHoursWarning: true,
       user: { select: { name: true } },
     },
   })
@@ -155,7 +163,10 @@ export const getBookingsByDate = async (
       recurringBookingId: b.recurringBookingId,
       playerDetails: b.playerIds.map((id) => ({ id, name: playerMap.get(id) ?? 'Jugador' })),
       paidPlayerIds: b.paidPlayerIds,
-      date: toUtcDateStr(b.date), // Acá arreglamos el tema de la fecha string vs objeto
+      date: toUtcDateStr(b.date),
+      isOpenMatch: b.isOpenMatch,
+      outOfHoursWarning: b.outOfHoursWarning,
+      exceptionApprovedAt: b.exceptionApprovedAt?.toISOString() ?? null,
     }
   })
 }

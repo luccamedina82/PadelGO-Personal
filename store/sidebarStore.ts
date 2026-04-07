@@ -11,7 +11,7 @@ interface SidebarStore {
 export const useSidebarStore = create<SidebarStore>()(
   persist(
     (set) => ({
-      collapsed: false,
+      collapsed: true,
       toggle: () => set((s) => ({ collapsed: !s.collapsed })),
     }),
     { name: 'padelgo-sidebar' }

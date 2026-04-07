@@ -4,12 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useBookingMutations } from '@/features/reservas/hooks/useBookings'
 import { formatPrice, minutesToTime, timeToMinutes } from '@/lib/availability'
-import { getSourceLabel, isBlockSource } from '../helpers/bookingGrid.helpers'
+import { getBlockClass, getSourceLabel, isBlockSource } from '../helpers/bookingGrid.helpers'
 import type { BookingBlock } from '../types/bookingGrid.types'
 
-const POPOVER_WIDTH = 264
+const POPOVER_WIDTH = 272
 const POPOVER_MARGIN = 10
-
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -21,6 +20,20 @@ function cleanPhone(phone: string): string {
   return phone.replace(/[\s\-().+]/g, '')
 }
 
+const STATUS_CONFIG = {
+  PENDING:   { label: 'Pendiente',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)'  },
+  CONFIRMED: { label: 'Confirmada', color: '#4ade80', bg: 'rgba(74,222,128,0.12)'  },
+  COMPLETED: { label: 'Completada', color: 'var(--muted)', bg: 'rgba(255,255,255,0.06)' },
+  CANCELLED: { label: 'Cancelada',  color: '#f87171', bg: 'rgba(248,113,113,0.12)' },
+} as const
+
+const PAYMENT_CONFIG = {
+  PAID:     { label: 'Cobrado',          color: '#4ade80', showToggle: true  },
+  UNPAID:   { label: 'Sin cobrar',       color: '#f87171', showToggle: true  },
+  REFUNDED: { label: 'Reembolsado',      color: '#fb923c', showToggle: false },
+  MANUAL:   { label: 'Cobrado (manual)', color: '#a3e635', showToggle: true  },
+} as const
+
 interface BookingQuickPopoverProps {
   booking: BookingBlock
   courtName: string
@@ -28,7 +41,6 @@ interface BookingQuickPopoverProps {
   anchorY: number
   onClose: () => void
   onOpenDetail: () => void
-  onOpenEdit: () => void
 }
 
 export default function BookingQuickPopover({
@@ -38,18 +50,17 @@ export default function BookingQuickPopover({
   anchorY,
   onClose,
   onOpenDetail,
-  onOpenEdit,
 }: BookingQuickPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [confirmingCancel, setConfirmingCancel] = useState(false)
 
-  const { cancel, updatePayment } = useBookingMutations(b.clubId ?? '')
-  const loading = cancel.isPending || updatePayment.isPending
+  const { cancel, updatePayment, approveException } = useBookingMutations(b.clubId ?? '')
+  const loading = cancel.isPending || updatePayment.isPending || approveException.isPending
 
   // ── Positioning ───────────────────────────────────────────────────────
   const pos = (() => {
     if (typeof window === 'undefined') return { left: anchorX, top: anchorY }
-    const estimatedHeight = isBlockSource(b.source) ? 180 : 300
+    const estimatedHeight = isBlockSource(b.source) ? 160 : 340
     const offsetX = 18
 
     let left = anchorX + offsetX
@@ -69,9 +80,7 @@ export default function BookingQuickPopover({
 
   // ── Close on outside click / Escape ──────────────────────────────────
   useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
+    function onKeyDown(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     function onPointerDown(e: PointerEvent) {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose()
     }
@@ -86,19 +95,23 @@ export default function BookingQuickPopover({
 
   // ── Derived data ─────────────────────────────────────────────────────
   const endTime = minutesToTime(timeToMinutes(b.startTime) + b.durationMinutes)
-  const durationHours = b.durationMinutes / 60
-  const durationLabel = durationHours === Math.floor(durationHours)
-    ? `${durationHours}h`
+  const durationLabel = b.durationMinutes % 60 === 0
+    ? `${b.durationMinutes / 60}h`
     : `${b.durationMinutes} min`
 
-  const isBlock = isBlockSource(b.source)
+  const isBlock     = isBlockSource(b.source)
   const isCancelled = b.status === 'CANCELLED'
-  const isPaid = b.paymentStatus === 'PAID'
-  const isUnpaid = !isPaid && !isCancelled
+  const statusCfg   = STATUS_CONFIG[b.status] ?? STATUS_CONFIG.PENDING
+  const paymentCfg  = PAYMENT_CONFIG[b.paymentStatus] ?? PAYMENT_CONFIG.UNPAID
+  const isPaid      = b.paymentStatus === 'PAID' || b.paymentStatus === 'MANUAL'
+  const typeLabel   = getSourceLabel(b.source, b.status, b.recurringBookingId)
+  const blockClass  = getBlockClass(b.source, b.status, b.recurringBookingId)
+  const phone       = b.manualPhone ?? null
   const primaryPlayer = b.playerDetails?.[0]
-  const phone = b.manualPhone ?? null
-  const typeLabel = getSourceLabel(b.source, b.status, b.recurringBookingId)
-  const showPaymentToggle = !isBlock && !isCancelled
+  const showPaymentSection = !isBlock && !isCancelled
+  const showPayToggle = showPaymentSection && paymentCfg.showToggle && !confirmingCancel
+  const showWarning = !!b.outOfHoursWarning && !isCancelled
+  const showApproveException = showWarning && !b.exceptionApprovedAt && !confirmingCancel
 
   // ── Handlers ─────────────────────────────────────────────────────────
   async function handleTogglePayment() {
@@ -106,6 +119,13 @@ export default function BookingQuickPopover({
     const res = await updatePayment.mutateAsync({ id: b.id, status: newStatus })
     if (!res.success) { toast.error(res.error ?? 'Error al actualizar.'); return }
     toast.success(newStatus === 'PAID' ? 'Reserva cobrada.' : 'Marcada como sin cobrar.')
+    onClose()
+  }
+
+  async function handleApproveException() {
+    const res = await approveException.mutateAsync(b.id)
+    if (!res.success) { toast.error(res.error ?? 'Error al aprobar.'); return }
+    toast.success('Excepción aprobada.')
     onClose()
   }
 
@@ -120,125 +140,141 @@ export default function BookingQuickPopover({
     <div
       ref={popoverRef}
       className="fixed z-[80] rounded-xl overflow-hidden shadow-2xl border animate-in fade-in zoom-in-95 duration-100"
-      style={{
-        left: pos.left,
-        top: pos.top,
-        width: POPOVER_WIDTH,
-        borderColor: 'var(--border-hover)',
-        background: 'var(--card)',
-      }}
+      style={{ left: pos.left, top: pos.top, width: POPOVER_WIDTH, borderColor: 'var(--border-hover)', background: 'var(--card)' }}
     >
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div
-        className="px-3.5 pt-3 pb-2.5"
-        style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-[13px] font-bold leading-snug truncate text-text">
-              {b.displayName}
-            </p>
-            <p className="text-[11px] mt-0.5 text-muted">
-              {b.startTime} – {endTime} &nbsp;·&nbsp; {durationLabel}
-            </p>
-            <p className="text-[11px] mt-0.5 text-muted">
-              {courtName}
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-surface border border-border text-muted">
+      <div className="px-3.5 pt-3 pb-2.5" style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+        {/* Row 1: colored indicator + badges + close */}
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div
+              className={`booking-block ${blockClass}`}
+              style={{ position: 'static', padding: 0, border: 'none', borderLeft: '3px solid', borderRadius: 99, width: 3, height: 16, flexShrink: 0 }}
+            />
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-card border border-border text-muted">
               {typeLabel}
             </span>
-            <button
-              onClick={onClose}
-              className="w-5 h-5 flex items-center justify-center rounded text-muted hover:text-text transition-colors"
-            >
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              </svg>
-            </button>
+            {!isBlock && (
+              <span
+                className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border"
+                style={{ color: statusCfg.color, background: statusCfg.bg, borderColor: `${statusCfg.color}30` }}
+              >
+                {statusCfg.label}
+              </span>
+            )}
+            {b.isOpenMatch && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border border-accent/30 text-accent bg-accent/10">
+                Abierto
+              </span>
+            )}
           </div>
+          <button
+            onClick={onClose}
+            className="w-5 h-5 flex items-center justify-center rounded text-muted hover:text-text transition-colors shrink-0"
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
+
+        {/* Row 2: name + time + court */}
+        <p className="text-[13px] font-bold leading-snug text-text truncate">{b.displayName}</p>
+        <p className="text-[11px] mt-0.5 text-muted">
+          {b.startTime} – {endTime}&nbsp;·&nbsp;{durationLabel}&nbsp;·&nbsp;{courtName}
+        </p>
       </div>
+
+      {/* ── Aviso fuera de horario ───────────────────────────────────── */}
+      {showWarning && (
+        <div
+          className="flex items-center gap-2 px-3.5 py-2"
+          style={{ background: 'rgba(245,158,11,0.08)', borderBottom: '1px solid rgba(245,158,11,0.2)' }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="shrink-0" style={{ color: '#f59e0b' }}>
+            <path d="M6 1L11 10H1L6 1z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            <path d="M6 5v2.5M6 8.5h.01" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+          <span className="text-[11px] font-medium" style={{ color: '#f59e0b' }}>Reserva fuera de horario habitual</span>
+        </div>
+      )}
+
+      {/* ── Aprobar excepción ───────────────────────────────────────── */}
+      {showApproveException && (
+        <button
+          onClick={handleApproveException}
+          disabled={loading}
+          className="w-full flex items-center justify-between px-3.5 py-2 hover:bg-card-hover transition-colors disabled:opacity-40"
+          style={{ borderBottom: '1px solid var(--border)', background: 'rgba(245,158,11,0.05)' }}
+        >
+          <span className="text-[11px] font-medium" style={{ color: '#f59e0b' }}>Aprobar excepción</span>
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ color: '#f59e0b' }}>
+            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
 
       {/* ── Jugador ─────────────────────────────────────────────────── */}
       {(primaryPlayer ?? phone) && !isBlock && (
-        <div
-          className="flex items-center gap-2.5 px-3.5 py-2.5"
-          style={{ borderBottom: '1px solid var(--border)' }}
-        >
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 bg-surface border border-border text-muted">
+        <div className="flex items-center gap-2.5 px-3.5 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-surface border border-border text-muted">
             {initials(primaryPlayer?.name ?? b.displayName)}
           </div>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-text truncate">
-              {primaryPlayer?.name ?? b.displayName}
-            </p>
-            {phone && (
-              <p className="text-[11px] text-muted truncate">{phone}</p>
-            )}
+            <p className="text-[12px] font-semibold text-text truncate">{primaryPlayer?.name ?? b.displayName}</p>
+            {phone && <p className="text-[11px] text-muted truncate">{phone}</p>}
           </div>
         </div>
       )}
 
       {/* ── Precio + estado de pago ──────────────────────────────────── */}
-      {!isBlock && !isCancelled && (
+      {showPaymentSection && (
         <div
           className="flex items-center justify-between px-3.5 py-2"
-          style={{ borderBottom: '1px solid var(--border)' }}
+          style={{ borderBottom: paymentCfg.showToggle ? '1px solid var(--border)' : undefined }}
         >
           <span className="text-[11px] text-muted">Total</span>
-          <span
-            className="text-[14px] font-semibold"
-            style={{ color: isPaid ? '#4ade80' : isUnpaid ? '#f87171' : 'var(--text)' }}
-          >
-            {formatPrice(b.totalPrice)}
-            <span className="text-[11px] font-normal ml-1.5" style={{ color: 'var(--muted)' }}>
-              {isPaid ? '· Cobrado' : '· Sin cobrar'}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] font-semibold text-text">{formatPrice(b.totalPrice)}</span>
+            <span
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded border"
+              style={{ color: paymentCfg.color, background: `${paymentCfg.color}15`, borderColor: `${paymentCfg.color}30` }}
+            >
+              {paymentCfg.label}
             </span>
-          </span>
+          </div>
         </div>
       )}
 
       {/* ── Toggle cobrado/sin cobrar ────────────────────────────────── */}
-      {showPaymentToggle && !confirmingCancel && (
+      {showPayToggle && (
         <button
           onClick={handleTogglePayment}
           disabled={loading}
           className="w-full flex items-center justify-between px-3.5 py-2 hover:bg-card-hover transition-colors disabled:opacity-40"
           style={{ borderBottom: '1px solid var(--border)' }}
         >
-          <span className="text-[11px] text-muted">Estado de pago</span>
+          <span className="text-[11px] text-muted">Marcar como</span>
           <div className="flex items-center gap-2">
-            <span
-              className="text-[11px] font-semibold"
-              style={{ color: isPaid ? '#4ade80' : '#f87171' }}
-            >
-              {isPaid ? 'Cobrado' : 'Sin cobrar'}
+            <span className="text-[11px] font-semibold" style={{ color: isPaid ? '#f87171' : '#4ade80' }}>
+              {isPaid ? 'Sin cobrar' : 'Cobrado'}
             </span>
-            {/* Toggle visual */}
             <div
               className="relative w-8 h-[18px] rounded-full transition-colors"
               style={{ background: isPaid ? 'rgba(74,222,128,0.18)' : 'rgba(248,113,113,0.15)' }}
             >
               <div
                 className="absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all duration-200"
-                style={{
-                  left: isPaid ? 'calc(100% - 16px)' : '2px',
-                  background: isPaid ? '#4ade80' : '#f87171',
-                }}
+                style={{ left: isPaid ? 'calc(100% - 16px)' : '2px', background: isPaid ? '#4ade80' : '#f87171' }}
               />
             </div>
           </div>
         </button>
       )}
 
-      {/* ── Confirmación de cancelación ──────────────────────────── */}
+      {/* ── Confirmación de cancelación ──────────────────────────────── */}
       {confirmingCancel && (
-        <div
-          className="px-3.5 py-2.5 flex flex-col gap-2"
-          style={{ borderBottom: '1px solid var(--border)' }}
-        >
+        <div className="px-3.5 py-2.5 flex flex-col gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
           <p className="text-[12px] text-center text-muted">¿Cancelar esta reserva?</p>
           <div className="flex gap-2">
             <button
@@ -263,39 +299,15 @@ export default function BookingQuickPopover({
       {/* ── Acciones ────────────────────────────────────────────────── */}
       {!confirmingCancel && (
         <div className="flex flex-col">
-          {/* Ver detalle + Editar */}
-          <div className="grid grid-cols-2" style={{ borderBottom: '1px solid var(--border)' }}>
-            <button
-              onClick={onOpenDetail}
-              className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium text-muted hover:text-text hover:bg-card-hover transition-colors"
-              style={{ borderRight: '1px solid var(--border)' }}
-            >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M6 5v3M6 4h.01" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
-              Ver detalle
-            </button>
-            <button
-              onClick={onOpenEdit}
-              className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium text-muted hover:text-text hover:bg-card-hover transition-colors"
-            >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Editar
-            </button>
-          </div>
-
-          {/* WhatsApp + Cancelar */}
-          <div className="grid grid-cols-2">
+          {/* WhatsApp + Ver detalle */}
+          <div className={`grid ${!isCancelled && !isBlock ? 'grid-cols-2' : 'grid-cols-1'}`} style={{ borderBottom: !isCancelled && !isBlock ? '1px solid var(--border)' : undefined }}>
             {phone ? (
               <a
                 href={`https://wa.me/${cleanPhone(phone)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={onClose}
-                className={`flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors hover:bg-card-hover ${!isCancelled && !isBlock ? '' : 'col-span-2'}`}
+                className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium hover:bg-card-hover transition-colors"
                 style={{ color: '#4dc870', borderRight: !isCancelled && !isBlock ? '1px solid var(--border)' : undefined }}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -306,7 +318,7 @@ export default function BookingQuickPopover({
             ) : (
               <button
                 disabled
-                className={`flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium opacity-30 cursor-not-allowed ${!isCancelled && !isBlock ? '' : 'col-span-2'}`}
+                className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium opacity-25 cursor-not-allowed"
                 style={{ color: '#4dc870', borderRight: !isCancelled && !isBlock ? '1px solid var(--border)' : undefined }}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -316,21 +328,42 @@ export default function BookingQuickPopover({
               </button>
             )}
 
-            {!isCancelled && !isBlock && (
+            {(!isCancelled || isBlock) && (
               <button
-                onClick={() => setConfirmingCancel(true)}
-                disabled={loading}
-                className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium transition-colors hover:bg-card-hover disabled:opacity-40"
-                style={{ color: '#f87171' }}
+                onClick={onOpenDetail}
+                className="flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium text-muted hover:text-text hover:bg-card-hover transition-colors"
               >
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                  <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M4 4l4 4M8 4l-4 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                Ver detalle
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5h6M5 2l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                Cancelar
+              </button>
+            )}
+
+            {isCancelled && (
+              <button
+                onClick={onOpenDetail}
+                className="col-span-2 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-medium text-muted hover:text-text hover:bg-card-hover transition-colors"
+              >
+                Ver detalle
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5h6M5 2l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
             )}
           </div>
+
+          {/* Cancelar */}
+          {!isCancelled && !isBlock && (
+            <button
+              onClick={() => setConfirmingCancel(true)}
+              disabled={loading}
+              className="w-full py-2 text-[11px] font-medium transition-colors hover:bg-red-400/5 disabled:opacity-40"
+              style={{ color: '#f87171' }}
+            >
+              Cancelar reserva
+            </button>
+          )}
         </div>
       )}
     </div>
