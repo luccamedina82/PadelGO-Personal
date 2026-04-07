@@ -112,6 +112,7 @@ export const getBookingsByDate = async (
       paidPlayerIds: true,
       isOpenMatch: true,
       outOfHoursWarning: true,
+      exceptionApprovedAt: true,
       user: { select: { name: true } },
     },
   })
