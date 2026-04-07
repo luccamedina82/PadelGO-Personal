@@ -100,12 +100,13 @@ function fillCourtDay(
     )
     const duration = wpick(possibleDurations, durationWeights)
 
+    // Valid BookingSource enum values: ONLINE, MANUAL_STAFF, MANUAL_SUPPORT, BLOCK
     const source = wpick(
-      ['ONLINE', 'MANUAL_OWNER', 'ENTRENAMIENTO', 'TORNEO', 'BLOCK', 'MANTENIMIENTO', 'EVENTO'],
-      [0.42,     0.33,           0.10,             0.06,    0.04,    0.03,             0.02]
+      ['ONLINE', 'MANUAL_STAFF', 'MANUAL_SUPPORT', 'BLOCK'],
+      [0.52,     0.33,           0.06,              0.09]
     )
 
-    const isBlock = source === 'BLOCK' || source === 'MANTENIMIENTO' || source === 'EVENTO'
+    const isBlock = source === 'BLOCK'
     const player = isBlock ? { id: ownerUserId } : pick(players)
     const totalPrice = isBlock ? 0 : Math.round((pricePerHour / 60) * duration)
 
@@ -126,14 +127,14 @@ function fillCourtDay(
     }
 
     const manualName =
-      source === 'MANUAL_OWNER'
+      source === 'MANUAL_STAFF' || source === 'MANUAL_SUPPORT'
         ? pick(MANUAL_NAMES)
-        : source === 'BLOCK' || source === 'MANTENIMIENTO' || source === 'EVENTO'
+        : source === 'BLOCK'
           ? pick(BLOCK_REASONS)
           : null
 
     const manualPhone =
-      source === 'MANUAL_OWNER'
+      source === 'MANUAL_STAFF' || source === 'MANUAL_SUPPORT'
         ? `351${String(Math.floor(4000000 + Math.random() * 5999999))}`
         : null
 
@@ -172,12 +173,14 @@ async function main() {
   await prisma.barSale.deleteMany({})
   await prisma.barStockEntry.deleteMany({})
   await prisma.specialHours.deleteMany({})
+  await prisma.notificationLog.deleteMany({})
   await prisma.booking.deleteMany({})
   await prisma.recurringBooking.deleteMany({})
+  await prisma.bookingRule.deleteMany({})
   await prisma.review.deleteMany({})
   await prisma.invitation.deleteMany({})
-  await prisma.court.deleteMany({})   // cascades CourtAvailability
-  await prisma.club.deleteMany({})    // cascades BarProduct, etc.
+  await prisma.court.deleteMany({})
+  await prisma.club.deleteMany({})
   console.log('✅ BD limpia.\n')
 
   // ── USERS ────────────────────────────────────────────────────────────────
@@ -211,6 +214,7 @@ async function main() {
     },
   })
 
+  // marina@racketclub.ar — credenciales inamovibles
   const owner2 = await prisma.user.upsert({
     where: { email: 'marina@racketclub.ar' },
     update: {},
@@ -218,7 +222,7 @@ async function main() {
       name: 'Marina Costa',
       email: 'marina@racketclub.ar',
       password: await bcrypt.hash('owner1234', 12),
-      zone: 'Güemes',
+      zone: 'Alberdi',
       role: 'OWNER',
       avatarColor: '#a855f7',
       level: 3.8,
@@ -254,13 +258,13 @@ async function main() {
   })
 
   const staff2 = await prisma.user.upsert({
-    where: { email: 'staff2@racketclub.ar' },
+    where: { email: 'staff2@padelcenter.ar' },
     update: {},
     create: {
-      name: 'Andrea López',
-      email: 'staff2@racketclub.ar',
+      name: 'Nicolás Romero',
+      email: 'staff2@padelcenter.ar',
       password: await bcrypt.hash('staff1234', 12),
-      zone: 'Güemes',
+      zone: 'Alberdi',
       role: 'STAFF',
       avatarColor: '#8b5cf6',
       level: 3.1,
@@ -339,31 +343,34 @@ async function main() {
   todayUTC.setUTCHours(0, 0, 0, 0)
 
   // ════════════════════════════════════════════════════════════════════════════
-  // RACKET CLUB GÜEMES — 6 canchas, 60 días, fill rate alto
+  // PADEL CENTER ALBERDI — 6 canchas, 60 días, fill rate alto
   // ════════════════════════════════════════════════════════════════════════════
-  console.log('🏟️  Creando Racket Club Güemes (6 canchas)...')
+  console.log('🏟️  Creando Padel Center Alberdi (6 canchas)...')
 
   const racketClub = await prisma.club.create({
     data: {
       ownerId: owner2.id,
-      name: 'Racket Club Güemes',
-      description: 'El club más popular de Güemes. 6 canchas premium, bar, vestuarios y estacionamiento cubierto.',
-      vibe: 'El corazón padelístico de Güemes',
+      name: 'Padel Center Alberdi',
+      description: 'El complejo más moderno de Alberdi. 6 canchas de cristal y panorámica, bar gourmet, vestuarios premium y estacionamiento privado.',
+      vibe: 'Donde el pádel se vive en serio',
       city: 'Córdoba',
-      zone: 'Güemes',
-      address: 'Av. Hipólito Yrigoyen 1420, Güemes, Córdoba',
-      lat: -31.414,
-      lng: -64.188,
-      phone: '3514001234',
-      email: 'info@racketguemes.ar',
-      rating: 4.7,
-      reviewCount: 214,
-      amenities: ['Estacionamiento', 'Bar', 'Duchas', 'Vestuarios', 'WiFi', 'Iluminación LED', 'Pro shop'],
-      tags: ['Techada', 'Premium', 'Torneos'],
+      zone: 'Alberdi',
+      address: 'Av. Colón 2850, Alberdi, Córdoba',
+      lat: -31.402,
+      lng: -64.193,
+      phone: '3515882100',
+      email: 'info@padelcenter.ar',
+      rating: 4.8,
+      reviewCount: 187,
+      amenities: ['Estacionamiento', 'Bar', 'Duchas', 'Vestuarios', 'WiFi', 'Iluminación LED', 'Pro shop', 'Entrenador disponible'],
+      tags: ['Techada', 'Premium', 'Torneos', 'Academia'],
       colorR: 168,
       colorG: 85,
       colorB: 247,
-      cancelHoursBeforeStart: 2,
+      cancelHoursBeforeStart: 3,
+      cancellationFeePercent: 30,
+      minAdvanceMinutes: 90,
+      bookingWindowDays: 21,
     },
   })
 
@@ -375,12 +382,12 @@ async function main() {
 
   // 6 canchas con precios distintos
   const racketCourtConfig = [
-    { name: 'Cancha 1', type: 'CRISTAL' as const,   covered: true,  pricePerHour: 1200000 },
-    { name: 'Cancha 2', type: 'CRISTAL' as const,   covered: true,  pricePerHour: 1200000 },
-    { name: 'Cancha 3', type: 'MURO' as const,      covered: false, pricePerHour: 1000000 },
-    { name: 'Cancha 4', type: 'CRISTAL' as const,   covered: true,  pricePerHour: 1400000 },
-    { name: 'Cancha 5', type: 'PANORAMICA' as const, covered: false, pricePerHour: 900000  },
-    { name: 'Cancha 6', type: 'CRISTAL' as const,   covered: true,  pricePerHour: 1300000 },
+    { name: 'Cancha 1', type: 'CRISTAL' as const,    covered: true,  pricePerHour: 1400000 },
+    { name: 'Cancha 2', type: 'CRISTAL' as const,    covered: true,  pricePerHour: 1400000 },
+    { name: 'Cancha 3', type: 'MURO' as const,       covered: false, pricePerHour: 1100000 },
+    { name: 'Cancha 4', type: 'CRISTAL' as const,    covered: true,  pricePerHour: 1600000 },
+    { name: 'Cancha 5', type: 'PANORAMICA' as const,  covered: false, pricePerHour: 1000000 },
+    { name: 'Cancha 6', type: 'PANORAMICA' as const,  covered: true,  pricePerHour: 1500000 },
   ]
 
   const racketCourts: { id: string; pricePerHour: number }[] = []
@@ -399,32 +406,31 @@ async function main() {
       },
     })
     await prisma.bookingRule.create({
-        data: {
-          clubId: court.clubId, // Asegurate de que el objeto court tenga clubId (o usá la variable del club que tengas ahí)
-          name: 'Regla Base Seed',
-          priority: 0,
-          courtIds: [court.id],
-          daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-          startTime: '08:00',
-          endTime: '23:00',
-          price: 1500000, // 15.000 ARS en centavos (Ajustalo al precio de tu seed)
-          intervalMinutes: 30,
-          allowedDurations: [60, 90, 120],
-          isActive: true,
-        }
-      })
+      data: {
+        clubId: court.clubId,
+        name: 'Tarifa Base',
+        priority: 0,
+        courtIds: [court.id],
+        daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+        startTime: '08:00',
+        endTime: '23:00',
+        price: cfg.pricePerHour,
+        intervalMinutes: 30,
+        allowedDurations: [60, 90, 120],
+        isActive: true,
+      },
+    })
     racketCourts.push({ id: court.id, pricePerHour: cfg.pricePerHour })
   }
 
   // Generar reservas: 30 días pasados + hoy + 29 días futuros = 60 días
-  console.log('📅 Generando reservas Racket Club Güemes (60 días × 6 canchas)...')
+  console.log('📅 Generando reservas Padel Center Alberdi (60 días × 6 canchas)...')
   let racketTotal = 0
 
   for (let dayOffset = -30; dayOffset <= 29; dayOffset++) {
     const date = offsetDate(todayUTC, dayOffset)
     const isPast = dayOffset < 0
     const dow = date.getUTCDay()
-    // Fines de semana más llenos (viernes incluido)
     const isWeekend = dow === 0 || dow === 5 || dow === 6
     const fillRate = isWeekend ? 0.90 : 0.74
 
@@ -441,7 +447,7 @@ async function main() {
       racketTotal += dayRows.length
     }
   }
-  console.log(`✅ Racket Club Güemes: ${racketTotal} reservas.\n`)
+  console.log(`✅ Padel Center Alberdi: ${racketTotal} reservas.\n`)
 
   // ════════════════════════════════════════════════════════════════════════════
   // CLUBES SECUNDARIOS
@@ -459,10 +465,10 @@ async function main() {
       phone: '3514112233', email: 'info@padelclub.ar',
       colorR: 255, colorG: 107, colorB: 53,
       courts: [
-        { name: 'Cancha A', type: 'CRISTAL' as const,   covered: true,  pricePerHour: 1100000 },
-        { name: 'Cancha B', type: 'CRISTAL' as const,   covered: true,  pricePerHour: 1100000 },
-        { name: 'Cancha C', type: 'MURO' as const,      covered: false, pricePerHour: 900000  },
-        { name: 'Cancha D', type: 'PANORAMICA' as const, covered: false, pricePerHour: 850000  },
+        { name: 'Cancha A', type: 'CRISTAL' as const,    covered: true,  pricePerHour: 1100000 },
+        { name: 'Cancha B', type: 'CRISTAL' as const,    covered: true,  pricePerHour: 1100000 },
+        { name: 'Cancha C', type: 'MURO' as const,       covered: false, pricePerHour: 900000  },
+        { name: 'Cancha D', type: 'PANORAMICA' as const,  covered: false, pricePerHour: 850000  },
       ],
       days: 30, fillRate: 0.62,
     },
@@ -477,9 +483,9 @@ async function main() {
       phone: '3514223344', email: 'info@padelmax.ar',
       colorR: 239, colorG: 68, colorB: 68,
       courts: [
-        { name: 'Cancha 1', type: 'CRISTAL' as const,   covered: true,  pricePerHour: 1500000 },
-        { name: 'Cancha 2', type: 'CRISTAL' as const,   covered: true,  pricePerHour: 1500000 },
-        { name: 'Cancha 3', type: 'PANORAMICA' as const, covered: false, pricePerHour: 1200000 },
+        { name: 'Cancha 1', type: 'CRISTAL' as const,    covered: true,  pricePerHour: 1500000 },
+        { name: 'Cancha 2', type: 'CRISTAL' as const,    covered: true,  pricePerHour: 1500000 },
+        { name: 'Cancha 3', type: 'PANORAMICA' as const,  covered: false, pricePerHour: 1200000 },
       ],
       days: 30, fillRate: 0.57,
     },
@@ -544,18 +550,18 @@ async function main() {
       })
       await prisma.bookingRule.create({
         data: {
-          clubId: court.clubId, // O pasale la variable de ID de club que tengas a mano ahí
+          clubId: court.clubId,
           name: 'Tarifa Base',
           priority: 0,
           courtIds: [court.id],
           daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
           startTime: '08:00',
           endTime: '23:00',
-          price: c.pricePerHour, // 🟢 Mantenemos el precio que venía en tu variable 'c'
+          price: c.pricePerHour,
           intervalMinutes: 30,
           allowedDurations: [60, 90, 120],
           isActive: true,
-        }
+        },
       })
       courts.push({ id: court.id, pricePerHour: c.pricePerHour })
     }
@@ -590,12 +596,12 @@ async function main() {
   console.log(`🎉 Seed completado. Total reservas: ${totalBookings}`)
   console.log('════════════════════════════════════════')
   console.log('\n📋 Credenciales:')
-  console.log('  marina@racketclub.ar  / owner1234   → Racket Club Güemes (6 canchas)')
-  console.log('  diego@padelclub.ar    / owner1234   → PadelClub Nueva Córdoba')
-  console.log('  carlos@padelmax.ar    / owner1234   → PadelMax Cerro')
-  console.log('  laura@clubpadel.ar    / owner1234   → Club Pádel San Alonso')
-  console.log('  staff2@racketclub.ar  / staff1234   → Staff Racket Club Güemes')
-  console.log('  lucas@padelgo.ar      / admin1234   → Superadmin\n')
+  console.log('  marina@racketclub.ar   / owner1234   → Padel Center Alberdi (6 canchas)')
+  console.log('  diego@padelclub.ar     / owner1234   → PadelClub Nueva Córdoba')
+  console.log('  carlos@padelmax.ar     / owner1234   → PadelMax Cerro')
+  console.log('  laura@clubpadel.ar     / owner1234   → Club Pádel San Alonso')
+  console.log('  staff2@padelcenter.ar  / staff1234   → Staff Padel Center Alberdi')
+  console.log('  lucas@padelgo.ar       / admin1234   → Superadmin\n')
 }
 
 main()

@@ -76,6 +76,8 @@ export default function BookingGrid({
     prevGridStartRef.current = gridStart
   }
   const clickedCellRectRef = useRef<DOMRect | null>(null)
+  const onDragCreateReadyRef = useRef(onDragCreateReady)
+  onDragCreateReadyRef.current = onDragCreateReady
   const [colWidth, setColWidth] = useState(140)
   const [gridReady, setGridReady] = useState(false)
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
@@ -309,18 +311,14 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     return () => clearInterval(iv)
   }, [isViewingToday])
 
-// Notify parent when a drag-create finishes so FloatingBookingForm can open
+// Notify parent when a drag-create finishes so FloatingBookingForm can open.
+  // onDragCreateReady is accessed via ref so it never appears as a dep — only
+  // pendingCreate (and the stable handleCancelCreate) gate this effect.
   useEffect(() => {
-      if (!pendingCreate || !onDragCreateReady) return
-
-      onDragCreateReady(
-        pendingCreate,
-        handleCancelCreate,
-        (bookingId) => {
-          handleCancelCreate()
-        }
-      )
-    }, [pendingCreate, onDragCreateReady, handleCancelCreate])
+    if (!pendingCreate) return
+    onDragCreateReadyRef.current?.(pendingCreate, handleCancelCreate, () => handleCancelCreate())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingCreate, handleCancelCreate])
 
 
 

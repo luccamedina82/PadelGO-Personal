@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, type RefObject, type PointerEvent as ReactPointerEvent } from 'react'
+import { useState, useRef, useEffect, useCallback, type RefObject, type PointerEvent as ReactPointerEvent } from 'react'
 import { TIME_COL_WIDTH } from '../helpers/bookingGrid.helpers'
 import type { CourtColumn } from '../types/bookingGrid.types'
 import { toast } from 'sonner'
@@ -189,14 +189,13 @@ export function useBookingDragCreate({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleCourts, gridStart, gridEnd, colWidth, onEmptyClick, occupiedSlots, courtMinDurations, gridBodyRef, containerRef])
 
-  function handleCancelCreate() {
+  const handleCancelCreate = useCallback(() => {
     dragInfoRef.current = null
     setCreateGhost(null)
     setPendingCreate(null)
     document.body.style.userSelect = ''
     document.body.style.cursor = ''
-
-  }
+  }, [])
 
   return {
     createGhost,
