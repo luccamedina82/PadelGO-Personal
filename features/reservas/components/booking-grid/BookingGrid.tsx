@@ -688,6 +688,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
         onClose={() => setSelectedBooking(null)}
         closeTimeMinutes={selectedBooking ? courts.find(c => c.id === selectedBooking.courtId)?.closeTimeMinutes : undefined}
         openTimeMinutes={selectedBooking ? courts.find(c => c.id === selectedBooking.courtId)?.openTimeMinutes : undefined}
+        adminAllowedDurations={selectedBooking ? courts.find(c => c.id === selectedBooking.courtId)?.adminAllowedDurations : undefined}
         defaultEditing={false}
       />
 

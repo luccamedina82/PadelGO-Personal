@@ -313,11 +313,9 @@ export default function BookingsClient({
   return (
     <>
       {/* ── Fetch progress bar ─────────────────────────────────────────────── */}
-      {isFetching && (
-        <div className="h-0.5 overflow-hidden">
-          <div className="h-full bg-accent animate-[loading-bar_1.2s_ease-in-out_infinite]" />
-        </div>
-      )}
+      <div className={`h-0.5 overflow-hidden transition-opacity duration-200 ${isFetching ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="h-full bg-accent animate-[loading-bar_1.2s_ease-in-out_infinite]" />
+      </div>
 
       {/* ── Grid ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0 print:overflow-visible print:h-auto">

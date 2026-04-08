@@ -28,8 +28,9 @@ export interface CourtColumn {
   isActive: boolean
   isUnderMaintenance?: boolean
   hideFromGrid?: boolean
-  openTimeMinutes?: number  // apertura de cancha en minutos desde medianoche
-  closeTimeMinutes?: number // cierre de cancha en minutos desde medianoche
+  openTimeMinutes?: number    // apertura de cancha en minutos desde medianoche
+  closeTimeMinutes?: number   // cierre de cancha en minutos desde medianoche
+  adminAllowedDurations?: number[] // duraciones del admin (de la regla base)
 }
 
 export interface UpdateBookingData {

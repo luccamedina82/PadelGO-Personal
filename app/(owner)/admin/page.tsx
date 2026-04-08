@@ -28,17 +28,24 @@ export default async function AdminDashboardPage() {
     getAdminBookingsByDate(club.id, today, tomorrow),
   ])
 
-  const clubAllowedDurations = [...new Set(clubRules.flatMap((r) => r.allowedDurations))].sort((a, b) => a - b)
+  // La paleta de duraciones del admin viene exclusivamente de la regla base (priority=0).
+  // Las reglas de prioridad >0 solo restringen el booking online, no al admin.
+  const now = new Date()
+  const activeBaseRule = clubRules
+    .filter((r) => r.priority === 0)
+    .find((r) => {
+      const fromOk = !r.activeFrom || r.activeFrom <= now
+      const untilOk = !r.activeUntil || r.activeUntil >= now
+      return fromOk && untilOk
+    })
+  const adminAllowedDurations = activeBaseRule?.allowedDurations.slice().sort((a, b) => a - b) ?? [60, 90, 120]
 
-  const courtColumns: CourtColumn[] = courts.map((c) => {
-    const courtRuleDurations = [...new Set(c.bookingRule.flatMap((r) => r.allowedDurations))].sort((a, b) => a - b)
-    const allowedDurations = courtRuleDurations.length > 0
-      ? courtRuleDurations
-      : clubAllowedDurations.length > 0
-        ? clubAllowedDurations
-        : [60, 90, 120]
-    return { id: c.id, name: c.name, isActive: true, allowedDurations }
-  })
+  const courtColumns: CourtColumn[] = courts.map((c) => ({
+    id: c.id,
+    name: c.name,
+    isActive: true,
+    allowedDurations: adminAllowedDurations,
+  }))
 
   const todayDateObj = new Date(`${todayStr}T00:00:00.000Z`)
   const dateLabel = todayDateObj.toLocaleDateString('es-AR', {

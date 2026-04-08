@@ -54,6 +54,8 @@ export interface BookingRuleInput {
   allowedDurations: number[] // e.g. [60, 90]
   activeFrom?: Date | null // null = always valid from the start
   activeUntil?: Date | null // null = no expiry
+  onlineStartTime?: string | null // override de apertura solo para booking online (solo en regla base)
+  onlineEndTime?: string | null   // override de cierre solo para booking online (solo en regla base)
 }
 
 /** The resolved rule for a specific slot after cascade evaluation */
@@ -70,6 +72,8 @@ export interface AvailabilityConfig {
   pricePerHour: number // centavos ARS (fallback when no rule defines a price)
   rules?: BookingRuleInput[] // combined club-wide + court-specific rules
   isUnderMaintenance?: boolean
+  onlineStartTime?: string | null // override apertura solo para mode=player (de la regla base)
+  onlineEndTime?: string | null   // override cierre solo para mode=player (de la regla base)
 }
 
 // ── RULES ENGINE ──────────────────────────────────────────────────────────
@@ -146,9 +150,22 @@ export function calcAvailableSlots(
 ): TimeSlot[] {
   if (config.isUnderMaintenance) return []
 
-  const openMinutes = timeToMinutes(config.openTime)
-  const closeMinutes = timeToMinutes(config.closeTime)
+  // En player mode, usar el override de horario online si está definido en la regla base
+  const effectiveOpen = mode === 'player' && config.onlineStartTime
+    ? config.onlineStartTime
+    : config.openTime
+  const effectiveClose = mode === 'player' && config.onlineEndTime
+    ? config.onlineEndTime
+    : config.closeTime
+
+  const openMinutes = timeToMinutes(effectiveOpen)
+  const closeMinutes = timeToMinutes(effectiveClose)
   const rules = config.rules ?? []
+
+  // En admin mode, las duraciones siempre vienen de la regla base (priority=0).
+  // Las reglas de mayor prioridad solo restringen al jugador online.
+  const baseRule = rules.find((r) => r.priority === 0)
+  const adminDurations = baseRule?.allowedDurations ?? [60, 90, 120]
 
   // Pre-filter rules by temporal validity for the queried date
   const dateRules = rules.filter((r) => {
@@ -190,7 +207,8 @@ export function calcAvailableSlots(
     const resolved = resolveBookingRule(dateRules, dayOfWeek, start, config.pricePerHour)
     if (!resolved) continue
     const effectivePrice = resolved?.price ?? config.pricePerHour
-    const effectiveDurations = resolved.allowedDurations
+    // Admin siempre usa las duraciones de la regla base; online respeta la cascade.
+    const effectiveDurations = mode === 'admin' ? adminDurations : resolved.allowedDurations
     const effectiveInterval = resolved?.intervalMinutes ?? ADMIN_SLOT_INCREMENT
     const appliedRuleName = resolved?.ruleName
 

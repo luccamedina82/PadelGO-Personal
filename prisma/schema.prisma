@@ -156,6 +156,8 @@ model BookingRule {
   isActive         Boolean   @default(true)
   activeFrom       DateTime? // null = válida desde siempre
   activeUntil      DateTime? // null = sin vencimiento
+  onlineStartTime  String?   // override apertura solo para booking online (null = usa startTime)
+  onlineEndTime    String?   // override cierre solo para booking online (null = usa endTime)
   createdAt        DateTime  @default(now())
 
   @@index([clubId])

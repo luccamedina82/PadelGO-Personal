@@ -172,6 +172,8 @@ export default function TarifasClient({
           activeFrom: isImmediateBase ? todayUtc : data.activeFrom,
           activeUntil: isImmediateBase ? null : data.activeUntil,
           courtIds: data.courtIds ?? [],
+          onlineStartTime: data.onlineStartTime ?? null,
+          onlineEndTime: data.onlineEndTime ?? null,
           createdAt: todayUtc,
         }
         let updated = rules
@@ -221,6 +223,20 @@ export default function TarifasClient({
 
         <div className="px-6 py-6 max-w-3xl mx-auto flex flex-col gap-8">
 
+          {/* Banner: precio nulo en tarifa base activa */}
+          {activeBaseRule && activeBaseRule.price === null && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-500/8 border border-amber-500/30">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-amber-400 shrink-0 mt-0.5">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <div>
+                <p className="text-[12px] font-semibold text-amber-400">La tarifa base no tiene precio configurado</p>
+                <p className="text-[11px] text-muted mt-0.5">El booking online estará deshabilitado hasta que definas un precio. Editá la tarifa base para completarlo.</p>
+              </div>
+            </div>
+          )}
+
           {/* ── SECCIÓN 1: Tarifa Base ──────────────────────────────── */}
           <section>
             <div className="flex items-center gap-3 mb-3">
@@ -256,6 +272,11 @@ export default function TarifasClient({
                     <p className="text-[9px] font-bold uppercase tracking-[1.5px] text-muted/60 px-1 mt-1">
                       Programadas / Borradores
                     </p>
+                    {scheduledBaseRules.filter((r) => !r.activeFrom || r.activeFrom <= now).length > 1 && (
+                      <p className="text-[11px] text-amber-400 px-3 py-2 rounded-lg bg-amber-400/8 border border-amber-400/25">
+                        Hay más de un borrador sin fecha de activación. Solo uno puede estar activo a la vez — usá "Activar Ahora" en el que querés aplicar.
+                      </p>
+                    )}
                     {scheduledBaseRules.map((r) => (
                       <BaseRuleCard
                         key={r.id}
@@ -376,6 +397,7 @@ export default function TarifasClient({
         isDuplicate={isDuplicate}
         baseRuleMode={isBaseRuleMode}
         activeBaseRule={activeBaseRule}
+        baseDurations={activeBaseRule?.allowedDurations ?? []}
       />
     </>
   )
@@ -450,7 +472,14 @@ function BaseRuleCard({
             )}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[12px] font-mono text-text">{rule.startTime} – {rule.endTime}</span>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[12px] font-mono text-text">{rule.startTime} – {rule.endTime}</span>
+              {(rule.onlineStartTime || rule.onlineEndTime) && (
+                <span className="text-[11px] font-mono text-muted">
+                  Online: {rule.onlineStartTime ?? rule.startTime} – {rule.onlineEndTime ?? rule.endTime}
+                </span>
+              )}
+            </div>
             <div className="flex gap-1">
               {DAY_LABELS.map((label, i) => (
                 <span key={i} className={`text-[10px] font-bold w-5 h-5 rounded flex items-center justify-center

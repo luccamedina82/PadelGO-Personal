@@ -12,6 +12,7 @@ export type FloatingFormSlot = {
   durationOptions: number[]
   pricePerHour: number
   appliedRuleName?: string
+  bookingStartsAt?: boolean
 }
 
 export type FloatingFormCourtSlots = {
@@ -52,7 +53,11 @@ export async function getFloatingFormDataAction(
       continue
     }
 
-    rulesForDay.forEach(r => r.allowedDurations.forEach(d => globalDurations.add(d)))
+    // Duraciones del admin = solo las de la regla base (priority=0). Las reglas de mayor
+    // prioridad restringen al jugador online, no al admin.
+    const baseRuleForDay = rulesForDay.find((r) => r.priority === 0)
+    const adminDurations = baseRuleForDay?.allowedDurations ?? [60, 90, 120]
+    adminDurations.forEach((d) => globalDurations.add(d))
 
     const openMin = Math.min(...rulesForDay.map(r => timeToMinutes(r.startTime)))
     const closeMin = Math.max(...rulesForDay.map(r => timeToMinutes(r.endTime)))
@@ -60,7 +65,12 @@ export async function getFloatingFormDataAction(
     const closeTime = `${String(Math.floor(closeMin / 60)).padStart(2, '0')}:${String(closeMin % 60).padStart(2, '0')}`
     
     const courtBookings = bookings.filter((b) => b.courtId === court.id)
-    
+    const activeBookingStartTimes = new Set(
+      courtBookings
+        .filter((b) => b.status === 'PENDING' || b.status === 'CONFIRMED')
+        .map((b) => b.startTime)
+    )
+
     const slots = calcAvailableSlots(
       {
         openTime: openTime,
@@ -84,6 +94,7 @@ export async function getFloatingFormDataAction(
         durationOptions: s.durationOptions,
         pricePerHour: s.pricePerHour,
         appliedRuleName: s.appliedRuleName,
+        bookingStartsAt: activeBookingStartTimes.has(s.time),
       })),
     })
   }

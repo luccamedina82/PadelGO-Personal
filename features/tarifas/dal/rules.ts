@@ -15,6 +15,8 @@ export interface BookingRuleRow {
   courtIds: string[]
   activeFrom: Date | null
   activeUntil: Date | null
+  onlineStartTime: string | null
+  onlineEndTime: string | null
   createdAt: Date
 }
 
@@ -39,6 +41,8 @@ export async function getRulesByClubId(clubId: string): Promise<BookingRuleRow[]
       courtIds: true,
       activeFrom: true,
       activeUntil: true,
+      onlineStartTime: true,
+      onlineEndTime: true,
       createdAt: true,
     },
     orderBy: { priority: 'desc' },

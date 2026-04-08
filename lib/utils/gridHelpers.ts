@@ -40,6 +40,7 @@ export function prepareGridData(
         hideFromGrid: c.hideFromGrid,
         closeTimeMinutes,
         openTimeMinutes,
+        adminAllowedDurations: baseBookingRule?.allowedDurations,
       }
     })
   return { courtColumns, baseStart, baseEnd }

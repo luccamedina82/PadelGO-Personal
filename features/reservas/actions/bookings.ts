@@ -370,10 +370,12 @@ export async function updateBooking(
           outOfHoursWarning = true
         }
 
-        // Verificamos duración permitida (solo si no es bloqueo)
+        // Verificamos duración permitida contra la regla base (solo si no es bloqueo).
+        // Las reglas de prioridad >0 solo restringen al jugador online, no al admin.
         if (booking.source !== 'BLOCK') {
-          const allAllowedDurations = rules.flatMap(r => r.allowedDurations)
-          if (!allAllowedDurations.includes(durationMinutes)) {
+          const baseRule = rules.find((r) => r.priority === 0 && r.courtIds.length === 0)
+          const adminAllowedDurations = baseRule?.allowedDurations ?? [60, 90, 120]
+          if (!adminAllowedDurations.includes(durationMinutes)) {
             throw new Error('DURATION_NOT_ALLOWED')
           }
         }

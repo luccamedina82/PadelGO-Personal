@@ -40,14 +40,37 @@ function fmtDur(d: number) {
   return d < 60 ? `${d}min` : d % 60 === 0 ? `${d / 60}h` : `${Math.floor(d / 60)}h ${d % 60}min`
 }
 
-function getBlockEndOptions(startTime: string): string[] {
+function getBlockEndOptions(
+  startTime: string,
+  courtId: string,
+  courtSlots: FloatingFormCourtSlots[],
+  maxMinutes?: number // baseEnd in minutes
+): string[] {
   const [h = '0', m = '0'] = startTime.split(':')
   const startMin = parseInt(h) * 60 + parseInt(m)
+  const courtData = courtSlots.find((cs) => cs.courtId === courtId)
+  const cap = maxMinutes ?? 23 * 60 + 30
+
+  // Find the first booking that STARTS strictly after startTime.
+  // A block ending at T is [startMin, T) — no overlap with a booking starting at T.
+  // A block ending at T+30 would overlap a booking starting at T — conflict.
+  // So maxEnd = min(firstBookingStartMin after startMin, cap).
+  // We use bookingStartsAt (not slot.available) because availability also marks slots
+  // unavailable when any duration would spill into a future booking, causing premature cutoff.
+  let maxEnd = Math.min(cap, 23 * 60 + 30)
+  if (courtData) {
+    for (const slot of courtData.slots) {
+      if (slot.bookingStartsAt) {
+        const slotMin = timeToMinutes(slot.time)
+        if (slotMin > startMin && slotMin < maxEnd) maxEnd = slotMin
+      }
+    }
+  }
+
   const opts: string[] = []
-  for (let t = startMin + 30; t <= 23 * 60 + 30; t += 30) {
-    const hh = Math.floor(t / 60)
-    if (hh >= 24) break
-    opts.push(`${String(hh).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`)
+  for (let t = startMin + 30; t <= maxEnd; t += 30) {
+    if (Math.floor(t / 60) >= 24) break
+    opts.push(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`)
   }
   return opts
 }
@@ -153,7 +176,7 @@ export default function FloatingBookingFormContent({
 
   const canSubmit =
     !!form.courtId && !!form.startTime && form.duration > 0 &&
-    (form.bookingMode === 'BLOQUEO' || form.clientName.trim().length > 0) &&
+    (form.bookingMode === 'BLOQUEO' ? !!form.blockEndTime : form.clientName.trim().length > 0) &&
     (!isOOB || form.oobConfirmed)
 
   const isQuick = initialData.mode === 'quick' && !isExpanded
@@ -198,6 +221,10 @@ export default function FloatingBookingFormContent({
 
   function handleModeChange(m: BookingMode) {
     dispatch({ type: 'SET_MODE', payload: m })
+    if (m === 'BLOQUEO' && form.startTime && form.duration > 0) {
+      const endT = computeEndTime(form.startTime, form.duration)
+      dispatch({ type: 'SET_FIELD', field: 'blockEndTime', value: endT })
+    }
   }
 
   function handleSubmit() {
@@ -428,20 +455,21 @@ export default function FloatingBookingFormContent({
               </span>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Hora fin</p>
             </div>
-            { form.startTime ?
-            <select value={form.blockEndTime} onChange={(e) => handleBlockEndTimeChange(e.target.value)}
-              className={`${inputCls} font-mono ${!form.blockEndTime ? 'text-muted' : ''} ${ring}`}>
-                <option value="Selecciona un horario">Selecciona un horario</option>
-              {
-                getBlockEndOptions(form.startTime).map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))
-              } 
-            </select> 
-              : 
-              <select className={`w-full border border-border rounded-[10px] px-3 py-2.5 text-[13px] text-muted/30 outline-none focus:border-accent font-[inherit] placeholder:text-muted `}><option value="">Esperando hora de inicio...</option></select>
-            }
-
+            {form.startTime ? (
+              <div className="flex flex-wrap gap-1.5">
+                {getBlockEndOptions(form.startTime, form.courtId, courtSlots, baseEnd).map((t) => (
+                  <button key={t} type="button" onClick={() => handleBlockEndTimeChange(t)}
+                    className={`py-1.5 px-2.5 rounded-lg border text-[11px] font-mono font-semibold cursor-pointer transition-all active:scale-95
+                      ${form.blockEndTime === t ? 'bg-accent border-accent text-accent-text' : 'border-border bg-card text-muted hover:border-border-hover hover:text-text'}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center px-3 py-2.5 rounded-xl border border-border">
+                <span className="text-[13px] font-semibold text-muted/30">Esperando hora de inicio...</span>
+              </div>
+            )}
           </div>
         )}
 

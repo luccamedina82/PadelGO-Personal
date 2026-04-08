@@ -15,6 +15,7 @@ interface BookingDetailDrawerProps {
   onClose: () => void
   closeTimeMinutes?: number
   openTimeMinutes?: number
+  adminAllowedDurations?: number[]
   defaultEditing?: boolean
 }
 
@@ -23,6 +24,7 @@ export default function BookingDetailDrawer({
   onClose,
   closeTimeMinutes,
   openTimeMinutes,
+  adminAllowedDurations,
   defaultEditing,
 }: BookingDetailDrawerProps) {
   const [visible, setVisible] = useState(false)
@@ -222,6 +224,7 @@ export default function BookingDetailDrawer({
               source={activeBooking.source}
               closeTimeMinutes={closeTimeMinutes}
               openTimeMinutes={openTimeMinutes}
+              adminAllowedDurations={adminAllowedDurations}
               onStartTimeChange={setEditStartTime}
               onDurationChange={setEditDuration}
               onNameChange={setEditName}
