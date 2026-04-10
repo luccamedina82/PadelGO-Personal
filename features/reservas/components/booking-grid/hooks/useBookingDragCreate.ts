@@ -113,8 +113,8 @@ export function useBookingDragCreate({
         cursorSlotMin = gridStart + slotIndex * 30
       }
 
-      // End snaps to the END of the cursor's slot; enforces minimum duration
-      const minEnd = info.startMin + courtMinDuration
+      // End snaps to the END of the cursor's slot; minimum is one slot (30 min)
+      const minEnd = info.startMin + 30
       const rawEnd = cursorSlotMin + 30
       const desiredEnd = Math.max(minEnd, rawEnd)
 
@@ -154,10 +154,9 @@ export function useBookingDragCreate({
 
       setCreateGhost((ghost) => {
         if (!ghost) return null
-        // Don't open form if capped duration is below this court's minimum
-        const courtMinDuration = courtMinDurations.get(info.courtId) ?? 60
-        if (ghost.durationMinutes < courtMinDuration) {
-          toast.warning(`Espacio insuficiente. El mínimo para esta cancha es de ${courtMinDuration} minutos.`)
+        // Don't open form if capped duration is below one slot (30 min)
+        if (ghost.durationMinutes < 30) {
+          toast.warning('Espacio insuficiente. El mínimo es de 30 minutos.')
           return null
         }
         // Compute ghost bounding rect in viewport coordinates

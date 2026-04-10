@@ -200,7 +200,3 @@ Lo que el player app necesitará implementar por su cuenta (no depende de este p
 - Confirmación y flujo de pago (Mercado Pago)
 - Invitación de otros jugadores al partido
 - Open match (partido abierto a desconocidos)
-
-
-
-

@@ -245,11 +245,7 @@ export default function BookingsClient({
 
   function handleCellClick(courtId: string, slotMinutes: number, cellRect?: DOMRect, availableMinutes?: number) {
     if (isOpen) { closeForm(); return }
-    const defaultDuration = 60
-    if (availableMinutes !== undefined && availableMinutes < defaultDuration) {
-      toast.warning(`No hay suficiente tiempo disponible. El mínimo para esta cancha es de ${defaultDuration} minutos.`)
-      return
-    }
+    const defaultDuration = Math.min(60, availableMinutes ?? 60)
     const coords = cellRect
       ? { x: cellRect.left, y: cellRect.top, width: cellRect.width, height: (defaultDuration / 30) * SLOT_HEIGHT }
       : undefined

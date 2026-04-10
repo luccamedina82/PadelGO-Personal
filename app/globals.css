@@ -59,6 +59,12 @@
 
   /* Booking label tag background */
   --booking-label-bg: rgba(0, 0, 0, 0.18);
+
+  /* Drag/click-to-create ghost — violet selection */
+  --booking-create-bg: rgba(167, 139, 250, 0.14);
+  --booking-create-border: rgba(167, 139, 250, 0.45);
+  --booking-create-bar: #a78bfa;
+  --booking-create-text: #c4b5fd;
 }
 
 /* ── DESIGN TOKENS — Obsidian Light ─────────────────────────────────── */
@@ -116,6 +122,12 @@
   --grid-slot-hover: rgba(0, 0, 0, 0.16);
   --now-line: #dc2626;
   --booking-label-bg: rgba(0, 0, 0, 0.07);
+
+  /* Drag/click-to-create ghost — indigo selection */
+  --booking-create-bg: rgba(99, 60, 210, 0.1);
+  --booking-create-border: rgba(99, 60, 210, 0.35);
+  --booking-create-bar: #6d28d9;
+  --booking-create-text: #4c1d95;
 }
 
 /* ── TAILWIND v4 THEME — inline = references runtime CSS vars ──────── */
@@ -315,21 +327,26 @@ body {
 [data-theme='light'] aside {
   border-right: 1px solid var(--border);
 }
-/* Drag-to-create ghost */
+/* Drag/click-to-create ghost */
 .booking-block-create-preview {
-  background-color: color-mix(in srgb, var(--booking-unified-bg) 70%, transparent);
-  border: 2px dashed var(--booking-unified-border);
-  border-left: 4px solid var(--booking-unified-bar);
-  color: var(--booking-unified-text);
+  background-color: var(--booking-create-bg);
+  border: 2px dashed var(--booking-create-border);
+  border-left: 4px solid var(--booking-create-bar);
+  color: var(--booking-create-text);
   border-radius: 8px;
-  opacity: 0.75;
+  opacity: 0.8;
   pointer-events: none;
   z-index: 45;
+  backdrop-filter: blur(2px);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .booking-block-create-preview.is-pending {
   border-style: solid;
-  opacity: 0.9;
+  opacity: 0.95;
 }
 
 

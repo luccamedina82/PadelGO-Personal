@@ -27,7 +27,6 @@ interface ResizeInfo {
   startMin: number
   origDuration: number
   startClientY: number
-  courtCloseMin: number
   source: string
 }
 
@@ -285,13 +284,8 @@ export function useBookingDragResize({
         const resize = activeResizeRef.current
         const deltaSlots = Math.round((e.clientY - resize.startClientY) / sh)
 
-        const court = courts.find(c => c.id === resize.courtId)
-        const minByCourt = 30 
-         const maxByCourt = 1440 
-         const maxByClose = resize.courtCloseMin - resize.startMin
-        const isBlock = BLOCK_SOURCES.has(resize.source)
-        const upperLimit = isBlock ? maxByClose : Math.min(maxByCourt, maxByClose)
-        const newDuration = Math.max(minByCourt, Math.min(upperLimit, resize.origDuration + deltaSlots * 30))
+        const maxByGrid = ge - resize.startMin
+        const newDuration = Math.max(30, Math.min(maxByGrid, resize.origDuration + deltaSlots * 30))
         currentResizeDurationRef.current = newDuration
         setResizeHeightPx((newDuration / 30) * sh - 3)
       }
@@ -379,9 +373,6 @@ export function useBookingDragResize({
     e.stopPropagation()
 
     const startMin = timeToMinutes(booking.startTime)
-    const { visibleCourts: courts, gridEnd: ge } = paramsRef.current
-    const court = courts.find((c) => c.id === booking.courtId)
-    const courtCloseMin = court?.closeTimeMinutes ?? ge
 
     activeResizeRef.current = {
       bookingId: booking.id,
@@ -389,7 +380,6 @@ export function useBookingDragResize({
       startMin,
       origDuration: booking.durationMinutes,
       startClientY: e.clientY,
-      courtCloseMin,
       source: booking.source,
     }
 

@@ -233,7 +233,6 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
 
   const handleEmptyClick = useCallback((courtId: string, slotMinutes: number) => {
     const occupied = occupiedSlotsByCourt.get(courtId)
-    const courtMinDuration = 60
     // Use gridEnd as the cap so slots after court hours can still be booked by admins
     let availableMinutes = gridEnd - slotMinutes
     if (occupied) {
@@ -241,8 +240,8 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
         if (occupied.has(m)) { availableMinutes = m - slotMinutes; break }
       }
     }
-    if (availableMinutes < courtMinDuration) {
-      toast.warning(`Espacio insuficiente. El mínimo para esta cancha es de ${courtMinDuration} minutos.`)
+    if (availableMinutes < 30) {
+      toast.warning('Espacio insuficiente. El mínimo es de 30 minutos.')
       clickedCellRectRef.current = null
       return
     }
@@ -274,7 +273,17 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     // Obtenemos el rectángulo de la COLUMNA
     const rect = e.currentTarget.getBoundingClientRect()
     const relativeY = e.clientY - rect.top
-    
+
+    // Ignorar clicks dentro del área visual de cualquier reserva (incluyendo gaps de padding)
+    const courtBookingList = bookingsByCourt.get(courtId) ?? []
+    for (const b of courtBookingList) {
+      if (b.status === 'CANCELLED') continue
+      const bStartMin = timeToMinutes(b.startTime)
+      const bTop = ((bStartMin - gridStart) / 30) * slotHeight
+      const bFullHeight = (b.durationMinutes / 30) * slotHeight
+      if (relativeY >= bTop && relativeY < bTop + bFullHeight) return
+    }
+
     // Calculamos el slot exacto basado en la posición Y
     const slotIndex = Math.floor(relativeY / slotHeight)
     const slotMinutes = gridStart + (slotIndex * 30)
@@ -289,7 +298,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
 
     // Iniciamos el drag-to-create
     handleCreateStart(courtId, courtIndex, slotMinutes, e)
-  }, [draggingId, isFormOpen, gridStart, handleCreateStart])
+  }, [draggingId, isFormOpen, gridStart, slotHeight, bookingsByCourt, handleCreateStart])
 
 // Calculamos la fecha actual una sola vez al montar (Hydration safe)
   useEffect(() => {
@@ -576,24 +585,20 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                   left: TIME_COL_WIDTH + createGhost.courtIndex * colWidth + 5,
                   width: colWidth - 10,
                   height: Math.max((createGhost.durationMinutes / 30) * slotHeight - 3, 22),
-                  padding: '8px 10px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
                 }}
               >
-                <p className="text-[11px] font-bold leading-tight">Nueva reserva</p>
-                <p className="text-[10px] font-mono leading-tight opacity-70">
-                  {minutesToTime(createGhost.startMin)} – {minutesToTime(createGhost.startMin + createGhost.durationMinutes)}
-                </p>
-              </div>
-            )}
+                  <p className="text-[11px] font-mono leading-none font-semibold">
+                    {minutesToTime(createGhost.startMin)} – {minutesToTime(createGhost.startMin + createGhost.durationMinutes)}
+                  </p>
+                </div>
+              )}
 
             {/* Click-create ghost (single click, no drag) */}
             {!createGhost && activeDraft && (() => {
               const draftCourtIdx = visibleCourts.findIndex((c) => c.id === activeDraft.courtId)
               if (draftCourtIdx < 0 || activeDraft.startMin < gridStart || activeDraft.startMin >= gridEnd) return null
               const dur = activeDraft.durationMinutes
+              const gh = Math.max((dur / 30) * slotHeight - 3, 22)
               return (
                 <div
                   className="booking-block-create-preview absolute is-pending"
@@ -601,15 +606,10 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                     top: ((activeDraft.startMin - gridStart) / 30) * slotHeight + 2,
                     left: TIME_COL_WIDTH + draftCourtIdx * colWidth + 5,
                     width: colWidth - 10,
-                    height: Math.max((dur / 30) * slotHeight - 3, 22),
-                    padding: '8px 10px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2,
+                    height: gh,
                   }}
                 >
-                  <p className="text-[11px] font-bold leading-tight">Nueva reserva</p>
-                  <p className="text-[10px] font-mono leading-tight opacity-70">
+                  <p className="text-[11px] font-mono leading-none font-semibold">
                     {minutesToTime(activeDraft.startMin)} – {minutesToTime(activeDraft.startMin + dur)}
                   </p>
                 </div>
