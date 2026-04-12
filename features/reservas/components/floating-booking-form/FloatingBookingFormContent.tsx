@@ -2,16 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useTransition } from 'react'
 import { useRecentClients } from './hooks/useRecentClients'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { calcBookingPrice, timeToMinutes } from '@/lib/availability'
 import { getWeekStart } from '@/lib/date'
 import { createManualBooking } from '@/features/reservas/actions/bookings'
-import {
-  getFloatingFormDataAction,
-  type FloatingFormCourtSlots,
-} from '@/features/reservas/actions/floatingFormData'
+import type { FloatingFormCourtSlots } from '@/features/reservas/actions/floatingFormData'
 import { getAvailableDurationsForCourt, getVisibleTimeSlotsForDate } from './helpers/bookingCalcUtils'
 import { computeEndTime, endTimeToMinutes } from './helpers/manualBookingWizard.helpers'
 import { formReducer, type BookingMode } from './helpers/formReducer'
@@ -45,10 +42,15 @@ interface Props {
   onCreated: (bookingId?: string) => void
   /** Si se provee, el botón "Editar" en QuickSummary cierra el popover y abre el drawer completo */
   onExpandToDrawer?: () => void
+  courtSlots: FloatingFormCourtSlots[]
+  globalDurations: number[]
+  isLoadingSlots: boolean
+  onDateChange: (date: string) => void
 }
 
 export default function FloatingBookingFormContent({
   clubId, courts, baseStart, baseEnd, baseBookingRule, initialData, onClose, onCreated, onExpandToDrawer,
+  courtSlots, globalDurations, isLoadingSlots, onDateChange,
 }: Props) {
   const [isPending, startTransition] = useTransition()
   const queryClient = useQueryClient()
@@ -82,15 +84,6 @@ export default function FloatingBookingFormContent({
     reasonPreset: '',
     error: null,
   })
-
-  // ── Data fetching ──────────────────────────────────────────────────────
-  const { data: floatingData, isLoading: isLoadingSlots } = useQuery({
-    queryKey: ['floatingData', clubId, form.date],
-    queryFn: () => getFloatingFormDataAction(clubId, form.date),
-    staleTime: 1000 * 60,
-  })
-  const courtSlots = floatingData?.courtSlots ?? []
-  const globalDurations = floatingData?.durationOptions ?? []
 
   // ── Derived values ─────────────────────────────────────────────────────
   const durationOptions = useMemo(() => {
@@ -434,7 +427,7 @@ export default function FloatingBookingFormContent({
               isComplete={getSection('date').isComplete}
               isVisible={getSection('date').isVisible}
               clubId={clubId}
-              onDateChange={(d) => dispatch({ type: 'SET_DATE', payload: d })}
+              onDateChange={(d) => { dispatch({ type: 'SET_DATE', payload: d }); onDateChange(d) }}
             />
             <TimeSection
               ref={firstTimeRef}

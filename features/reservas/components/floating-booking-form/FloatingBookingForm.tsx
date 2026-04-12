@@ -13,7 +13,12 @@ import {
   detectOverflow,
   type Middleware,
 } from '@floating-ui/react'
+import { useQuery } from '@tanstack/react-query'
 import FloatingBookingFormContent from './FloatingBookingFormContent'
+import {
+  getFloatingFormDataAction,
+  type FloatingFormCourtSlots,
+} from '@/features/reservas/actions/floatingFormData'
 import type { CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import type { FloatingFormInitialData } from '@/app/(owner)/admin/reservas/BookingsClient'
 
@@ -51,7 +56,17 @@ const centerFallback: Middleware = {
 
 export default function FloatingBookingForm(props: FloatingBookingFormProps) {
   const { anchorEl, virtualCoords, onClose } = props
-  
+
+  const [activeDate, setActiveDate] = useState(props.initialData.date)
+
+  const { data: floatingData, isLoading: isLoadingSlots } = useQuery({
+    queryKey: ['floatingData', props.clubId, activeDate],
+    queryFn: () => getFloatingFormDataAction(props.clubId, activeDate),
+    staleTime: 1000 * 60,
+  })
+  const courtSlots: FloatingFormCourtSlots[] = floatingData?.courtSlots ?? []
+  const globalDurations: number[] = floatingData?.durationOptions ?? []
+
   // Hydration guard — render nothing on SSR, mount on client only
   const [isMounted, setIsMounted] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -137,7 +152,13 @@ export default function FloatingBookingForm(props: FloatingBookingFormProps) {
             <div className="w-10 h-1 rounded-full bg-border" />
           </div>
           <div className="overflow-hidden flex-1">
-            <FloatingBookingFormContent {...props} />
+            <FloatingBookingFormContent
+              {...props}
+              courtSlots={courtSlots}
+              globalDurations={globalDurations}
+              isLoadingSlots={isLoadingSlots}
+              onDateChange={setActiveDate}
+            />
           </div>
         </div>
       </FloatingPortal>
@@ -157,11 +178,17 @@ export default function FloatingBookingForm(props: FloatingBookingFormProps) {
         >
           <div
             ref={refs.setFloating}
-            {...getFloatingProps()} 
+            {...getFloatingProps()}
             className="relative rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
             style={{ width: formWidth }}
           >
-            <FloatingBookingFormContent {...props} />
+            <FloatingBookingFormContent
+              {...props}
+              courtSlots={courtSlots}
+              globalDurations={globalDurations}
+              isLoadingSlots={isLoadingSlots}
+              onDateChange={setActiveDate}
+            />
           </div>
         </div>
       </FloatingPortal>
@@ -182,7 +209,13 @@ export default function FloatingBookingForm(props: FloatingBookingFormProps) {
         className="z-[80] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
         {...getFloatingProps()}
       >
-        <FloatingBookingFormContent {...props} />
+        <FloatingBookingFormContent
+          {...props}
+          courtSlots={courtSlots}
+          globalDurations={globalDurations}
+          isLoadingSlots={isLoadingSlots}
+          onDateChange={setActiveDate}
+        />
       </div>
     </FloatingPortal>
   )

@@ -2,13 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { addDays } from '@/lib/date'
-import { minutesToTime, timeToMinutes, type BookingRuleInput } from '@/lib/availability'
-import { prepareGridData } from '@/lib/utils/gridHelpers'
+import { minutesToTime, timeToMinutes } from '@/lib/availability'
 import { SLOT_HEIGHT } from '@/features/reservas/components/booking-grid/helpers/bookingGrid.helpers'
-import { fetchBookingsAction } from '@/features/reservas/actions/bookings'
 import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import type { PendingCreate } from '@/features/reservas/components/booking-grid/hooks/useBookingDragCreate'
 import dynamic from 'next/dynamic'
@@ -25,6 +22,7 @@ import { useBookingFormStore } from '@/store/useBookingFormStore'
 import { useBookingsContext, useCourtsContext } from './BookingsContext'
 import { useReservasSidebarStore } from '@/store/reservasSidebarStore'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
+import { useBookingsData } from './hooks/useBookingsData'
 
 export type FloatingFormInitialData = {
   date: string
@@ -34,36 +32,6 @@ export type FloatingFormInitialData = {
   mode: 'full' | 'quick'
   /** true = duración elegida explícitamente (drag). false = default sugerido (clic) */
   durationLocked?: boolean
-}
-
-type DayGridData = {
-  courtColumns: CourtColumn[]
-  baseStart: number
-  baseEnd: number
-  baseBookingRule: { startTime: string; endTime: string; price: number | null } | null
-}
-
-// Replicates getBaseBookingRulesForWeek logic on the client.
-// clubRules already contains all global booking rules (no courtIds);
-// we filter for priority-0 to find the "base" display rule per day.
-function findBaseRuleForDay(clubRules: BookingRuleInput[], dayStr: string) {
-  const dayStart = new Date(`${dayStr}T00:00:00.000Z`)
-  const dayEnd = new Date(`${dayStr}T23:59:59.999Z`)
-  const baseRules = clubRules
-    .filter((r) => r.priority === 0)
-    .sort((a, b) => {
-      // More-specific (later activeFrom) rules win, same as server ORDER BY activeFrom DESC
-      const at = a.activeFrom ? new Date(a.activeFrom).getTime() : 0
-      const bt = b.activeFrom ? new Date(b.activeFrom).getTime() : 0
-      return bt - at
-    })
-  return (
-    baseRules.find((r) => {
-      const from = r.activeFrom ? new Date(r.activeFrom) : null
-      const until = r.activeUntil ? new Date(r.activeUntil) : null
-      return (from == null || from <= dayEnd) && (until == null || until >= dayStart)
-    }) ?? null
-  )
 }
 
 interface BookingClientProps {
@@ -90,72 +58,22 @@ export default function BookingsClient({
   const queryClient = useQueryClient()
   const prevDateRef = useRef('')
   const { isOpen, anchorEl, virtualCoords, initialData, openForm, closeForm } = useBookingFormStore()
-  const [initialDataTimestamp] = useState(() => Date.now())
   const dragCancelRef = useRef<(() => void) | null>(null)
   const dragCreatedRef = useRef<((bookingId?: string) => void) | null>(null)
   const drawerPrefillRef = useRef<{ courtId: string; startTime: string; duration: number } | null>(null)
 
-  // ── Compute weekData client-side from stable courts/rules in context ────────
-  // Runs synchronously on week change — no server round-trip needed.
-  const weekData = useMemo<Record<string, DayGridData>>(() => {
-    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-    const data: Record<string, DayGridData> = {}
-    weekDays.forEach((day) => {
-      const dayOfWeek = new Date(`${day}T00:00:00.000Z`).getUTCDay()
-      const rule = findBaseRuleForDay(clubRules, day)
-      const { courtColumns, baseStart, baseEnd } = prepareGridData(allCourts, clubRules, rule, dayOfWeek)
-      data[day] = {
-        courtColumns,
-        baseStart,
-        baseEnd,
-        baseBookingRule: rule
-          ? { startTime: rule.startTime, endTime: rule.endTime, price: rule.price }
-          : null,
-      }
-    })
-    return data
-  }, [weekStart, allCourts, clubRules])
+  const { bookings, isFetching, weekData } = useBookingsData({
+    clubId,
+    weekStart,
+    selectedDate,
+    allCourts,
+    clubRules,
+    initialBookings,
+    initialWeekStart,
+  })
 
   const { courtColumns: courts, baseStart, baseEnd, baseBookingRule } =
     weekData[selectedDate] ?? weekData[weekStart]
-
-  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
-
-  // ── React Query — week-level cache ──────────────────────────────────────────
-  // initialData only applies to the SSR week; other weeks fetch from the server.
-  // keepPreviousData means week-change shows old data (filtered to empty by date)
-  // while new bookings load — grid structure stays visible, progress bar shows.
-  const { data: allWeekBookings, isFetching } = useQuery({
-    queryKey: ['bookings', clubId, 'week', weekStart],
-    queryFn: () => fetchBookingsAction(clubId, weekStart, weekEnd),
-    initialData: weekStart === initialWeekStart ? initialBookings : undefined,
-    initialDataUpdatedAt: weekStart === initialWeekStart ? initialDataTimestamp : undefined,
-    refetchInterval: 30_000,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-    placeholderData: keepPreviousData,
-  })
-
-  const bookings = useMemo(
-    () => (allWeekBookings ?? []).filter((b) => b.date === selectedDate),
-    [allWeekBookings, selectedDate]
-  )
-
-  // ── Prefetch adjacent weeks ─────────────────────────────────────────────────
-  useEffect(() => {
-    const prevStart = addDays(weekStart, -7)
-    const nextStart = addDays(weekStart, 7)
-    queryClient.prefetchQuery({
-      queryKey: ['bookings', clubId, 'week', prevStart],
-      queryFn: () => fetchBookingsAction(clubId, prevStart, addDays(prevStart, 6)),
-      staleTime: 5 * 60 * 1000,
-    })
-    queryClient.prefetchQuery({
-      queryKey: ['bookings', clubId, 'week', nextStart],
-      queryFn: () => fetchBookingsAction(clubId, nextStart, addDays(nextStart, 6)),
-      staleTime: 5 * 60 * 1000,
-    })
-  }, [weekStart, clubId, queryClient])
 
   // ── Court visibility (lifted so sidebar can also toggle) ────────────────────
   const toggleCourt = useCallback((id: string) => {
@@ -252,8 +170,7 @@ export default function BookingsClient({
 
   function handleCellClick(courtId: string, slotMinutes: number, cellRect?: DOMRect, availableMinutes?: number) {
     if (isOpen) { closeForm(); return }
-    const baseRule = findBaseRuleForDay(clubRules, selectedDate)
-    const firstBaseDuration = baseRule?.allowedDurations?.[0] ?? 60
+    const firstBaseDuration = baseBookingRule?.allowedDurations?.[0] ?? 60
     const defaultDuration = Math.min(firstBaseDuration, availableMinutes ?? firstBaseDuration)
     const coords = cellRect
       ? { x: cellRect.left, y: cellRect.top, width: cellRect.width, height: (defaultDuration / 30) * SLOT_HEIGHT }
