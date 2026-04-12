@@ -144,12 +144,13 @@ export function CalendarPopover({ selectedDate, onSelect, onClose, anchorRef, cl
           const isToday = dateStr === today
           const isPast = dateStr < today
           const avail = dateAvailability?.[dateStr]
+          // avail is now 0-100 (percentage of available slots)
           const dotColor = avail === undefined
             ? null
             : isSelected
               ? 'bg-white'
-              : avail >= 10 ? 'bg-green-500'
-              : avail >= 1  ? 'bg-amber-400'
+              : avail >= 60 ? 'bg-green-500'
+              : avail > 0   ? 'bg-amber-400'
               : 'bg-red-500'
           return (
             <button

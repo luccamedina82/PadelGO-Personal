@@ -661,9 +661,11 @@ export async function getMonthAvailability(
     else bookingsByKey.set(key, [entry])
   }
 
+  // Returns 0-100 percentage of available slots across all courts per day.
+  // Uses percentage instead of raw count so the green/amber/red thresholds
+  // are meaningful regardless of how many courts or hours the club has.
   const result: Record<string, number> = {}
 
-  // Iterate from rangeStart to end of next month
   const cursor = new Date(rangeStartDate)
   while (cursor <= endOfNextMonth) {
     const y = cursor.getUTCFullYear()
@@ -671,35 +673,37 @@ export async function getMonthAvailability(
     const d = cursor.getUTCDate()
     const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
     const dow = cursor.getUTCDay()
-    let count = 0
+    let available = 0
+    let total = 0
 
     const rulesForDay = rules.filter(r => r.daysOfWeek.includes(dow))
 
     for (const court of courts) {
       const courtRules = rulesForDay.filter(r => r.courtIds.length === 0 || r.courtIds.includes(court.id))
-      
       if (courtRules.length === 0) continue
+
       const openTimeMin = Math.min(...courtRules.map(r => timeToMinutes(r.startTime)))
       const closeTimeMin = Math.max(...courtRules.map(r => timeToMinutes(r.endTime)))
-
       const courtBookings = bookingsByKey.get(`${court.id}:${dateStr}`) ?? []
-      
+
       const slots = calcAvailableSlots(
-        { 
-          openTime: `${String(Math.floor(openTimeMin/60)).padStart(2, '0')}:${String(openTimeMin%60).padStart(2, '0')}`, 
-          closeTime: `${String(Math.floor(closeTimeMin/60)).padStart(2, '0')}:${String(closeTimeMin%60).padStart(2, '0')}`,
+        {
+          openTime: `${String(Math.floor(openTimeMin / 60)).padStart(2, '0')}:${String(openTimeMin % 60).padStart(2, '0')}`,
+          closeTime: `${String(Math.floor(closeTimeMin / 60)).padStart(2, '0')}:${String(closeTimeMin % 60).padStart(2, '0')}`,
           pricePerHour: 0,
-          rules: courtRules
+          rules: courtRules,
+          isUnderMaintenance: court.isUnderMaintenance,
         },
         courtBookings,
         cursor,
         now,
         dateStr === todayStr ? MIN_ADVANCE_MINUTES : 0
       )
-      count += slots.filter((s) => s.available).length
+      available += slots.filter((s) => s.available).length
+      total += slots.length
     }
 
-    result[dateStr] = count
+    result[dateStr] = total > 0 ? Math.round((available / total) * 100) : 0
     cursor.setUTCDate(cursor.getUTCDate() + 1)
   }
 

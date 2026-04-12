@@ -56,9 +56,8 @@ export async function getFloatingFormDataAction(
     // Duraciones del admin = solo las de la regla base (priority=0). Las reglas de mayor
     // prioridad restringen al jugador online, no al admin.
     const baseRuleForDay = rulesForDay.find((r) => r.priority === 0)
-    const adminDurations = baseRuleForDay?.allowedDurations ?? [60, 90, 120]
+    const adminDurations = baseRuleForDay?.allowedDurations ?? [30, 60, 90, 120]
     adminDurations.forEach((d) => globalDurations.add(d))
-
     const openMin = Math.min(...rulesForDay.map(r => timeToMinutes(r.startTime)))
     const closeMin = Math.max(...rulesForDay.map(r => timeToMinutes(r.endTime)))
     const openTime = `${String(Math.floor(openMin / 60)).padStart(2, '0')}:${String(openMin % 60).padStart(2, '0')}`

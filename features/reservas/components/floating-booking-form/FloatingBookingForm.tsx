@@ -28,6 +28,7 @@ interface FloatingBookingFormProps {
   baseBookingRule?: { startTime: string; endTime: string; price: number | null } | null
   onClose: () => void
   onCreated: (bookingId?: string) => void
+  onExpandToDrawer?: () => void
 }
 
 // When flip exhausts all side placements and the panel still overflows,

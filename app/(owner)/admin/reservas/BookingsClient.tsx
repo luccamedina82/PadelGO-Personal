@@ -17,6 +17,10 @@ const FloatingBookingForm = dynamic(
   () => import('@/features/reservas/components/floating-booking-form/FloatingBookingForm'),
   { ssr: false }
 )
+const BookingDrawer = dynamic(
+  () => import('@/features/reservas/components/booking-drawer/BookingDrawer'),
+  { ssr: false }
+)
 import { useBookingFormStore } from '@/store/useBookingFormStore'
 import { useBookingsContext, useCourtsContext } from './BookingsContext'
 import { useReservasSidebarStore } from '@/store/reservasSidebarStore'
@@ -28,6 +32,8 @@ export type FloatingFormInitialData = {
   startTime?: string
   durationMinutes?: number
   mode: 'full' | 'quick'
+  /** true = duración elegida explícitamente (drag). false = default sugerido (clic) */
+  durationLocked?: boolean
 }
 
 type DayGridData = {
@@ -87,6 +93,7 @@ export default function BookingsClient({
   const [initialDataTimestamp] = useState(() => Date.now())
   const dragCancelRef = useRef<(() => void) | null>(null)
   const dragCreatedRef = useRef<((bookingId?: string) => void) | null>(null)
+  const drawerPrefillRef = useRef<{ courtId: string; startTime: string; duration: number } | null>(null)
 
   // ── Compute weekData client-side from stable courts/rules in context ────────
   // Runs synchronously on week change — no server round-trip needed.
@@ -245,12 +252,14 @@ export default function BookingsClient({
 
   function handleCellClick(courtId: string, slotMinutes: number, cellRect?: DOMRect, availableMinutes?: number) {
     if (isOpen) { closeForm(); return }
-    const defaultDuration = Math.min(60, availableMinutes ?? 60)
+    const baseRule = findBaseRuleForDay(clubRules, selectedDate)
+    const firstBaseDuration = baseRule?.allowedDurations?.[0] ?? 60
+    const defaultDuration = Math.min(firstBaseDuration, availableMinutes ?? firstBaseDuration)
     const coords = cellRect
       ? { x: cellRect.left, y: cellRect.top, width: cellRect.width, height: (defaultDuration / 30) * SLOT_HEIGHT }
       : undefined
     openForm(
-      { date: selectedDate, courtId, startTime: minutesToTime(slotMinutes), durationMinutes: defaultDuration, mode: 'quick' },
+      { date: selectedDate, courtId, startTime: minutesToTime(slotMinutes), durationMinutes: defaultDuration, mode: 'quick', durationLocked: false },
       null,
       coords
     )
@@ -260,7 +269,7 @@ export default function BookingsClient({
     dragCancelRef.current = cancel
     dragCreatedRef.current = created
     openForm(
-      { date: selectedDate, courtId: pending.courtId, startTime: minutesToTime(pending.ghost.startMin), durationMinutes: pending.ghost.durationMinutes, mode: 'quick' },
+      { date: selectedDate, courtId: pending.courtId, startTime: minutesToTime(pending.ghost.startMin), durationMinutes: pending.ghost.durationMinutes, mode: 'quick', durationLocked: true },
       null,
       pending.ghostRect
     )
@@ -341,8 +350,8 @@ export default function BookingsClient({
         />
       </div>
 
-      {/* ── FloatingBookingForm ─────────────────────────────────────────────── */}
-      {isOpen && initialData && (
+      {/* ── FloatingBookingForm (contextual: clic / drag) ──────────────────── */}
+      {isOpen && initialData && initialData.mode === 'quick' && (
         <FloatingBookingForm
           anchorEl={anchorEl}
           virtualCoords={virtualCoords}
@@ -358,6 +367,35 @@ export default function BookingsClient({
             dragCreatedRef.current = null
             closeForm()
           }}
+          onCreated={handleFormCreated}
+          onExpandToDrawer={() => {
+            dragCancelRef.current?.()
+            dragCancelRef.current = null
+            dragCreatedRef.current = null
+            const date = initialData.date
+            if (initialData.courtId && initialData.startTime && initialData.durationMinutes) {
+              drawerPrefillRef.current = {
+                courtId: initialData.courtId,
+                startTime: initialData.startTime,
+                duration: initialData.durationMinutes,
+              }
+            }
+            closeForm()
+            openForm({ date, mode: 'full' })
+          }}
+        />
+      )}
+
+      {/* ── BookingDrawer (global: botón "Nueva reserva") ──────────────────── */}
+      {isOpen && initialData && initialData.mode === 'full' && (
+        <BookingDrawer
+          clubId={clubId}
+          courts={courts}
+          initialDate={initialData.date}
+          initialCourtId={drawerPrefillRef.current?.courtId}
+          initialStartTime={drawerPrefillRef.current?.startTime}
+          initialDuration={drawerPrefillRef.current?.duration}
+          onClose={() => { drawerPrefillRef.current = null; closeForm() }}
           onCreated={handleFormCreated}
         />
       )}

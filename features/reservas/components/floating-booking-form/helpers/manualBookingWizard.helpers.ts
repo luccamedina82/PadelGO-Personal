@@ -1,6 +1,13 @@
 import { argTodayStr } from '@/lib/date'
+import { timeToMinutes } from '@/lib/availability'
 
 export { argTodayStr as todayLocalStr }
+
+/** Like timeToMinutes but '00:00' → 1440 when used as an end time (midnight = end of day). */
+export function endTimeToMinutes(t: string): number {
+  const m = timeToMinutes(t)
+  return m === 0 ? 24 * 60 : m
+}
 
 export function computeEndTime(start: string, durationMins: number): string {
   if (!start) return ''

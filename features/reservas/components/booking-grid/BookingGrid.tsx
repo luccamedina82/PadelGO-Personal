@@ -83,6 +83,7 @@ export default function BookingGrid({
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
   const [clientTodayStr, setClientTodayStr] = useState<string | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<BookingBlock | null>(null)
+  const [openDetailEditing, setOpenDetailEditing] = useState(false)
   const [quickPopover, setQuickPopover] = useState<{
     booking: BookingBlock
     courtName: string
@@ -558,7 +559,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                     left: TIME_COL_WIDTH + ghostPos.courtIndex * colWidth + 5,
                     width: colWidth - 10,
                     height: ghostHeight,
-                    zIndex: 40,
+                    zIndex: 25,
                   }}
                 >
                   <p className="text-[11px] font-bold leading-tight truncate">{ghostBooking.displayName}</p>
@@ -585,6 +586,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                   left: TIME_COL_WIDTH + createGhost.courtIndex * colWidth + 5,
                   width: colWidth - 10,
                   height: Math.max((createGhost.durationMinutes / 30) * slotHeight - 3, 22),
+                  zIndex: 25,
                 }}
               >
                   <p className="text-[11px] font-mono leading-none font-semibold">
@@ -607,6 +609,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
                     left: TIME_COL_WIDTH + draftCourtIdx * colWidth + 5,
                     width: colWidth - 10,
                     height: gh,
+                    zIndex: 25,
                   }}
                 >
                   <p className="text-[11px] font-mono leading-none font-semibold">
@@ -677,6 +680,12 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
           anchorY={quickPopover.y}
           onClose={() => setQuickPopover(null)}
           onOpenDetail={() => {
+            setOpenDetailEditing(false)
+            setSelectedBooking(quickPopover.booking)
+            setQuickPopover(null)
+          }}
+          onEdit={() => {
+            setOpenDetailEditing(true)
             setSelectedBooking(quickPopover.booking)
             setQuickPopover(null)
           }}
@@ -685,11 +694,11 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
 
       <BookingDetailDrawer
         booking={selectedBooking ?? null}
-        onClose={() => setSelectedBooking(null)}
+        onClose={() => { setSelectedBooking(null); setOpenDetailEditing(false) }}
         closeTimeMinutes={selectedBooking ? courts.find(c => c.id === selectedBooking.courtId)?.closeTimeMinutes : undefined}
         openTimeMinutes={selectedBooking ? courts.find(c => c.id === selectedBooking.courtId)?.openTimeMinutes : undefined}
         adminAllowedDurations={selectedBooking ? courts.find(c => c.id === selectedBooking.courtId)?.adminAllowedDurations : undefined}
-        defaultEditing={false}
+        defaultEditing={openDetailEditing}
       />
 
     </>
