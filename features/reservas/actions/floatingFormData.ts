@@ -3,7 +3,7 @@
 import { getAdminContext } from '@/lib/dal/admin'
 import { getCourtsByClubId } from '@/features/reservas/dal/courts'
 import { getAdminBookingsByDate } from '@/features/reservas/dal/bookings'
-import { calcAvailableSlots, timeToMinutes } from '@/lib/availability'
+import { calcAvailableSlots, getRulesTimeBounds, minutesToTime } from '@/lib/availability'
 import type { BookingRuleInput } from '@/lib/availability'
 
 export type FloatingFormSlot = {
@@ -58,10 +58,9 @@ export async function getFloatingFormDataAction(
     const baseRuleForDay = rulesForDay.find((r) => r.priority === 0)
     const adminDurations = baseRuleForDay?.allowedDurations ?? [30, 60, 90, 120]
     adminDurations.forEach((d) => globalDurations.add(d))
-    const openMin = Math.min(...rulesForDay.map(r => timeToMinutes(r.startTime)))
-    const closeMin = Math.max(...rulesForDay.map(r => timeToMinutes(r.endTime)))
-    const openTime = `${String(Math.floor(openMin / 60)).padStart(2, '0')}:${String(openMin % 60).padStart(2, '0')}`
-    const closeTime = `${String(Math.floor(closeMin / 60)).padStart(2, '0')}:${String(closeMin % 60).padStart(2, '0')}`
+    const { openMin, closeMin } = getRulesTimeBounds(rulesForDay)
+    const openTime = minutesToTime(openMin)
+    const closeTime = minutesToTime(closeMin)
     
     const courtBookings = bookings.filter((b) => b.courtId === court.id)
     const activeBookingStartTimes = new Set(

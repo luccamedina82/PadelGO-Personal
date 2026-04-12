@@ -34,20 +34,6 @@ export const SOURCE_FILTERS: ReadonlyArray<{ key: SourceFilterKey; label: string
   { key: 'BLOCK',     label: 'Bloqueo' },
 ]
 
-export function getLocalDateStr(): string {
-  // Usar timezone ARG para consistencia con el servidor (America/Argentina/Buenos_Aires = UTC-3)
-  const d = new Date()
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(d)
-  const year = parts.find((p) => p.type === 'year')?.value ?? ''
-  const month = parts.find((p) => p.type === 'month')?.value ?? ''
-  const day = parts.find((p) => p.type === 'day')?.value ?? ''
-  return `${year}-${month}-${day}`
-}
 
 export function clampTooltipPosition(
   x: number,

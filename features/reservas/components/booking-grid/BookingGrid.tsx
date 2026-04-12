@@ -18,13 +18,13 @@ import type {
   UpdateBookingData,
 } from './types/bookingGrid.types'
 import { minutesToTime, timeToMinutes } from '@/lib/availability'
+import { argTodayStr } from '@/lib/date'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import {
   SLOT_HEIGHT,
   COMPACT_SLOT_HEIGHT,
   TIME_COL_WIDTH,
   getBlockClass,
-  getLocalDateStr,
   isBlockSource,
   type SourceFilterKey,
 } from './helpers/bookingGrid.helpers'
@@ -303,7 +303,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
 
 // Calculamos la fecha actual una sola vez al montar (Hydration safe)
   useEffect(() => {
-    setClientTodayStr(getLocalDateStr())
+    setClientTodayStr(argTodayStr())
   }, [])
 
   // Un solo timer para mover la línea roja de la hora actual

@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma'
 import { cacheTag, cacheLife } from 'next/cache'
-import { argToday } from '@/lib/date'
+import { argToday, toUtcDateStr } from '@/lib/date'
 
 export type ConflictType = 'MAINTENANCE' | 'ARCHIVED' | 'OUT_OF_HOURS'
 
@@ -26,14 +26,6 @@ export interface CancelledBooking {
   cancelledAt: Date
 }
 
-function toDateStr(d: Date): string {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-}
-
-/** Strip time component — compare dates at UTC midnight regardless of stored time */
-function normDate(d: Date): number {
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
-}
 
 export async function getConflictBookings(clubId: string): Promise<ConflictBooking[]> {
   'use cache'
@@ -91,7 +83,7 @@ export async function getConflictBookings(clubId: string): Promise<ConflictBooki
   for (const b of futureBookings) {
     const playerName = b.manualName ?? b.user?.name ?? '—'
     const bookingDate = b.date instanceof Date ? b.date : new Date(b.date)
-    const dateStr = toDateStr(bookingDate)
+    const dateStr = toUtcDateStr(bookingDate)
 
     if (!b.court.isActive) {
       conflicts.push({
@@ -118,9 +110,8 @@ export async function getConflictBookings(clubId: string): Promise<ConflictBooki
     if (seenIds.has(b.id)) continue
     const playerName = b.manualName ?? b.user?.name ?? '—'
     const bookingDate = b.date instanceof Date ? b.date : new Date(b.date)
-    const dateStr = toDateStr(bookingDate)
-    const todayTs = normDate(today)
-    if (normDate(bookingDate) < todayTs) continue // ignore past
+    const dateStr = toUtcDateStr(bookingDate)
+    if (Date.UTC(bookingDate.getUTCFullYear(), bookingDate.getUTCMonth(), bookingDate.getUTCDate()) < Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())) continue // ignore past
     conflicts.push({
       id: b.id, courtId: b.court.id, courtName: b.court.name, dateStr,
       startTime: b.startTime, durationMinutes: b.durationMinutes,
@@ -157,7 +148,7 @@ export async function getRecentCancellations(clubId: string): Promise<CancelledB
   return rows.map((b) => ({
     id: b.id,
     courtName: b.court.name,
-    dateStr: toDateStr(b.date instanceof Date ? b.date : new Date(b.date)),
+    dateStr: toUtcDateStr(b.date instanceof Date ? b.date : new Date(b.date)),
     startTime: b.startTime,
     durationMinutes: b.durationMinutes,
     playerName: b.manualName ?? b.user?.name ?? '—',

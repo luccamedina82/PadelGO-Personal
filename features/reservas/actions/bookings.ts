@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import prisma from '@/lib/prisma'
 import { requireRole } from '@/features/auth/actions/auth'
 import { getAdminBookingsByDate, getBookingsByDate } from '@/features/reservas/dal/bookings'
-import { calcAvailableSlots, calcBookingPrice, resolveBookingRule, timeToMinutes, MIN_ADVANCE_MINUTES } from '@/lib/availability'
+import { calcAvailableSlots, timeToMinutes, MIN_ADVANCE_MINUTES, getRulesTimeBounds, hasSlotConflict, resolveBookingTotalPrice } from '@/lib/availability'
 import type { BookingRuleInput } from '@/lib/availability'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import type { PaymentStatus } from '@/app/generated/prisma/enums'
@@ -92,8 +92,9 @@ export async function createManualBooking(
       }
       // EXCEEDS_CLOSE_TIME is intentionally NOT enforced for OWNER/STAFF manual bookings.
       // Out-of-hours bookings are allowed and tracked via outOfHoursWarning.
-      const openTimeMin = rules.length > 0 ? Math.min(...rules.map(r => timeToMinutes(r.startTime))) : 0
-      const closeTimeMin = rules.length > 0 ? Math.max(...rules.map(r => timeToMinutes(r.endTime))) : 1440
+      const { openMin: openTimeMin, closeMin: closeTimeMin } = rules.length > 0
+        ? getRulesTimeBounds(rules as BookingRuleInput[])
+        : { openMin: 0, closeMin: 1440 }
       
       const existing = await tx.booking.findMany({
         where: {
@@ -104,30 +105,11 @@ export async function createManualBooking(
         select: { startTime: true, durationMinutes: true },
       })
 
-      const conflict = existing.some((b) => {
-        const bStart = timeToMinutes(b.startTime)
-        const bEnd = bStart + b.durationMinutes
-        return bStart < newEndMin && bEnd > newStartMin
-      })
+      if (hasSlotConflict(existing, newStartMin, newEndMin)) throw new Error('SLOT_TAKEN')
 
-      if (conflict) throw new Error('SLOT_TAKEN')
-
-      let totalPrice = 0
-      if (bookingType !== 'BLOQUEO' && rules.length > 0) {
-        if (priceOverride !== undefined) {
-          totalPrice = priceOverride
-        } else {
-          const baseRulePrice = rules.find(r => r.priority === 0)?.price ?? 0
-          const resolved = resolveBookingRule(
-            rules as BookingRuleInput[],
-            dayOfWeek,
-            newStartMin,
-            baseRulePrice
-          )
-          const finalPricePerHour = resolved?.price ?? baseRulePrice
-          totalPrice = calcBookingPrice(finalPricePerHour, durationMinutes)
-        }
-      }
+      const totalPrice = bookingType !== 'BLOQUEO' && rules.length > 0
+        ? resolveBookingTotalPrice(rules as BookingRuleInput[], dayOfWeek, newStartMin, durationMinutes, priceOverride)
+        : 0
 
       const bookingUserId = userId ?? session.userId
       const source = (bookingType === 'BLOQUEO' ? 'BLOCK' : 'MANUAL_STAFF') as import('@/app/generated/prisma/client').BookingSource
@@ -364,8 +346,7 @@ export async function updateBooking(
       // 3. Verificamos horario de cierre (solo si hay reglas) — constraint suave para admins
       let outOfHoursWarning = false
       if (rules.length > 0) {
-        const openMin  = Math.min(...rules.map(r => timeToMinutes(r.startTime)))
-        const closeMin = Math.max(...rules.map(r => timeToMinutes(r.endTime)))
+        const { openMin, closeMin } = getRulesTimeBounds(rules as BookingRuleInput[])
         if (booking.source !== 'BLOCK' && (newEndMin > closeMin || newStartMin < openMin)) {
           outOfHoursWarning = true
         }
@@ -383,13 +364,7 @@ export async function updateBooking(
         },
         select: { startTime: true, durationMinutes: true },
       })
-      const conflict = existing.some((b) => {
-        const bStart = timeToMinutes(b.startTime)
-        const bEnd = bStart + b.durationMinutes
-        return bStart < newEndMin && bEnd > newStartMin
-      })
-
-      if (conflict) throw new Error('SLOT_TAKEN')
+      if (hasSlotConflict(existing, newStartMin, newEndMin)) throw new Error('SLOT_TAKEN')
 
       const updateData: Record<string, unknown> = {
         startTime,
@@ -407,15 +382,7 @@ export async function updateBooking(
 
       // Recalculate price when time or court changes
       if (booking.source !== 'BLOCK' && rules.length > 0) {
-        const baseRulePrice = rules.find((r) => r.priority === 0)?.price ?? 0
-        const resolved = resolveBookingRule(
-          rules as BookingRuleInput[],
-          dayOfWeek,
-          newStartMin,
-          baseRulePrice
-        )
-        const finalPricePerHour = resolved?.price ?? baseRulePrice
-        updateData.totalPrice = calcBookingPrice(finalPricePerHour, durationMinutes)
+        updateData.totalPrice = resolveBookingTotalPrice(rules as BookingRuleInput[], dayOfWeek, newStartMin, durationMinutes)
       }
 
       await tx.booking.update({ where: { id: bookingId }, data: updateData })

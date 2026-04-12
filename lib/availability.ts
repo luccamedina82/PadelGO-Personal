@@ -271,3 +271,46 @@ export function formatPrice(centavos: number): string {
 export function formatPricePerHour(pricePerHour: number): string {
   return `${formatPrice(pricePerHour)}/hr`
 }
+
+// ── HIGHER-LEVEL BOOKING HELPERS ──────────────────────────────────────────
+
+/**
+ * Returns the earliest open time and latest close time from a set of rules.
+ */
+export function getRulesTimeBounds(rules: BookingRuleInput[]): { openMin: number; closeMin: number } {
+  return {
+    openMin:  Math.min(...rules.map(r => timeToMinutes(r.startTime))),
+    closeMin: Math.max(...rules.map(r => timeToMinutes(r.endTime))),
+  }
+}
+
+/**
+ * Resolves the total price (centavos) for a booking given its rules, day, start, and duration.
+ * Pass priceOverride (centavos) to skip rule resolution entirely.
+ */
+export function resolveBookingTotalPrice(
+  rules: BookingRuleInput[],
+  dayOfWeek: number,
+  startMin: number,
+  durationMinutes: number,
+  priceOverride?: number,
+): number {
+  if (priceOverride !== undefined) return priceOverride
+  const baseRulePrice = rules.find(r => r.priority === 0)?.price ?? 0
+  const resolved = resolveBookingRule(rules, dayOfWeek, startMin, baseRulePrice)
+  return calcBookingPrice(resolved?.price ?? baseRulePrice, durationMinutes)
+}
+
+/**
+ * Returns true if any existing booking overlaps [newStartMin, newEndMin).
+ */
+export function hasSlotConflict(
+  existing: Array<{ startTime: string; durationMinutes: number }>,
+  newStartMin: number,
+  newEndMin: number,
+): boolean {
+  return existing.some(b => {
+    const bStart = timeToMinutes(b.startTime)
+    return bStart < newEndMin && bStart + b.durationMinutes > newStartMin
+  })
+}
