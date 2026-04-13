@@ -50,7 +50,7 @@ export default function DurationPickerSection({
       : 240
 
   const canDecrease = selectedDuration > MIN_DURATION
-  const canIncrease = selectedDuration > 0 && selectedDuration + 5 <= maxDuration
+  const canIncrease = selectedDuration > 0 && selectedDuration + 30 <= maxDuration
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-1 duration-150">
@@ -68,8 +68,7 @@ export default function DurationPickerSection({
         <>
           {/* Cards principales — duraciones del admin */}
           <div className="flex gap-2">
-            {displayOptions.map((d) => {
-              const isAvailable = availableDurations.includes(d)
+            {displayOptions.filter((d) => d <= maxDuration && availableDurations.includes(d)).map((d) => {
               const isSelected = selectedDuration === d
               const endTime = startTime ? computeEndTime(startTime, d) : null
               const price = pricePerHour > 0 ? calcBookingPrice(pricePerHour, d) : 0
@@ -78,10 +77,8 @@ export default function DurationPickerSection({
                 <button
                   key={d}
                   type="button"
-                  disabled={!isAvailable}
-                  title={!isAvailable ? 'No disponible en este horario' : undefined}
                   onClick={() => onChange(d)}
-                  className={`flex-1 flex flex-col items-center gap-0.5 px-2 py-3 rounded-xl border transition-all cursor-pointer active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-30 ${
+                  className={`flex-1 flex flex-col items-center gap-0.5 px-2 py-3 rounded-xl border transition-all cursor-pointer active:scale-[.97] ${
                     isSelected
                       ? 'border-accent bg-accent/10 shadow-[0_0_0_1px_inset] shadow-accent/20'
                       : 'border-border bg-surface hover:border-border-hover hover:bg-card'
@@ -105,21 +102,21 @@ export default function DurationPickerSection({
             })}
           </div>
 
-          {/* Stepper ±5 min para duración personalizada */}
+          {/* Stepper ±30 min para duración personalizada */}
           {startTime && courtId && selectedDuration > 0 && (
             <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-2">
-              <span className="shrink-0 text-[9px] text-muted/50 font-semibold uppercase tracking-wide">personalizar</span>
+              <span className="shrink-0 text-[9px] text-muted/50 font-semibold uppercase tracking-wide">±30 min</span>
               <div className="ml-auto flex items-center gap-2">
                 <button
                   type="button"
                   disabled={!canDecrease}
-                  onClick={() => onChange(selectedDuration - 5)}
+                  onClick={() => onChange(selectedDuration - 30)}
                   className="w-7 h-7 rounded-lg border border-border bg-surface flex items-center justify-center text-muted hover:border-border-hover hover:text-text transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <span className="text-[14px] leading-none select-none">−</span>
                 </button>
                 <div className="flex flex-col items-center w-20">
-                  <span className={`text-[12px] font-semibold leading-tight ${displayOptions.includes(selectedDuration) ? 'text-muted' : 'text-accent'}`}>
+                  <span className={`text-[12px] font-semibold leading-tight ${displayOptions.filter((d) => d <= maxDuration && availableDurations.includes(d)).includes(selectedDuration) ? 'text-muted' : 'text-accent'}`}>
                     {fmtDur(selectedDuration)}
                   </span>
                   <span className="text-[10px] font-mono text-muted/50 leading-tight">
@@ -129,7 +126,7 @@ export default function DurationPickerSection({
                 <button
                   type="button"
                   disabled={!canIncrease}
-                  onClick={() => onChange(selectedDuration + 5)}
+                  onClick={() => onChange(selectedDuration + 30)}
                   className="w-7 h-7 rounded-lg border border-border bg-surface flex items-center justify-center text-muted hover:border-border-hover hover:text-text transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <span className="text-[14px] leading-none select-none">+</span>

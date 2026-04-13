@@ -425,10 +425,25 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
 
       <div className="grow min-h-0 relative overflow-hidden">
       <div ref={containerRef} className="h-full overflow-auto">
-        {!gridReady ? (
-          <BookingGridSkeleton courts={visibleCourts} gridStart={gridStart} gridEnd={gridEnd} />
-        ) : (
-        <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 120}px` }}>
+        {/* Skeleton overlay — fades out when grid is ready */}
+        <div
+          className="absolute inset-0 z-10 pointer-events-none transition-opacity duration-150"
+          style={{ opacity: gridReady ? 0 : 1 }}
+          aria-hidden
+        >
+          <BookingGridSkeleton
+            courts={visibleCourts}
+            gridStart={gridStart}
+            gridEnd={gridEnd}
+            bookings={bookings}
+          />
+        </div>
+
+        {/* Real grid — always rendered, fades in */}
+        <div
+          className="transition-opacity duration-150"
+          style={{ opacity: gridReady ? 1 : 0, minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 120}px` }}
+        >
           <BookingGridHeader courts={courts} visibleCourts={visibleCourts} colWidth={colWidth} />
 
           <div ref={gridBodyRef} className="relative flex">
@@ -650,8 +665,7 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
             )}
           </div>
         </div>
-        )}
-      </div>
+        </div>
       </div>
 
       {gridReady && isViewingToday && currentLineTop !== null && (() => {

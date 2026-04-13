@@ -78,7 +78,8 @@ export default function BookingGridFilterBar({
       <button
         ref={btnRef}
         onClick={() => setFiltersOpen((o) => !o)}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
+        style={{ animationDelay: '0ms', animationFillMode: 'backwards' }}
+        className={`animate-in fade-in duration-200 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
           ${typeFilter !== null
             ? 'border-transparent'
             : filtersOpen
@@ -164,10 +165,11 @@ export default function BookingGridFilterBar({
       )}
 
       {/* ── Quick payment filters ─────────────────────────── */}
-      <div className="w-px h-4 bg-border shrink-0" />
+      <div className="w-px h-4 bg-border shrink-0" style={{ animationDelay: '120ms', animationFillMode: 'backwards' }} />
       <button
         onClick={() => onPaymentFilterChange(paymentFilter === 'UNPAID' ? null : 'UNPAID')}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
+        style={{ animationDelay: '240ms', animationFillMode: 'backwards' }}
+        className={`animate-in fade-in duration-200 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
           ${paymentFilter === 'UNPAID'
             ? 'bg-orange-500/12 border-orange-500/40 text-orange-400'
             : 'bg-card border-border text-muted hover:text-text hover:border-border-hover'
@@ -178,7 +180,8 @@ export default function BookingGridFilterBar({
       </button>
       <button
         onClick={() => onPaymentFilterChange(paymentFilter === 'PAID' ? null : 'PAID')}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
+        style={{ animationDelay: '360ms', animationFillMode: 'backwards' }}
+        className={`animate-in fade-in duration-200 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
           ${paymentFilter === 'PAID'
             ? 'bg-green-500/12 border-green-500/40 text-green-400'
             : 'bg-card border-border text-muted hover:text-text hover:border-border-hover'
@@ -191,7 +194,7 @@ export default function BookingGridFilterBar({
       <div className="flex-1" />
 
       {/* ── Right-side controls ──────────────────────────── */}
-      <div className="flex items-center gap-2">
+      <div className="animate-in fade-in duration-200 flex items-center gap-2" style={{ animationDelay: '480ms', animationFillMode: 'backwards' }}>
 
         {/* OOB indicator */}
         {hasHiddenBookings && (
