@@ -78,7 +78,17 @@ export default function BookingGridFilterBar({
       <button
         ref={btnRef}
         onClick={() => setFiltersOpen((o) => !o)}
-        style={{ animationDelay: '0ms', animationFillMode: 'backwards' }}
+        style={{
+          animationDelay: '0ms',
+          animationFillMode: 'backwards',
+          ...(typeFilter !== null && activeColor
+            ? {
+                background: `color-mix(in srgb, ${activeColor} 14%, transparent)`,
+                borderColor: `color-mix(in srgb, ${activeColor} 45%, transparent)`,
+                color: activeColor,
+              }
+            : {}),
+        }}
         className={`animate-in fade-in duration-200 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-all select-none
           ${typeFilter !== null
             ? 'border-transparent'
@@ -86,11 +96,6 @@ export default function BookingGridFilterBar({
               ? 'bg-card border-border-hover text-text'
               : 'bg-card border-border text-muted hover:text-text hover:border-border-hover'
           }`}
-        style={typeFilter !== null && activeColor ? {
-          background: `color-mix(in srgb, ${activeColor} 14%, transparent)`,
-          borderColor: `color-mix(in srgb, ${activeColor} 45%, transparent)`,
-          color: activeColor,
-        } : undefined}
       >
         {typeFilter !== null && activeColor && (
           <span

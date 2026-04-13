@@ -13,9 +13,9 @@ import type { SectionState } from '../hooks/useFormSections'
 interface Props {
   stepFor: (id: string) => number
   getSection: (id: string) => SectionState
-  firstTimeRef: React.RefObject<HTMLButtonElement>
-  firstCourtRef: React.RefObject<HTMLButtonElement>
-  firstEndTimeRef: React.RefObject<HTMLButtonElement>
+  firstTimeRef: React.RefObject<HTMLButtonElement | null>
+  firstCourtRef: React.RefObject<HTMLButtonElement | null>
+  firstEndTimeRef: React.RefObject<HTMLButtonElement | null>
   form: FormState
   dispatch: React.Dispatch<FormAction>
   clubId: string
