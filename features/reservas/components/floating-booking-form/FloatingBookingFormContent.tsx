@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useReducer, useState } from 'react'
+import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useRecentClients } from './hooks/useRecentClients'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFormSections } from './hooks/useFormSections'
@@ -22,6 +22,7 @@ import FullPickersSection from './sections/FullPickersSection'
 import type { CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
 import type { FloatingFormInitialData } from '@/app/(owner)/admin/reservas/BookingsClient'
 import type { FloatingFormCourtSlots } from '@/features/reservas/actions/floatingFormData'
+import { useBookingFormStore } from '@/store/useBookingFormStore'
 
 interface Props {
   clubId: string
@@ -66,6 +67,11 @@ export default function FloatingBookingFormContent({
     reasonPreset: '',
     error: null,
   })
+
+  // ── Sync live duration to store so BookingGrid ghost resizes ──────────
+  const setLiveDuration = useBookingFormStore((s) => s.setLiveDuration)
+  useEffect(() => { setLiveDuration(form.duration) }, [form.duration, setLiveDuration])
+  useEffect(() => { return () => setLiveDuration(null) }, [setLiveDuration])
 
   // ── Sections visibility ────────────────────────────────────────────────
   const { sections, activeSection } = useFormSections(form, initialData, isExpanded)

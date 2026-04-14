@@ -12,11 +12,12 @@ interface BookingDrawerProps {
   initialCourtId?: string
   initialStartTime?: string
   initialDuration?: number
+  initialAllowedDurations?: number[]
   onClose: () => void
   onCreated: (bookingId?: string) => void
 }
 
-export default function BookingDrawer({ clubId, courts, initialDate, initialCourtId, initialStartTime, initialDuration, onClose, onCreated }: BookingDrawerProps) {
+export default function BookingDrawer({ clubId, courts, initialDate, initialCourtId, initialStartTime, initialDuration, initialAllowedDurations, onClose, onCreated }: BookingDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
 
   // Cierra con Escape
@@ -58,6 +59,7 @@ export default function BookingDrawer({ clubId, courts, initialDate, initialCour
           initialCourtId={initialCourtId}
           initialStartTime={initialStartTime}
           initialDuration={initialDuration}
+          initialAllowedDurations={initialAllowedDurations}
           onClose={onClose}
           onCreated={onCreated}
         />

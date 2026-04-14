@@ -22,7 +22,6 @@ export type FloatingFormCourtSlots = {
 
 export type FloatingFormData = {
   courtSlots: FloatingFormCourtSlots[]
-  durationOptions: number[]
 }
 
 export async function getFloatingFormDataAction(
@@ -41,7 +40,6 @@ export async function getFloatingFormDataAction(
   ])
 
   const courtSlots: FloatingFormCourtSlots[] = []
-  const globalDurations = new Set<number>()
   for (const court of courts) {
 
     const combinedRules: BookingRuleInput[] = [...clubRules, ...(court.bookingRule as BookingRuleInput[])]
@@ -53,11 +51,6 @@ export async function getFloatingFormDataAction(
       continue
     }
 
-    // Duraciones del admin = solo las de la regla base (priority=0). Las reglas de mayor
-    // prioridad restringen al jugador online, no al admin.
-    const baseRuleForDay = rulesForDay.find((r) => r.priority === 0)
-    const adminDurations = baseRuleForDay?.allowedDurations ?? [30, 60, 90, 120]
-    adminDurations.forEach((d) => globalDurations.add(d))
     const { openMin, closeMin } = getRulesTimeBounds(rulesForDay)
     const openTime = minutesToTime(openMin)
     const closeTime = minutesToTime(closeMin)
@@ -97,10 +90,5 @@ export async function getFloatingFormDataAction(
     })
   }
 
-  return { 
-    courtSlots, 
-    durationOptions: globalDurations.size > 0 
-      ? Array.from(globalDurations).sort((a, b) => a - b) 
-      : []
-  }
+  return { courtSlots }
 }

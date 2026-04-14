@@ -24,6 +24,7 @@ interface Props {
   initialCourtId?: string
   initialStartTime?: string
   initialDuration?: number
+  initialAllowedDurations?: number[]
   onClose: () => void
   onCreated: (bookingId?: string) => void
 }
@@ -32,7 +33,7 @@ const STEP_LABELS_RESERVA = ['¿Cuándo?', 'Horario', 'Cancha', 'Cliente']
 const STEP_LABELS_BLOQUEO = ['¿Cuándo?', 'Horario', 'Cancha', 'Motivo']
 
 export default function BookingDrawerContent({
-  clubId, courts, initialDate, initialCourtId, initialStartTime, initialDuration, onClose, onCreated,
+  clubId, courts, initialDate, initialCourtId, initialStartTime, initialDuration, initialAllowedDurations, onClose, onCreated,
 }: Props) {
   const [isPending, startTransition] = useTransition()
   const queryClient = useQueryClient()
@@ -52,7 +53,7 @@ export default function BookingDrawerContent({
     enabled: state.step >= 1,
   })
   const courtSlots = floatingData?.courtSlots ?? []
-  const globalDurations = floatingData?.durationOptions ?? []
+  const globalDurations = initialAllowedDurations ?? []
 
   const slot = courtSlots.find((cs) => cs.courtId === state.courtId)?.slots.find((s) => s.time === state.startTime)
   const basePrice = slot ? calcBookingPrice(slot.pricePerHour, state.duration) : 0

@@ -32,6 +32,7 @@ export type FloatingFormInitialData = {
   mode: 'full' | 'quick'
   /** true = duración elegida explícitamente (drag). false = default sugerido (clic) */
   durationLocked?: boolean
+  allowedDurations?: number[]
 }
 
 interface BookingClientProps {
@@ -57,7 +58,7 @@ export default function BookingsClient({
   const router = useRouter()
   const queryClient = useQueryClient()
   const prevDateRef = useRef('')
-  const { isOpen, anchorEl, virtualCoords, initialData, openForm, closeForm } = useBookingFormStore()
+  const { isOpen, anchorEl, virtualCoords, initialData, openForm, closeForm, liveDuration } = useBookingFormStore()
   const dragCancelRef = useRef<(() => void) | null>(null)
   const dragCreatedRef = useRef<((bookingId?: string) => void) | null>(null)
   const drawerPrefillRef = useRef<{ courtId: string; startTime: string; duration: number } | null>(null)
@@ -176,7 +177,7 @@ export default function BookingsClient({
       ? { x: cellRect.left, y: cellRect.top, width: cellRect.width, height: (defaultDuration / 30) * SLOT_HEIGHT }
       : undefined
     openForm(
-      { date: selectedDate, courtId, startTime: minutesToTime(slotMinutes), durationMinutes: defaultDuration, mode: 'quick', durationLocked: false },
+      { date: selectedDate, courtId, startTime: minutesToTime(slotMinutes), durationMinutes: defaultDuration, mode: 'quick', durationLocked: false, allowedDurations: baseBookingRule?.allowedDurations ?? [] },
       null,
       coords
     )
@@ -186,7 +187,7 @@ export default function BookingsClient({
     dragCancelRef.current = cancel
     dragCreatedRef.current = created
     openForm(
-      { date: selectedDate, courtId: pending.courtId, startTime: minutesToTime(pending.ghost.startMin), durationMinutes: pending.ghost.durationMinutes, mode: 'quick', durationLocked: true },
+      { date: selectedDate, courtId: pending.courtId, startTime: minutesToTime(pending.ghost.startMin), durationMinutes: pending.ghost.durationMinutes, mode: 'quick', durationLocked: true, allowedDurations: baseBookingRule?.allowedDurations ?? [] },
       null,
       pending.ghostRect
     )
@@ -216,9 +217,9 @@ export default function BookingsClient({
     return {
       courtId: initialData.courtId,
       startMin: timeToMinutes(initialData.startTime),
-      durationMinutes: initialData.durationMinutes ?? 60,
+      durationMinutes: liveDuration ?? initialData.durationMinutes ?? 60,
     }
-  }, [initialData])
+  }, [initialData, liveDuration])
 
   const hasHiddenBookings = useMemo(
     () =>
@@ -298,7 +299,7 @@ export default function BookingsClient({
               }
             }
             closeForm()
-            openForm({ date, mode: 'full' })
+            openForm({ date, mode: 'full', allowedDurations: baseBookingRule?.allowedDurations ?? [] })
           }}
         />
       )}
@@ -312,6 +313,7 @@ export default function BookingsClient({
           initialCourtId={drawerPrefillRef.current?.courtId}
           initialStartTime={drawerPrefillRef.current?.startTime}
           initialDuration={drawerPrefillRef.current?.duration}
+          initialAllowedDurations={initialData.allowedDurations ?? baseBookingRule?.allowedDurations ?? []}
           onClose={() => { drawerPrefillRef.current = null; closeForm() }}
           onCreated={handleFormCreated}
         />

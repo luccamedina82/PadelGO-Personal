@@ -65,7 +65,7 @@ export default function FloatingBookingForm(props: FloatingBookingFormProps) {
     staleTime: 1000 * 60,
   })
   const courtSlots: FloatingFormCourtSlots[] = floatingData?.courtSlots ?? []
-  const globalDurations: number[] = floatingData?.durationOptions ?? []
+  const globalDurations: number[] = props.initialData.allowedDurations ?? []
 
   // Hydration guard — render nothing on SSR, mount on client only
   const [isMounted, setIsMounted] = useState(false)

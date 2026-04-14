@@ -78,7 +78,11 @@ export function useBookingDerived({
     }
     if (durationAutoFixedRef.current) return
     durationAutoFixedRef.current = true
-    if (!durationOptions.includes(form.duration)) {
+    // Only correct when duration is too large (or zero). Do NOT correct when
+    // form.duration < durationOptions[0] — that means available space is smaller
+    // than the minimum allowed duration (e.g. 30 min free, min allowed = 60).
+    // Forcing it to 60 would be wrong since 60 doesn't fit either.
+    if (!durationOptions.includes(form.duration) && form.duration >= (durationOptions[0] ?? 0)) {
       dispatch({ type: 'SET_COURT_DURATION', payload: { courtId: form.courtId, duration: durationOptions[0] } })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
