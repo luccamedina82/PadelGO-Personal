@@ -25,6 +25,8 @@ export default async function ReservasPage({ searchParams }: Props) {
   const { date: dateParam, highlight: highlightParam } = await searchParams
   const { club } = await getAdminContext(['OWNER', 'STAFF'])
 
+
+  
   if (!club) {
     return <div className="p-8 text-center text-muted">No tenés ningún club asignado.</div>
   }
@@ -40,6 +42,7 @@ export default async function ReservasPage({ searchParams }: Props) {
   return (
     <BookingsProvider initialSelectedDate={selectedDate} initialWeekStart={weekStart}>
       <BookingsHeader clubId={club.id} clubName={club.name} />
+      
       <Suspense
         fallback={
           <div className="flex-1 overflow-hidden flex flex-col min-h-0">

@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { minutesToTime, timeToMinutes } from '@/lib/availability'
 import { SLOT_HEIGHT } from '@/features/reservas/components/booking-grid/helpers/bookingGrid.helpers'
-import { BookingBlock, CourtColumn } from '@/features/reservas/components/booking-grid/BookingGrid'
+import { BookingBlock } from '@/features/reservas/components/booking-grid/BookingGrid'
 import type { PendingCreate } from '@/features/reservas/components/booking-grid/hooks/useBookingDragCreate'
 import dynamic from 'next/dynamic'
 import ReservasShell from './ReservasShell'
@@ -23,6 +23,8 @@ import { useBookingsContext, useCourtsContext } from './BookingsContext'
 import { useReservasSidebarStore } from '@/store/reservasSidebarStore'
 import { BLOCK_SOURCES } from '@/features/reservas/constants/bookingSources'
 import { useBookingsData } from './hooks/useBookingsData'
+
+let globalSavedColWidth: number | null = null;
 
 export type FloatingFormInitialData = {
   date: string
@@ -55,8 +57,15 @@ export default function BookingsClient({
   const [eventHighlightBookingId, setEventHighlightBookingId] = useState<string | undefined>()
   const [show24Hours, setShow24Hours] = useState(false)
   const [focusCourtIds, setFocusCourtIds] = useState<string[]>([])
+  
+  const [savedColWidth, setSavedColWidth] = useState<number | null>(globalSavedColWidth)
+  
+  const handleWidthMeasured = useCallback((w: number) => {
+    globalSavedColWidth = w
+    setSavedColWidth(w)
+  }, [])
+
   const router = useRouter()
-  const queryClient = useQueryClient()
   const prevDateRef = useRef('')
   const { isOpen, anchorEl, virtualCoords, initialData, openForm, closeForm, liveDuration } = useBookingFormStore()
   const dragCancelRef = useRef<(() => void) | null>(null)
@@ -265,6 +274,8 @@ export default function BookingsClient({
           focusCourtIds={focusCourtIds}
           onCourtToggle={toggleCourt}
           onClearCourts={clearCourts}
+          initialColWidth={savedColWidth}
+          onWidthMeasured={handleWidthMeasured}
         />
       </div>
 

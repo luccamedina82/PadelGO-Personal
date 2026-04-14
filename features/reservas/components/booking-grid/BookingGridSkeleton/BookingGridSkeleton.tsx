@@ -16,8 +16,6 @@ interface BookingGridSkeletonProps {
   bookings?: SkeletonBooking[]
 }
 
-const FALLBACK_ROWS = [2, 6, 10]
-
 export default function BookingGridSkeleton({ courts, gridStart, gridEnd, bookings }: BookingGridSkeletonProps) {
   const totalSlots = (gridEnd - gridStart) / 30
   const visibleRows = Math.min(totalSlots, 18)
@@ -76,24 +74,15 @@ export default function BookingGridSkeleton({ courts, gridStart, gridEnd, bookin
               key={court.id}
               className="flex-1 relative border-l border-border"
             >
-              {/* Row grid lines */}
+              {/* Row grid lines (Sin los bloques falsos) */}
               {Array.from({ length: visibleRows }, (_, i) => {
                 const isHour = i % 2 === 0
-                const rowSlotMin = gridStart + i * 30
-                const hasFallbackBlock = !bookings && court.isActive && FALLBACK_ROWS.includes(i)
                 return (
                   <div
                     key={i}
                     className={`relative ${isHour ? 'border-b border-border-hover bg-(--grid-row-alt)' : 'border-b border-border/40'}`}
                     style={{ height: SLOT_HEIGHT, animationDelay: `${courtIndex * 0.08 + i * 0.04}s`, animationDuration: '2s' }}
-                  >
-                    {hasFallbackBlock && (
-                      <Skeleton
-                        className="absolute inset-x-1 rounded-xl overflow-hidden"
-                        style={{ top: 3, height: SLOT_HEIGHT * 2 - 6, animationDuration: '2s', animationDelay: `${courtIndex * 0.08 + i * 0.04}s` }}
-                      />
-                    )}
-                  </div>
+                  />
                 )
               })}
 

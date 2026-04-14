@@ -77,4 +77,6 @@ export interface BookingGridProps {
   focusCourtIds?: string[]
   onCourtToggle?: (id: string) => void
   onClearCourts?: () => void
+  initialColWidth?: number | null
+  onWidthMeasured?: (width: number) => void
 }

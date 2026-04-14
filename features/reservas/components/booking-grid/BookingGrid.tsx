@@ -8,7 +8,6 @@ import BookingGridFilterBar from './BookingGridFilterBar/BookingGridFilterBar'
 import BookingGridHeader from './BookingGridHeader/BookingGridHeader'
 import BookingGridTimeColumn from './BookingGridTimeColumn/BookingGridTimeColumn'
 import BookingBlockCell from './BookingBlockCell/BookingBlockCell'
-import BookingGridSkeleton from './BookingGridSkeleton/BookingGridSkeleton'
 import { useBookingDragResize } from './hooks/useBookingDragResize'
 import { useBookingDragCreate } from './hooks/useBookingDragCreate'
 import type {
@@ -57,6 +56,8 @@ export default function BookingGrid({
   focusCourtIds: focusCourtIdsProp,
   onCourtToggle,
   onClearCourts,
+  initialColWidth, 
+  onWidthMeasured,
 }: BookingGridProps) {
   const [compactMode, setCompactMode] = useState(false)
   const slotHeight = compactMode ? COMPACT_SLOT_HEIGHT : SLOT_HEIGHT
@@ -78,8 +79,10 @@ export default function BookingGrid({
   const clickedCellRectRef = useRef<DOMRect | null>(null)
   const onDragCreateReadyRef = useRef(onDragCreateReady)
   onDragCreateReadyRef.current = onDragCreateReady
-  const [colWidth, setColWidth] = useState(140)
-  const [gridReady, setGridReady] = useState(false)
+  const onWidthMeasuredRef = useRef(onWidthMeasured)
+  onWidthMeasuredRef.current = onWidthMeasured
+  const [colWidth, setColWidth] = useState(initialColWidth ?? 140)
+  const [gridReady, setGridReady] = useState(!!initialColWidth)
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null)
   const [clientTodayStr, setClientTodayStr] = useState<string | null>(null)
   const [selectedBooking, setSelectedBooking] = useState<BookingBlock | null>(null)
@@ -96,8 +99,6 @@ export default function BookingGrid({
   // focusCourtIds: controlled from BookingsClient (lifted) so sidebar can also toggle courts
   const [localFocusCourtIds, setLocalFocusCourtIds] = useState<string[]>([])
   const focusCourtIds = focusCourtIdsProp ?? localFocusCourtIds
-  const toggleCourtFilter = onCourtToggle ?? ((id: string) => setLocalFocusCourtIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
-  const clearCourts = onClearCourts ?? (() => setLocalFocusCourtIds([]))
   const [typeFilter, setTypeFilter] = useState<SourceFilterKey>(null)
   const [paymentFilter, setPaymentFilter] = useState<'PAID' | 'UNPAID' | null>(null)
 
@@ -215,17 +216,21 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
     return { effectiveBookings: effective, occupiedSlotsByCourt: occupied, bookingsByCourt: byCourt, unpaidCount: unpaid }
   }, [bookings, typeFilter, paymentFilter, localOverrides])
 
+  const lastNotifiedWidth = useRef(initialColWidth ?? 140)
+
   useEffect(() => {
     if (!containerRef.current) return
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const totalWidth = entry.contentRect.width - TIME_COL_WIDTH
         const natural = Math.floor(totalWidth / Math.max(visibleCourtCount, 1))
-        // No upper cap — courts fill all available horizontal space.
-        // Lower cap 120px ensures the grid stays scrollable when many courts are visible.
         const w = Math.max(120, natural)
         setColWidth(w)
         setGridReady(true)
+        if (lastNotifiedWidth.current !== w) {
+          lastNotifiedWidth.current = w
+          onWidthMeasuredRef.current?.(w)
+        }
       }
     })
     observer.observe(containerRef.current)
@@ -425,25 +430,9 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
 
       <div className="grow min-h-0 relative overflow-hidden">
       <div ref={containerRef} className="h-full overflow-auto">
-        {/* Skeleton overlay — fades out when grid is ready */}
-        <div
-          className="absolute inset-0 z-10 pointer-events-none transition-opacity duration-150"
-          style={{ opacity: gridReady ? 0 : 1 }}
-          aria-hidden
-        >
-          <BookingGridSkeleton
-            courts={visibleCourts}
-            gridStart={gridStart}
-            gridEnd={gridEnd}
-            bookings={bookings}
-          />
-        </div>
 
         {/* Real grid — always rendered, fades in */}
-        <div
-          className="transition-opacity duration-150"
-          style={{ opacity: gridReady ? 1 : 0, minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 120}px` }}
-        >
+        <div style={{ minWidth: `${TIME_COL_WIDTH + visibleCourts.length * 120}px` }}>
           <BookingGridHeader courts={courts} visibleCourts={visibleCourts} colWidth={colWidth} />
 
           <div ref={gridBodyRef} className="relative flex">
@@ -462,7 +451,14 @@ const { effectiveBookings, occupiedSlotsByCourt, bookingsByCourt, unpaidCount } 
               return (
                 <div
                   key={court.id}
-                  style={{ width: colWidth, minWidth: colWidth, height: gridHeight, transition: 'height 300ms ease', background: courtIndex % 2 === 1 ? 'var(--grid-col-alt)' : undefined }}
+                  style={{ 
+                    width: gridReady ? colWidth : undefined, 
+                    minWidth: gridReady ? colWidth : 120,
+                    flex: gridReady ? 'none' : 1,
+                    height: gridHeight, 
+                    transition: 'height 300ms ease, width 300ms ease', 
+                    background: courtIndex % 2 === 1 ? 'var(--grid-col-alt)' : undefined
+                  }}
                   className="relative border-l border-border"
                   onPointerDown={(e) => {
                     if (court.isUnderMaintenance || court.isActive === false) return
